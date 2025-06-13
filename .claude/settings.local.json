@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "mcp__ide__executeCode",
+      "Bash(ls:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm start 2 >& 1)",
+      "Bash(ls:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+      "Bash(LOG_LEVEL=debug node dist/src/test-chatgpt.js 2 >& 1)",
+      "Bash(LOG_LEVEL=debug npm start 2 >& 1)",
+      "Bash(LOG_LEVEL=debug node dist/src/mcp-server.js 2 >& 1)",
+      "Bash(chmod:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm test)",
+      "Bash(AEGIS_LOG_LEVEL=error node test-direct-tools.js 2>&1)",
+      "Bash(npm run start:mcp:*)",
+      "Bash(kill:*)",
+      "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node dist/src/mcp-server.js 2 >& 1)",
+      "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-manual-mcp.js 2 >& 1)",
+      "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-filesystem-only.js)",
+      "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-aegis-tools.js 2 >& 1)",
+      "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

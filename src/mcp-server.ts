@@ -23,7 +23,8 @@ dotenv.config();
  * MCPプロキシサーバーを起動
  */
 async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
-  const logger = new Logger();
+  const logLevel = process.env.LOG_LEVEL || 'info';
+  const logger = new Logger(logLevel);
   
   try {
     logger.info(`🚀 Starting AEGIS MCP Proxy Server (${transport} transport)...`);
@@ -50,11 +51,32 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       mcpProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine);
       
       // 上流サーバー設定
-      // 1. Claude Desktop設定ファイルから読み込み
+      // 1. aegis-mcp-config.jsonから読み込み（優先）
+      const aegisConfigPath = path.join(process.cwd(), 'aegis-mcp-config.json');
+      
+      if (fs.existsSync(aegisConfigPath)) {
+        try {
+          const configContent = fs.readFileSync(aegisConfigPath, 'utf-8');
+          const aegisConfig = JSON.parse(configContent);
+          
+          if (aegisConfig.mcpServers) {
+            logger.info('Loading upstream servers from aegis-mcp-config.json...');
+            mcpProxy.loadDesktopConfig(aegisConfig);
+            
+            const serverNames = Object.keys(aegisConfig.mcpServers)
+              .filter(name => name !== 'aegis-proxy' && name !== 'aegis');
+            logger.info(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`);
+          }
+        } catch (error) {
+          logger.warn('Failed to load aegis-mcp-config.json:', error);
+        }
+      }
+      
+      // 2. Claude Desktop設定ファイルから読み込み（フォールバック）
       const desktopConfigPath = process.env.CLAUDE_DESKTOP_CONFIG || 
         path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
       
-      if (fs.existsSync(desktopConfigPath)) {
+      if (!fs.existsSync(aegisConfigPath) && fs.existsSync(desktopConfigPath)) {
         try {
           const configContent = fs.readFileSync(desktopConfigPath, 'utf-8');
           const desktopConfig = JSON.parse(configContent);
@@ -72,7 +94,7 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
         }
       }
       
-      // 2. 環境変数からの設定（オーバーライド）
+      // 3. 環境変数からの設定（オーバーライド）
       const upstreamServers = process.env.UPSTREAM_SERVERS_STDIO;
       if (upstreamServers) {
         logger.info('Configuring additional upstream servers from environment...');

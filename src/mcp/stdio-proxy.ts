@@ -40,6 +40,8 @@ export class MCPStdioPolicyProxy {
   // ポリシー管理
   private policies = new Map<string, string>();
   
+  private upstreamStartPromise: Promise<void> | null = null;
+
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine) {
     this.config = config;
     this.logger = logger;
@@ -103,12 +105,10 @@ export class MCPStdioPolicyProxy {
         // 上流サーバーに転送
         const result = await this.forwardToUpstream('resources/read', request.params);
         
-        // 制約適用
-        const constrainedResult = await this.applyConstraints(result, decision.constraints || []);
+        // 制約適用（result.resultを使用）
+        const constrainedResult = await this.applyConstraints(result.result, decision.constraints || []);
         
-        return {
-          contents: constrainedResult
-        };
+        return constrainedResult;
       } catch (error) {
         this.logger.error('Resource read error', error);
         throw error;
@@ -120,17 +120,17 @@ export class MCPStdioPolicyProxy {
       this.logger.info('List resources request');
       
       try {
-        // ポリシー判定実行
-        const decision = await this.enforcePolicy('list', 'resource-listing', { request });
+        // リソース一覧取得はポリシー判定をスキップ（リソースアクセス時に判定）
+        // 上流サーバーに転送
+        const result = await this.forwardToUpstream('resources/list', {});
         
-        if (decision.decision === 'DENY') {
-          throw new Error(`Access denied: ${decision.reason}`);
+        // MCPプロトコルに準拠した形式で返す
+        if (result && result.result) {
+          return result.result;
         }
         
-        // 上流サーバーに転送
-        const result = await this.forwardToUpstream('resources/list', request.params || {});
-        
-        return result;
+        // フォールバック（空の配列を返す）
+        return { resources: [] };
       } catch (error) {
         this.logger.error('List resources error', error);
         throw error;
@@ -149,15 +149,26 @@ export class MCPStdioPolicyProxy {
           throw new Error(`Access denied: ${decision.reason}`);
         }
         
+        // サーバープレフィックスを除去してから転送
+        const toolName = request.params.name;
+        const strippedParams = { ...request.params };
+        
+        // filesystem__read_file -> read_file のように変換
+        const prefixMatch = toolName.match(/^[^_]+__(.+)$/);
+        if (prefixMatch) {
+          strippedParams.name = prefixMatch[1];
+        }
+        
         // 上流サーバーに転送
-        const result = await this.forwardToUpstream('tools/call', request.params);
+        const result = await this.forwardToUpstream('tools/call', strippedParams);
         
         // 義務実行
         if (decision.obligations) {
           await this.executeObligations(decision.obligations, request);
         }
         
-        return result;
+        // result.resultを返す
+        return result.result;
       } catch (error) {
         this.logger.error('Tool call error', error);
         throw error;
@@ -166,20 +177,35 @@ export class MCPStdioPolicyProxy {
 
     // ツール一覧ハンドラー
     this.server.setRequestHandler(ListToolsRequestSchema, async (request: any) => {
-      this.logger.info('List tools request');
+      this.logger.info('List tools request received');
       
       try {
-        // ポリシー判定実行
-        const decision = await this.enforcePolicy('list', 'tool-listing', { request });
-        
-        if (decision.decision === 'DENY') {
-          throw new Error(`Access denied: ${decision.reason}`);
+        // 上流サーバーの起動を待つ
+        if (this.upstreamStartPromise) {
+          this.logger.info('Waiting for upstream servers to be ready...');
+          await this.upstreamStartPromise;
         }
         
-        // 上流サーバーに転送
-        const result = await this.forwardToUpstream('tools/list', request.params || {});
+        // 上流サーバーの状態を確認
+        const availableServers = this.stdioRouter.getAvailableServers();
+        this.logger.info(`Available upstream servers: ${availableServers.length}`);
         
-        return result;
+        // ツール一覧取得はポリシー判定をスキップ（ツール実行時に判定）
+        // 上流サーバーに転送
+        this.logger.debug('Forwarding tools/list to upstream...');
+        const result = await this.forwardToUpstream('tools/list', {});
+        
+        this.logger.debug('Upstream response received:', JSON.stringify(result).substring(0, 200));
+        
+        // MCPプロトコルに準拠した形式で返す
+        if (result && result.result) {
+          this.logger.info(`Returning ${result.result.tools?.length || 0} tools to client`);
+          return result.result;
+        }
+        
+        // フォールバック（空の配列を返す）
+        this.logger.warn('No valid result from upstream, returning empty tools array');
+        return { tools: [] };
       } catch (error) {
         this.logger.error('List tools error', error);
         throw error;
@@ -265,7 +291,17 @@ export class MCPStdioPolicyProxy {
       params
     };
     
-    return await this.stdioRouter.routeRequest(request);
+    const response = await this.stdioRouter.routeRequest(request);
+    
+    this.logger.debug(`Upstream response for ${method}:`, JSON.stringify(response).substring(0, 500));
+    
+    // JSON-RPCレスポンスから結果を抽出
+    if (response.error) {
+      throw new Error(response.error.message || 'Upstream server error');
+    }
+    
+    // routeRequestの戻り値は既にresultを含んでいる
+    return response;
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
@@ -337,6 +373,39 @@ export class MCPStdioPolicyProxy {
   /**
    * Claude Desktop設定形式でサーバーを追加
    */
+  /**
+   * 起動時に上流サーバーのツールを事前読み込み（ポリシー評価なし）
+   */
+  async preloadUpstreamTools(): Promise<void> {
+    this.logger.info('Preloading upstream server tools...');
+    
+    try {
+      // stdioルーターが起動していることを確認
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // ポリシー判定なしでツール一覧を取得
+      const result = await this.forwardToUpstream('tools/list', {});
+      
+      this.logger.debug('Preload result:', JSON.stringify(result, null, 2));
+      
+      if (result && result.result && result.result.tools) {
+        const toolCount = result.result.tools.length;
+        this.logger.info(`Preloaded ${toolCount} tools from upstream servers`);
+        
+        // ツール名をログ出力
+        result.result.tools.forEach((tool: any) => {
+          this.logger.info(`  - ${tool.name}: ${tool.description || 'No description'}`);
+        });
+      } else {
+        this.logger.warn('No tools found from upstream servers');
+        this.logger.debug('Result structure:', result);
+      }
+    } catch (error) {
+      this.logger.error('Failed to preload upstream tools:', error);
+      // エラーでも起動は続行
+    }
+  }
+  
   addServerFromMCPConfig(name: string, config: MCPServerConfig): void {
     this.stdioRouter.addServerFromConfig(name, config);
   }
@@ -346,18 +415,28 @@ export class MCPStdioPolicyProxy {
    */
   loadDesktopConfig(config: { mcpServers: Record<string, MCPServerConfig> }): void {
     this.stdioRouter.loadServersFromDesktopConfig(config);
+    
+    // 上流サーバーをすぐに起動開始（非同期）
+    this.logger.info('Starting upstream servers...');
+    this.upstreamStartPromise = this.stdioRouter.startServers()
+      .then(() => {
+        this.logger.info('All upstream servers started successfully');
+      })
+      .catch((error) => {
+        this.logger.error('Failed to start some upstream servers:', error);
+      });
   }
 
   async start(): Promise<void> {
-    // 上流サーバーを起動
-    await this.stdioRouter.startServers();
-    
-    // stdioトランスポートでサーバー起動
+    // MCPサーバーを作成
     const transport = new StdioServerTransport();
-    await this.server.connect(transport);
     
-    this.logger.info('🛡️ AEGIS MCP Proxy (stdio) started');
-    this.logger.info('Available upstream servers:', this.stdioRouter.getAvailableServers());
+    // MCPサーバーを接続（Claudeからの接続を受け付ける）
+    await this.server.connect(transport);
+    this.logger.info('🛡️ AEGIS MCP Proxy (stdio) started and accepting connections');
+    
+    // 上流サーバーはloadDesktopConfig()で既に起動開始している
+    // tools/listハンドラーで待機するため、ここでは待つ必要なし
   }
 
   async stop(): Promise<void> {

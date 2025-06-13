@@ -108,12 +108,19 @@ export class StdioRouter extends EventEmitter {
         });
 
         server.process = proc;
-        server.connected = true;
+        // connectedはサーバーが実際に応答するまでfalseのまま
+        server.connected = false;
 
         // stdout処理
         proc.stdout?.on('data', (data) => {
           const text = data.toString();
           server.buffer += text;
+          
+          // 初回データ受信時にconnectedにする
+          if (!server.connected) {
+            server.connected = true;
+            this.logger.debug(`${name} is now connected (stdout data received)`);
+          }
           
           // JSON-RPCメッセージを探す
           const lines = server.buffer.split('\n');
@@ -132,9 +139,28 @@ export class StdioRouter extends EventEmitter {
           });
         });
 
-        // stderr処理
+        // stderr処理（MCPサーバーの通常のログ出力）
         proc.stderr?.on('data', (data) => {
-          this.logger.error(`Error from ${name}:`, data.toString());
+          const message = data.toString().trim();
+          
+          // 初期化メッセージをチェック
+          if (!server.connected && (
+            message.toLowerCase().includes('running on stdio') ||
+            message.toLowerCase().includes('server running') ||
+            message.toLowerCase().includes('server started') ||
+            message.toLowerCase().includes('listening')
+          )) {
+            server.connected = true;
+            this.logger.debug(`${name} is now connected (initialization message detected)`);
+          }
+          
+          // エラーレベルのメッセージのみ警告として記録
+          if (message.toLowerCase().includes('error') || message.toLowerCase().includes('fail')) {
+            this.logger.warn(`[${name}] ${message}`);
+          } else {
+            // 通常のログはデバッグレベルで記録
+            this.logger.debug(`[${name}] ${message}`);
+          }
         });
 
         // プロセス終了処理
@@ -159,15 +185,39 @@ export class StdioRouter extends EventEmitter {
           reject(error);
         });
 
-        // 起動確認のため少し待つ
-        setTimeout(() => {
-          if (server.connected) {
-            this.logger.info(`Successfully started upstream server: ${name}`);
-            resolve();
-          } else {
-            reject(new Error(`Server ${name} failed to start`));
-          }
-        }, 1000);
+        // MCPサーバーの初期化を待つ
+        let initTimeout: NodeJS.Timeout;
+        const waitForInit = () => {
+          return new Promise<void>((waitResolve, waitReject) => {
+            let initialized = false;
+            
+            // タイムアウト設定（5秒）
+            initTimeout = setTimeout(() => {
+              if (!initialized) {
+                waitReject(new Error(`Server ${name} initialization timeout`));
+              }
+            }, 5000);
+            
+            // 初期化完了を検知
+            const checkInit = () => {
+              if (server.connected) {
+                initialized = true;
+                clearTimeout(initTimeout);
+                this.logger.info(`Successfully started upstream server: ${name}`);
+                waitResolve();
+              } else {
+                // 100ms後に再チェック
+                setTimeout(checkInit, 100);
+              }
+            };
+            
+            checkInit();
+          });
+        };
+        
+        waitForInit()
+          .then(() => resolve())
+          .catch((err) => reject(err));
 
       } catch (error) {
         reject(error);
@@ -181,7 +231,15 @@ export class StdioRouter extends EventEmitter {
   async routeRequest(request: any): Promise<any> {
     const { method, params, id } = request;
     
-    // リソース/ツールから対象サーバーを決定
+    this.logger.debug(`Routing request: ${method} (id: ${id})`);
+    
+    // tools/list と resources/list は全サーバーから集約
+    if (method === 'tools/list' || method === 'resources/list') {
+      this.logger.debug(`Aggregating ${method} from all servers`);
+      return await this.aggregateListResponses(method, params, id);
+    }
+    
+    // その他のリクエストは単一サーバーに転送
     const targetServer = this.selectTargetServer(method, params);
     
     if (!targetServer) {
@@ -215,9 +273,113 @@ export class StdioRouter extends EventEmitter {
     });
   }
 
+  /**
+   * 複数サーバーからのリスト応答を集約
+   */
+  private async aggregateListResponses(method: string, params: any, id: number): Promise<any> {
+    // デバッグ: 接続中のサーバーを確認
+    const connectedServers = Array.from(this.upstreamServers.entries())
+      .filter(([_, server]) => server.connected);
+    
+    this.logger.info(`Aggregating ${method} from ${connectedServers.length} connected servers`);
+    connectedServers.forEach(([name, _]) => {
+      this.logger.debug(`  - ${name}: connected`);
+    });
+    
+    const responses = await Promise.allSettled(
+      connectedServers.map(([name, _]) => this.sendRequestToServer(name, { method, params, id: `${id}-${name}`, jsonrpc: '2.0' }))
+    );
+
+    // デバッグ: レスポンス状況を確認
+    responses.forEach((r, i) => {
+      const serverName = connectedServers[i][0];
+      if (r.status === 'fulfilled') {
+        this.logger.debug(`${serverName} response: success`);
+      } else {
+        this.logger.warn(`${serverName} response: failed - ${r.reason}`);
+      }
+    });
+
+    const successfulResponses = responses
+      .filter(r => r.status === 'fulfilled')
+      .map(r => (r as PromiseFulfilledResult<any>).value);
+
+    if (method === 'tools/list') {
+      const allTools: any[] = [];
+      
+      // 各サーバーのツールにプレフィックスを追加
+      responses.forEach((response, index) => {
+        if (response.status === 'fulfilled') {
+          const serverName = connectedServers[index][0];
+          const result = (response as PromiseFulfilledResult<any>).value;
+          
+          if (result.result?.tools) {
+            result.result.tools.forEach((tool: any) => {
+              // サーバー名をプレフィックスとして追加
+              allTools.push({
+                ...tool,
+                name: `${serverName}__${tool.name}`
+              });
+            });
+          }
+        }
+      });
+      
+      this.logger.info(`Aggregated ${allTools.length} tools total`);
+      
+      return { result: { tools: allTools } };
+    } else if (method === 'resources/list') {
+      const allResources = successfulResponses
+        .filter(r => r.result?.resources)
+        .flatMap(r => r.result.resources);
+      return { result: { resources: allResources } };
+    }
+
+    return { result: {} };
+  }
+
+  /**
+   * 特定のサーバーにリクエストを送信
+   */
+  private async sendRequestToServer(serverName: string, request: any): Promise<any> {
+    const server = this.upstreamServers.get(serverName);
+    if (!server?.connected || !server.process) {
+      throw new Error(`Server ${serverName} is not connected`);
+    }
+
+    return new Promise((resolve, reject) => {
+      const requestId = request.id;
+      this.pendingRequests.set(requestId, { resolve, reject, targetServer: serverName });
+      
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(requestId);
+        reject(new Error(`Request timeout for ${serverName}`));
+      }, 10000);
+
+      server.process!.stdin?.write(JSON.stringify(request) + '\n');
+      
+      this.once(`response-${requestId}`, (response) => {
+        clearTimeout(timeout);
+        this.pendingRequests.delete(requestId);
+        resolve(response);
+      });
+    });
+  }
+
   private selectTargetServer(method: string, params: any): string | null {
+    // tools/list と resources/list は全サーバーから集約する必要がある
+    // ここでは最初の利用可能なサーバーを返す（後で集約実装を追加）
+    if (method === 'tools/list' || method === 'resources/list') {
+      for (const [name, server] of this.upstreamServers) {
+        if (server.connected) {
+          this.logger.debug(`Selected server ${name} for ${method}`);
+          return name;
+        }
+      }
+    }
+    
     // リソースURIからサーバーを決定
-    if (method === 'resources/read' || method === 'resources/list') {
+    if (method === 'resources/read') {
       const uri = params?.uri || '';
       
       // URI形式: gmail://... -> gmail サーバー
@@ -235,9 +397,9 @@ export class StdioRouter extends EventEmitter {
       const toolName = params?.name || '';
       
       // 各サーバーに問い合わせて対応確認
-      // 簡易実装: ツール名のプレフィックスでマッチング
+      // プレフィックスでマッチング（__区切りを使用）
       for (const [name, server] of this.upstreamServers) {
-        if (toolName.startsWith(name + '_') || toolName.startsWith(name + '.')) {
+        if (toolName.startsWith(name + '__')) {
           return name;
         }
       }
@@ -254,6 +416,8 @@ export class StdioRouter extends EventEmitter {
   }
 
   private handleUpstreamMessage(serverName: string, message: any): void {
+    this.logger.debug(`Received message from ${serverName}:`, JSON.stringify(message).substring(0, 200));
+    
     if (message.id && this.pendingRequests.has(message.id)) {
       // レスポンスを対応するリクエストに返す
       this.emit(`response-${message.id}`, message);
