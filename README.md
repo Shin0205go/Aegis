@@ -52,6 +52,9 @@ npm run build
 
 AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべてのMCPサーバーにポリシー制御を適用できます：
 
+1. `aegis-mcp-config.json`を作成（`aegis-mcp-config.example.json`をコピー）
+2. Claude Desktopの設定：
+
 ```json
 // claude_desktop_config.json
 {
@@ -60,21 +63,14 @@ AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべて
       "command": "node",
       "args": ["/path/to/aegis-policy-engine/dist/src/mcp-server.js"],
       "env": {
-        "OPENAI_API_KEY": "your-api-key"
+        "CLAUDE_DESKTOP_CONFIG": "/path/to/aegis-policy-engine/aegis-mcp-config.json"
       }
-    },
-    // 以下のサーバーはAEGISが自動的に管理・制御します
-    "gmail": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-gmail"]
-    },
-    "gdrive": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-gdrive"]
     }
   }
 }
 ```
+
+**注意**: APIキーは環境変数で管理してください（`.env`ファイルまたはシェル設定）
 
 ### 基本的な使用方法
 ```typescript
