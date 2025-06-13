@@ -25,7 +25,8 @@
       "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-filesystem-only.js)",
       "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-aegis-tools.js 2 >& 1)",
       "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

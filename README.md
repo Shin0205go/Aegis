@@ -52,25 +52,50 @@ npm run build
 
 AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべてのMCPサーバーにポリシー制御を適用できます：
 
-1. `aegis-mcp-config.json`を作成（`aegis-mcp-config.example.json`をコピー）
-2. Claude Desktopの設定：
+#### 1. 環境設定
+```bash
+# 必要な環境変数を設定
+export OPENAI_API_KEY="your-openai-api-key"
+# または .env ファイルで管理
+echo "OPENAI_API_KEY=your-openai-api-key" > .env
+```
+
+#### 2. AEGISサーバー設定を追加
+Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下を追加：
 
 ```json
-// claude_desktop_config.json
 {
   "mcpServers": {
     "aegis-proxy": {
-      "command": "node",
+      "command": "/Users/shingo/.nvm/versions/node/v20.12.2/bin/node",
       "args": ["/path/to/aegis-policy-engine/dist/src/mcp-server.js"],
       "env": {
-        "CLAUDE_DESKTOP_CONFIG": "/path/to/aegis-policy-engine/aegis-mcp-config.json"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
       }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
+    },
+    "execution-server": {
+      "command": "node",
+      "args": ["/path/to/execution-server/dist/index.js"]
     }
   }
 }
 ```
 
-**注意**: APIキーは環境変数で管理してください（`.env`ファイルまたはシェル設定）
+#### 3. 動作確認
+- Claude Desktopを再起動
+- 以下のツールが使用可能になることを確認：
+  - `filesystem__*` - ファイルシステム操作
+  - `execution-server__*` - コマンド・コード実行
+  - その他設定したMCPサーバーのツール
+
+**重要**: 
+- Node.jsパスは実際のv20以上のバージョンを指定してください
+- AEGISが自動的に他のMCPサーバーをプロキシ経由で提供します
+- 全てのツール実行時にポリシー制御が適用されます
 
 ### 基本的な使用方法
 ```typescript
@@ -156,6 +181,40 @@ npm run start:mcp
 # MCPプロキシサーバー起動 (HTTP)
 npm run start:mcp:http
 ```
+
+### 実際の動作例
+
+Claude Desktop統合後、以下のようなツールがAEGIS経由で利用できるようになります：
+
+#### ファイルシステム操作
+```
+filesystem__read_file          - ファイル読み取り
+filesystem__read_multiple_files - 複数ファイル一括読み取り  
+filesystem__write_file         - ファイル作成・上書き
+filesystem__create_directory   - ディレクトリ作成
+filesystem__list_directory     - ディレクトリ一覧
+filesystem__move_file          - ファイル移動・リネーム
+filesystem__search_files       - ファイル検索
+filesystem__get_file_info      - ファイル情報取得
+filesystem__list_allowed_directories - アクセス可能ディレクトリ一覧
+```
+
+#### コード・コマンド実行
+```
+execution-server__exec_unix_command    - Unixコマンド実行
+execution-server__exec_nodejs_code     - Node.jsコード実行
+execution-server__get_server_info      - サーバー情報取得
+```
+
+#### その他の内蔵ツール
+```
+artifacts    - アーティファクト作成・更新
+repl         - ブラウザ環境でのJavaScript実行
+web_search   - Web検索
+web_fetch    - Webページ取得
+```
+
+これらのツールは全てAEGISのポリシー制御を通して実行され、安全性が保たれます。
 
 ## 📚 ドキュメント
 
