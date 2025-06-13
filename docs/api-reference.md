@@ -1,0 +1,548 @@
+# AEGIS API リファレンス
+
+## 📋 目次
+
+1. [概要](#概要)
+2. [AEGISController API](#aegiscontroller-api)
+3. [MCPプロキシ API](#mcpプロキシ-api)
+4. [ポリシー管理 API](#ポリシー管理-api)
+5. [コンテキストエンリッチャー API](#コンテキストエンリッチャー-api)
+6. [型定義](#型定義)
+7. [エラーハンドリング](#エラーハンドリング)
+
+## 概要
+
+AEGIS APIは、自然言語ポリシーベースのアクセス制御を提供する包括的なインターフェースです。このドキュメントでは、主要なAPIとその使用方法について説明します。
+
+### 基本的な使用方法
+
+```typescript
+import { AEGIS } from '@aegis/core';
+
+// AEGIS初期化
+const aegis = new AEGIS({
+  llm: {
+    provider: 'openai',
+    model: 'gpt-4',
+    apiKey: process.env.OPENAI_API_KEY
+  }
+});
+
+// システム起動
+await aegis.start();
+
+// アクセス制御実行
+const result = await aegis.controlAccess(
+  'agent-001',
+  'read',
+  'customer-data',
+  'support'
+);
+```
+
+## AEGISController API
+
+### クラス: `AEGISController`
+
+メインのコントローラークラスで、すべての制御操作を統括します。
+
+#### コンストラクタ
+
+```typescript
+constructor(config: AEGISConfig, logger: Logger)
+```
+
+**パラメータ:**
+- `config`: AEGIS設定オブジェクト
+- `logger`: ロガーインスタンス
+
+#### メソッド: `controlAccess`
+
+アクセス制御判定を実行します。
+
+```typescript
+async controlAccess(
+  agentId: string,
+  action: string,
+  resource: string,
+  purpose?: string,
+  additionalContext?: Record<string, any>
+): Promise<AccessControlResult>
+```
+
+**パラメータ:**
+- `agentId`: エージェントの識別子
+- `action`: 実行するアクション（read, write, delete等）
+- `resource`: アクセス対象リソース
+- `purpose`: アクセス目的（オプション）
+- `additionalContext`: 追加のコンテキスト情報（オプション）
+
+**戻り値:**
+```typescript
+interface AccessControlResult {
+  decision: "PERMIT" | "DENY" | "INDETERMINATE";
+  reason: string;
+  confidence: number;
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  constraints?: string[];
+  obligations?: string[];
+  monitoringRequirements?: string[];
+  validityPeriod?: {
+    start?: Date;
+    end?: Date;
+  };
+  processingTime: number;
+  policyUsed: string;
+  context?: DecisionContext;
+  error?: string;
+}
+```
+
+**使用例:**
+```typescript
+const result = await controller.controlAccess(
+  'support-agent-123',
+  'read',
+  'customer://database/users/12345',
+  'customer-inquiry',
+  {
+    ticketId: 'TICKET-789',
+    urgency: 'high'
+  }
+);
+
+if (result.decision === 'PERMIT') {
+  console.log('アクセス許可:', result.reason);
+  // 制約の適用
+  result.constraints?.forEach(constraint => {
+    console.log('制約:', constraint);
+  });
+} else {
+  console.log('アクセス拒否:', result.reason);
+}
+```
+
+#### メソッド: `addPolicy`
+
+新しいポリシーを追加します。
+
+```typescript
+async addPolicy(
+  name: string,
+  policy: string,
+  metadata?: any
+): Promise<string>
+```
+
+**パラメータ:**
+- `name`: ポリシー名
+- `policy`: 自然言語で記述されたポリシー
+- `metadata`: ポリシーのメタデータ（オプション）
+
+**戻り値:** ポリシーID
+
+**使用例:**
+```typescript
+const policyId = await controller.addPolicy(
+  'data-retention-policy',
+  `
+  【データ保持ポリシー】
+  
+  基本原則：
+  - 顧客データは最後のアクセスから1年間保持
+  - 財務データは7年間保持必須
+  
+  制限事項：
+  - 保持期間を過ぎたデータは自動削除
+  - 削除前に30日間のアーカイブ期間を設ける
+  `,
+  {
+    createdBy: 'admin',
+    tags: ['retention', 'compliance']
+  }
+);
+```
+
+#### メソッド: `listPolicies`
+
+登録されているポリシーの一覧を取得します。
+
+```typescript
+listPolicies(): NaturalLanguagePolicyDefinition[]
+```
+
+**戻り値:** ポリシー定義の配列
+
+#### メソッド: `getStatistics`
+
+システムの統計情報を取得します。
+
+```typescript
+getStatistics(): ControllerStatistics
+```
+
+**戻り値:**
+```typescript
+interface ControllerStatistics {
+  totalDecisions: number;
+  permitRate: number;
+  denyRate: number;
+  averageConfidence: number;
+  topAgents: Array<{ agent: string; count: number }>;
+  topResources: Array<{ resource: string; count: number }>;
+  riskDistribution: Record<string, number>;
+}
+```
+
+#### メソッド: `getDecisionHistory`
+
+判定履歴を取得します。
+
+```typescript
+getDecisionHistory(filter?: {
+  agent?: string;
+  resource?: string;
+  decision?: string;
+  limit?: number;
+}): DecisionHistoryEntry[]
+```
+
+## MCPプロキシ API
+
+### クラス: `MCPPolicyProxy`
+
+MCPプロトコルのプロキシサーバーとして動作します。
+
+#### メソッド: `start`
+
+プロキシサーバーを起動します。
+
+```typescript
+async start(): Promise<void>
+```
+
+#### メソッド: `stop`
+
+プロキシサーバーを停止します。
+
+```typescript
+async stop(): Promise<void>
+```
+
+#### メソッド: `addUpstreamServer`
+
+上流MCPサーバーを追加します。
+
+```typescript
+addUpstreamServer(name: string, url: string): void
+```
+
+**パラメータ:**
+- `name`: サーバー名
+- `url`: WebSocket URL
+
+**使用例:**
+```typescript
+proxy.addUpstreamServer('gmail', 'ws://localhost:8080/gmail');
+proxy.addUpstreamServer('gdrive', 'ws://localhost:8081/gdrive');
+```
+
+### REST API エンドポイント
+
+#### `GET /health`
+
+ヘルスチェックエンドポイント
+
+**レスポンス:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "upstreamServers": [
+    {
+      "name": "gmail",
+      "connected": true
+    }
+  ]
+}
+```
+
+#### `GET /policies`
+
+ポリシー一覧を取得
+
+**レスポンス:**
+```json
+{
+  "policies": [
+    "customer-data-policy",
+    "email-access-policy"
+  ]
+}
+```
+
+#### `POST /policies/:name`
+
+ポリシーを更新
+
+**リクエストボディ:**
+```json
+{
+  "policy": "【ポリシー内容】..."
+}
+```
+
+## ポリシー管理 API
+
+### インターフェース: `PolicyManagementAPI`
+
+```typescript
+interface PolicyManagementAPI {
+  // ポリシーCRUD
+  createPolicy(
+    name: string,
+    policy: string,
+    metadata?: Partial<PolicyMetadata>
+  ): Promise<string>;
+  
+  updatePolicy(
+    policyId: string,
+    policy: string,
+    updatedBy?: string
+  ): Promise<void>;
+  
+  deletePolicy(policyId: string): Promise<void>;
+  
+  // ポリシー取得
+  getPolicy(policyId: string): Promise<{
+    metadata: PolicyMetadata;
+    policy: string;
+  } | null>;
+  
+  listPolicies(filter?: {
+    status?: string;
+    tags?: string[];
+  }): Promise<PolicyMetadata[]>;
+  
+  // バージョン管理
+  getPolicyHistory(policyId: string): Promise<PolicyVersion[]>;
+  
+  // インポート/エクスポート
+  exportPolicy(policyId: string): Promise<PolicyExport>;
+  importPolicy(
+    exportData: PolicyExport,
+    importedBy?: string
+  ): Promise<string>;
+}
+```
+
+## コンテキストエンリッチャー API
+
+### インターフェース: `ContextEnricher`
+
+カスタムエンリッチャーを作成するための基本インターフェース。
+
+```typescript
+interface ContextEnricher {
+  name: string;
+  enrich(context: DecisionContext): Promise<Record<string, any>>;
+}
+```
+
+### 実装例: カスタムエンリッチャー
+
+```typescript
+export class GeolocationEnricher implements ContextEnricher {
+  name = 'geolocation';
+  
+  async enrich(context: DecisionContext): Promise<Record<string, any>> {
+    const ip = context.environment.clientIP;
+    const geoData = await this.lookupGeolocation(ip);
+    
+    return {
+      country: geoData.country,
+      city: geoData.city,
+      isHighRiskCountry: this.isHighRisk(geoData.country)
+    };
+  }
+  
+  private async lookupGeolocation(ip: string): Promise<any> {
+    // 地理情報を取得
+  }
+  
+  private isHighRisk(country: string): boolean {
+    const highRiskCountries = ['XX', 'YY'];
+    return highRiskCountries.includes(country);
+  }
+}
+```
+
+### エンリッチャーの登録
+
+```typescript
+const collector = new ContextCollector();
+collector.registerEnricher(new GeolocationEnricher());
+collector.registerEnricher(new TimeBasedEnricher());
+collector.registerEnricher(new AgentInfoEnricher());
+```
+
+## 型定義
+
+### `DecisionContext`
+
+```typescript
+interface DecisionContext {
+  agent: string;              // エージェントID
+  action: string;             // アクション
+  resource: string;           // リソース
+  purpose?: string;           // 目的
+  time: Date;                 // タイムスタンプ
+  location?: string;          // 場所
+  environment: Record<string, any>;  // 環境情報
+}
+```
+
+### `PolicyDecision`
+
+```typescript
+interface PolicyDecision {
+  decision: "PERMIT" | "DENY" | "INDETERMINATE";
+  reason: string;
+  confidence: number;         // 0.0 - 1.0
+  riskLevel?: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  constraints?: string[];
+  obligations?: string[];
+  monitoringRequirements?: string[];
+  validityPeriod?: {
+    start?: Date;
+    end?: Date;
+  };
+}
+```
+
+### `NaturalLanguagePolicyDefinition`
+
+```typescript
+interface NaturalLanguagePolicyDefinition {
+  name: string;
+  description: string;
+  policy: string;             // 自然言語ポリシー本文
+  examples?: Array<{
+    scenario: string;
+    expectedDecision: "PERMIT" | "DENY";
+  }>;
+  metadata: PolicyMetadata;
+}
+```
+
+### `PolicyMetadata`
+
+```typescript
+interface PolicyMetadata {
+  id: string;
+  name: string;
+  description: string;
+  version: string;            // セマンティックバージョニング
+  createdAt: Date;
+  createdBy: string;
+  lastModified: Date;
+  lastModifiedBy: string;
+  tags: string[];
+  status: "draft" | "active" | "deprecated";
+}
+```
+
+### `AEGISConfig`
+
+```typescript
+interface AEGISConfig {
+  llm: {
+    provider: 'openai' | 'anthropic';
+    model: string;
+    apiKey?: string;
+    baseURL?: string;
+    temperature?: number;
+    maxTokens?: number;
+  };
+  server?: {
+    port?: number;
+    host?: string;
+  };
+  cache?: {
+    enabled?: boolean;
+    ttl?: number;
+    maxSize?: number;
+  };
+  logging?: {
+    level?: 'debug' | 'info' | 'warn' | 'error';
+    format?: 'json' | 'text';
+  };
+}
+```
+
+## エラーハンドリング
+
+### エラーコード
+
+| コード | 説明 | 対処法 |
+|--------|------|--------|
+| `AEGIS_001` | ポリシーが見つからない | ポリシー名を確認 |
+| `AEGIS_002` | AI判定エラー | LLM設定を確認 |
+| `AEGIS_003` | コンテキスト収集エラー | エンリッチャーを確認 |
+| `AEGIS_004` | 上流サーバー接続エラー | ネットワーク設定を確認 |
+| `AEGIS_005` | 認証エラー | APIキーを確認 |
+
+### エラーハンドリング例
+
+```typescript
+try {
+  const result = await aegis.controlAccess(
+    agentId,
+    action,
+    resource
+  );
+} catch (error) {
+  if (error.code === 'AEGIS_001') {
+    console.error('ポリシーが設定されていません');
+    // デフォルトポリシーを適用
+  } else if (error.code === 'AEGIS_002') {
+    console.error('AI判定に失敗しました:', error.message);
+    // フォールバック処理
+  } else {
+    console.error('予期しないエラー:', error);
+  }
+}
+```
+
+### カスタムエラークラス
+
+```typescript
+export class AEGISError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'AEGISError';
+  }
+}
+
+// 使用例
+throw new AEGISError(
+  'AEGIS_001',
+  'ポリシーが見つかりません',
+  { policyName: 'unknown-policy' }
+);
+```
+
+## まとめ
+
+AEGIS APIは、自然言語ポリシーベースのアクセス制御を実現する包括的なインターフェースを提供します。主要な機能：
+
+1. **シンプルなAPI**: 直感的なメソッドでアクセス制御を実装
+2. **拡張性**: カスタムエンリッチャーによる機能拡張
+3. **型安全性**: TypeScriptの型定義による安全な開発
+4. **エラーハンドリング**: 体系的なエラー処理
+
+詳細な実装例については、`examples/`ディレクトリのサンプルコードを参照してください。
