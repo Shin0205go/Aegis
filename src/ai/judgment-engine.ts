@@ -66,7 +66,7 @@ export class AIJudgmentEngine {
     const cacheKey = this.generateCacheKey(naturalLanguagePolicy, context);
     const cachedDecision = this.decisionCache.get(cacheKey);
     if (cachedDecision) {
-      console.log('[AI Judgment] Using cached decision');
+      console.error('[AI Judgment] Using cached decision');
       return cachedDecision;
     }
 
@@ -74,7 +74,7 @@ export class AIJudgmentEngine {
     const analysisPrompt = this.buildAnalysisPrompt(naturalLanguagePolicy, context);
     
     // 3. AI判定実行
-    console.log('[AI Judgment] Executing AI decision...');
+    console.error('[AI Judgment] Executing AI decision...');
     const rawResponse = await this.llm.complete(analysisPrompt);
     
     // 4. 結果パース・検証
@@ -299,7 +299,7 @@ ${contexts.map((ctx, i) => `
       policyHash: this.hashString(policy)
     };
     
-    console.log(`[AI_JUDGMENT] ${JSON.stringify(logEntry)}`);
+    console.error(`[AI_JUDGMENT] ${JSON.stringify(logEntry)}`);
   }
 
   // 判定統計情報取得

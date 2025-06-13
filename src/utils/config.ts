@@ -5,8 +5,8 @@
 import dotenv from 'dotenv';
 import type { AEGISConfig, LLMConfig, CacheConfig, MCPProxyConfig, MonitoringConfig } from '../types/index.js';
 
-// 環境変数読み込み
-dotenv.config();
+// 環境変数読み込み（システム環境変数を優先）
+dotenv.config({ override: false });
 
 export class Config {
   private config: AEGISConfig;
@@ -21,7 +21,7 @@ export class Config {
       // LLM設定
       llm: {
         provider: (process.env.LLM_PROVIDER as any) || 'openai',
-        apiKey: process.env.OPENAI_API_KEY || '',
+        apiKey: this.getApiKey(overrides?.llm?.provider || process.env.LLM_PROVIDER || 'openai'),
         model: process.env.LLM_MODEL || 'gpt-4',
         maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '4096'),
         temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.3'),
@@ -80,10 +80,25 @@ export class Config {
     return servers;
   }
 
+  private getApiKey(provider: string): string {
+    // プロバイダーに応じて適切な API キーを取得
+    if (provider === 'openai') {
+      return process.env.OPENAI_API_KEY || '';
+    } else if (provider === 'anthropic') {
+      return process.env.ANTHROPIC_API_KEY || '';
+    }
+    return '';
+  }
+
   private validateConfig(): void {
+    // Suppress all output in MCP stdio mode
+    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    
     // LLM設定検証
     if (!this.config.llm.apiKey) {
-      console.warn('[Config] Warning: OpenAI API key not set. Set OPENAI_API_KEY environment variable.');
+      if (!isStdioMode) {
+        console.error('[Config] Warning: OpenAI API key not set. Set OPENAI_API_KEY environment variable.');
+      }
     }
 
     // セキュリティ設定検証
@@ -91,10 +106,12 @@ export class Config {
       throw new Error('[Config] Secret key must be changed in production environment');
     }
 
-    console.log('[Config] Configuration loaded successfully');
-    console.log(`[Config] Environment: ${this.config.nodeEnv}`);
-    console.log(`[Config] LLM Provider: ${this.config.llm.provider}`);
-    console.log(`[Config] LLM Model: ${this.config.llm.model}`);
+    if (!isStdioMode) {
+      console.error('[Config] Configuration loaded successfully');
+      console.error(`[Config] Environment: ${this.config.nodeEnv}`);
+      console.error(`[Config] LLM Provider: ${this.config.llm.provider}`);
+      console.error(`[Config] LLM Model: ${this.config.llm.model}`);
+    }
   }
 
   // 設定取得メソッド

@@ -84,9 +84,22 @@ export class StdioRouter extends EventEmitter {
   private async startServer(name: string, server: UpstreamServerInfo): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
+        // 環境変数の展開
+        const expandedEnv: Record<string, string> = {};
+        if (server.config.env) {
+          for (const [key, value] of Object.entries(server.config.env)) {
+            if (typeof value === 'string' && value.startsWith('${') && value.endsWith('}')) {
+              const varName = value.slice(2, -1);
+              expandedEnv[key] = process.env[varName] || '';
+            } else {
+              expandedEnv[key] = value as string;
+            }
+          }
+        }
+        
         const env = {
           ...process.env,
-          ...server.config.env
+          ...expandedEnv
         };
 
         const proc = spawn(server.config.command, server.config.args || [], {

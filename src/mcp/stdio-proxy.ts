@@ -207,7 +207,7 @@ export class MCPStdioPolicyProxy {
     const enrichedContext = await this.contextCollector.enrichContext(baseContext);
     
     // 適用ポリシー選択
-    const policyName = this.selectApplicablePolicy(resource);
+    const policyName = this.selectApplicablePolicy(resource, baseContext.agent);
     const policy = this.policies.get(policyName);
     
     if (!policy) {
@@ -233,7 +233,12 @@ export class MCPStdioPolicyProxy {
     };
   }
 
-  private selectApplicablePolicy(resource: string): string {
+  private selectApplicablePolicy(resource: string, agent?: string): string {
+    // Claude Desktop 専用ポリシー
+    if (agent === 'mcp-client') {
+      return 'claude-desktop-policy';
+    }
+    
     if (resource.includes('customer') || resource.includes('personal')) {
       return 'customer-data-policy';
     } else if (resource.includes('email') || resource.includes('gmail')) {

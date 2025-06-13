@@ -28,25 +28,8 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
   try {
     logger.info(`🚀 Starting AEGIS MCP Proxy Server (${transport} transport)...`);
 
-    // 設定を読み込み
-    const config = new Config({
-      llm: {
-        provider: process.env.LLM_PROVIDER as 'openai' | 'anthropic' || 'openai',
-        model: process.env.LLM_MODEL || 'gpt-4',
-        apiKey: process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || '',
-        temperature: 0.3
-      },
-      port: parseInt(process.env.PORT || '3000'),
-      cache: {
-        enabled: process.env.CACHE_ENABLED === 'true',
-        ttl: parseInt(process.env.CACHE_TTL || '3600'),
-        maxSize: parseInt(process.env.CACHE_MAX_SIZE || '100')
-      },
-      mcpProxy: {
-        port: parseInt(process.env.MCP_PROXY_PORT || '8080'),
-        upstreamServers: {}
-      }
-    });
+    // 設定を読み込み（環境変数とdefault値を使用）
+    const config = new Config();
 
     // APIキーチェック
     if (!config.llm.apiKey) {
@@ -204,7 +187,7 @@ function parseArgs() {
 
 // ヘルプ表示
 function showHelp() {
-  console.log(`
+  console.error(`
 AEGIS MCP Proxy Server (MCP Standard Compliant)
 
 Usage: node mcp-server.js [options]

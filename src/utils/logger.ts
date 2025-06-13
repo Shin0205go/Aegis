@@ -8,6 +8,9 @@ export class Logger {
   private logger: winston.Logger;
 
   constructor(level: string = 'info') {
+    // In MCP stdio mode, all logs must go to stderr
+    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    
     this.logger = winston.createLogger({
       level: level,
       format: winston.format.combine(
@@ -21,6 +24,7 @@ export class Logger {
       transports: [
         // コンソール出力
         new winston.transports.Console({
+          stderrLevels: isStdioMode ? ['error', 'warn', 'info', 'debug'] : ['error'],
           format: winston.format.combine(
             winston.format.colorize(),
             winston.format.simple(),

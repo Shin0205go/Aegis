@@ -29,7 +29,7 @@ import {
   ResourceClassifierEnricher,
   SecurityInfoEnricher
 } from '../context/index.js';
-import fetch from 'node-fetch';
+// Use Node.js built-in fetch (Node 18+)
 
 export class MCPHttpPolicyProxy {
   private server: Server;
