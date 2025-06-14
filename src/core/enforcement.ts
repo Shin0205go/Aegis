@@ -224,6 +224,9 @@ export class ObligationExecutor {
       this.executeObligation(obligation, context, decision)
     );
     
+      this.executeObligationLegacy(obligation, context, decision)
+    );
+    
     await Promise.allSettled(promises);
   }
 
@@ -302,5 +305,100 @@ export class ObligationExecutor {
       format: context.environment?.reportFormat || 'pdf',
       includeDetails: true
     });
+  }
+}
+
+/**
+ * 統合制約・義務実施システム
+ */
+export class EnforcementSystem {
+  private constraintManager: ConstraintProcessorManager;
+  private obligationManager: ObligationExecutorManager;
+  private logger: Logger;
+  
+  constructor() {
+    this.logger = new Logger();
+    this.constraintManager = new ConstraintProcessorManager();
+    this.obligationManager = new ObligationExecutorManager();
+  }
+  
+  async initialize(): Promise<void> {
+    // 制約プロセッサを登録
+    await this.constraintManager.registerProcessor(new DataAnonymizerProcessor(), {
+      enabled: true,
+      timeout: 10000
+    });
+    
+    await this.constraintManager.registerProcessor(new RateLimiterProcessor(), {
+      enabled: true,
+      timeout: 5000,
+      config: {
+        defaultMaxRequests: 100,
+        defaultWindowMs: 60000
+      }
+    });
+    
+    await this.constraintManager.registerProcessor(new GeoRestrictorProcessor(), {
+      enabled: true,
+      timeout: 5000
+    });
+    
+    // 義務エグゼキューターを登録
+    await this.obligationManager.registerExecutor(new AuditLoggerExecutor(), {
+      enabled: true,
+      timeout: 10000,
+      config: {
+        destination: 'file',
+        format: 'json'
+      }
+    });
+    
+    await this.obligationManager.registerExecutor(new NotifierExecutor(), {
+      enabled: true,
+      timeout: 30000,
+      retryCount: 3
+    });
+    
+    await this.obligationManager.registerExecutor(new DataLifecycleExecutor(), {
+      enabled: true,
+      timeout: 60000
+    });
+    
+    this.logger.info('制約・義務実施システム初期化完了');
+  }
+  
+  async applyConstraints(
+    constraints: string[],
+    data: any,
+    context: DecisionContext
+  ): Promise<any> {
+    const result = await this.constraintManager.applyConstraints(constraints, data, context);
+    if (!result.success) {
+      throw new Error(result.error || '制約適用失敗');
+    }
+    return result.data;
+  }
+  
+  async executeObligations(
+    obligations: string[],
+    context: DecisionContext,
+    decision: PolicyDecision
+  ): Promise<void> {
+    const result = await this.obligationManager.executeObligations(obligations, context, decision);
+    if (!result.success && result.errors) {
+      this.logger.error('義務実行エラー', result.errors);
+    }
+  }
+  
+  getConstraintProcessors() {
+    return this.constraintManager.getProcessors();
+  }
+  
+  getObligationExecutors() {
+    return this.obligationManager.getExecutors();
+  }
+  
+  getExecutionStats() {
+    return this.obligationManager.getExecutionStats();
   }
 }

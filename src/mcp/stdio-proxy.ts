@@ -307,6 +307,26 @@ export class MCPStdioPolicyProxy {
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
+    // Phase 3: 新システムを使用
+    if (this.enforcementSystem && constraints.length > 0) {
+      try {
+        // ダミーのコンテキストを作成
+        const context: DecisionContext = {
+          agent: 'mcp-client',
+          action: 'apply-constraints',
+          resource: 'data',
+          purpose: 'constraint-enforcement',
+          time: new Date(),
+          environment: {}
+        };
+        
+        return await this.enforcementSystem.applyConstraints(constraints, data, context);
+      } catch (error) {
+        this.logger.error('新制約システムエラー、レガシー処理にフォールバック', error);
+      }
+    }
+    
+    // レガシー処理
     let result = data;
     
     for (const constraint of constraints) {

@@ -29,6 +29,7 @@ import {
   ResourceClassifierEnricher,
   SecurityInfoEnricher
 } from '../context/index.js';
+import { EnforcementSystem } from '../core/enforcement.js';
 // Use Node.js built-in fetch (Node 18+)
 
 export class MCPHttpPolicyProxy {
@@ -38,6 +39,7 @@ export class MCPHttpPolicyProxy {
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
   private contextCollector: ContextCollector;
+  private enforcementSystem: EnforcementSystem;
   
   // 上流サーバー管理
   private upstreamServers = new Map<string, { name: string; url: string }>();
@@ -53,6 +55,9 @@ export class MCPHttpPolicyProxy {
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
     this.setupContextEnrichers();
+    
+    // 制約・義務実施システム初期化
+    this.enforcementSystem = new EnforcementSystem();
     
     // Express アプリ作成
     this.app = express();
@@ -327,6 +332,28 @@ export class MCPHttpPolicyProxy {
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
+    // Phase 3: 新システムを使用
+    if (this.enforcementSystem && constraints.length > 0) {
+      try {
+        // ダミーのコンテキストを作成
+        const context: DecisionContext = {
+          agent: 'http-client',
+          action: 'apply-constraints',
+          resource: 'data',
+          purpose: 'constraint-enforcement',
+          time: new Date(),
+          environment: {
+            transport: 'http'
+          }
+        };
+        
+        return await this.enforcementSystem.applyConstraints(constraints, data, context);
+      } catch (error) {
+        this.logger.error('新制約システムエラー、レガシー処理にフォールバック', error);
+      }
+    }
+    
+    // レガシー処理
     let result = data;
     
     for (const constraint of constraints) {
@@ -441,6 +468,10 @@ export class MCPHttpPolicyProxy {
 
   async start(): Promise<void> {
     const port = this.config.mcpProxy.port || 8080;
+    
+    // 制約・義務システムを初期化
+    await this.enforcementSystem.initialize();
+    this.logger.info('制約・義務実施システムを初期化しました');
     
     // 設定から上流サーバーを登録
     if (this.config.mcpProxy?.upstreamServers) {
