@@ -67,8 +67,8 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
 {
   "mcpServers": {
     "aegis-proxy": {
-      "command": "/Users/shingo/.nvm/versions/node/v20.12.2/bin/node",
-      "args": ["/path/to/aegis-policy-engine/dist/src/mcp-server.js"],
+      "command": "node",
+      "args": ["${HOME}/path/to/aegis-policy-engine/dist/src/mcp-server.js"],
       "env": {
         "OPENAI_API_KEY": "${OPENAI_API_KEY}"
       }
@@ -93,7 +93,8 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
   - その他設定したMCPサーバーのツール
 
 **重要**: 
-- Node.jsパスは実際のv20以上のバージョンを指定してください
+- `node`コマンドがNode.js v20以上を指すように設定してください
+- 絶対パスが必要な場合は`$(which node)`を使用するか、環境に応じて設定してください
 - AEGISが自動的に他のMCPサーバーをプロキシ経由で提供します
 - 全てのツール実行時にポリシー制御が適用されます
 

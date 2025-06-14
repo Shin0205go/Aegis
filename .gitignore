@@ -48,6 +48,9 @@ temp/
 # Claude Desktop config with API keys
 aegis-mcp-config.json
 
+# Local Claude settings
+.claude/settings.local.json
+
 # Debug
 npm-debug.log*
 yarn-debug.log*

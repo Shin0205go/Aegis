@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "mcp__ide__executeCode",
+      "Bash(ls:*)",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(git:*)",
+      "Bash(rm:*)",
+      "Bash(mkdir:*)",
+      "mcp__aegis-proxy__filesystem__list_allowed_directories",
+      "mcp__aegis-proxy__filesystem__read_file",
+      "mcp__aegis-proxy__filesystem__write_file",
+      "mcp__aegis-proxy__filesystem__create_directory",
+      "mcp__aegis-proxy__filesystem__search_files",
+      "mcp__aegis-proxy__github__search_repositories",
+      "mcp__aegis-proxy__github__get_file_contents",
+      "mcp__aegis-proxy__github__create_issue"
+    ],
+    "deny": []
+  }
+}
