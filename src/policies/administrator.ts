@@ -400,9 +400,17 @@ export class PolicyAdministrator implements PolicyManagementAPI {
     };
 
     // エクスポートファイルを保存
+    const exportDir = path.join(this.storageDir, 'exports');
+    
+    // エクスポートディレクトリを作成
+    try {
+      await fs.mkdir(exportDir, { recursive: true });
+    } catch (error) {
+      // ディレクトリが既に存在する場合は無視
+    }
+    
     const exportFile = path.join(
-      this.storageDir,
-      'exports',
+      exportDir,
       `${policyId}-export-${Date.now()}.json`
     );
     

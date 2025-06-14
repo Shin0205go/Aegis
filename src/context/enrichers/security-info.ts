@@ -68,27 +68,29 @@ export class SecurityInfoEnricher implements ContextEnricher {
     const authInfo = this.getAuthenticationInfo(context);
 
     return {
-      clientIP,
-      ipType: ipInfo.type,
-      isInternalIP: ipInfo.isInternal,
-      isOfficeIP: ipInfo.isOffice,
-      isVpnConnection,
-      vpnType: isVpnConnection ? this.getVpnType(clientIP) : null,
-      geoLocation: geoInfo,
-      threatLevel: threatInfo.level,
-      isThreatIP: threatInfo.isThreat,
-      threatReasons: threatInfo.reasons,
-      recentFailedAttempts: historyAnalysis.failedAttempts,
-      lastSuccessfulAccess: historyAnalysis.lastSuccess,
-      unusualActivity: historyAnalysis.unusual,
-      securityScore,
-      authMethod: authInfo.method,
-      authStrength: authInfo.strength,
-      mfaEnabled: authInfo.mfaEnabled,
-      sessionAge: authInfo.sessionAge,
-      deviceTrust: this.getDeviceTrust(context),
-      networkTrust: this.getNetworkTrust(ipInfo, isVpnConnection),
-      requiresAdditionalAuth: securityScore < 0.5
+      [this.name]: {
+        clientIP,
+        ipType: ipInfo.type,
+        isInternalIP: ipInfo.isInternal,
+        isOfficeIP: ipInfo.isOffice,
+        isVpnConnection,
+        vpnType: isVpnConnection ? this.getVpnType(clientIP) : null,
+        geoLocation: geoInfo,
+        threatLevel: threatInfo.level,
+        isThreatIP: threatInfo.isThreat,
+        threatReasons: threatInfo.reasons,
+        recentFailedAttempts: historyAnalysis.failedAttempts,
+        lastSuccessfulAccess: historyAnalysis.lastSuccess,
+        unusualActivity: historyAnalysis.unusual,
+        securityScore,
+        authMethod: authInfo.method,
+        authStrength: authInfo.strength,
+        mfaEnabled: authInfo.mfaEnabled,
+        sessionAge: authInfo.sessionAge,
+        deviceTrust: this.getDeviceTrust(context),
+        networkTrust: this.getNetworkTrust(ipInfo, isVpnConnection),
+        requiresAdditionalAuth: securityScore < 0.5
+      }
     };
   }
 

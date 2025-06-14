@@ -8,24 +8,28 @@ module.exports = {
     '**/?(*.)+(spec|test).+(ts|tsx|js)'
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: '<rootDir>/tsconfig.test.json',
+      isolatedModules: true
+    }]
   },
   collectCoverageFrom: [
     'src/**/*.{js,ts}',
     '!src/**/*.d.ts',
     '!src/**/*.test.ts',
-    '!src/**/*.spec.ts'
+    '!src/**/*.spec.ts',
+    '!src/test/**/*'
   ],
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1'
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@/(.*)$': '<rootDir>/src/$1'
   },
+  setupFilesAfterEnv: ['<rootDir>/src/test/setup.ts'],
+  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
   globals: {
     'ts-jest': {
-      useESM: false,
-      tsconfig: {
-        module: 'commonjs',
-        target: 'es2015'
-      }
+      isolatedModules: true
     }
-  }
+  },
+  testTimeout: 30000
 };

@@ -62,7 +62,6 @@ graph TB
 - MCP公式仕様準拠のトランスポート実装
   - stdio（標準入出力）- 推奨
   - Streamable HTTP（HTTPストリーミング）
-  - WebSocket（カスタム実装、後方互換性のため）
 - リクエスト/レスポンスのインターセプト
 - 制約・義務の実行
 - 上流サーバーへの透過的プロキシ
@@ -188,7 +187,6 @@ sequenceDiagram
 ### バックエンド
 - **言語**: TypeScript (Node.js)
 - **フレームワーク**: Express.js
-- **WebSocket**: ws
 - **AI/LLM**: OpenAI API / Anthropic Claude API
 
 ### インフラストラクチャ

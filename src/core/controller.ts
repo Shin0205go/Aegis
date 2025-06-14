@@ -21,6 +21,7 @@ import {
   ResourceClassifierEnricher,
   SecurityInfoEnricher
 } from '../context/index.js';
+import { PolicyAdministrator } from '../policies/administrator.js';
 
 export class AEGISController {
   private config: AEGISConfig;
@@ -28,6 +29,7 @@ export class AEGISController {
   private judgmentEngine: AIJudgmentEngine;
   // Removed old WebSocket proxy reference
   private contextCollector: ContextCollector;
+  private policyAdmin: PolicyAdministrator;
   
   // ポリシー管理
   private policies = new Map<string, NaturalLanguagePolicyDefinition>();
@@ -47,6 +49,9 @@ export class AEGISController {
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
     this.setupContextEnrichers();
+    
+    // ポリシー管理者初期化
+    this.policyAdmin = new PolicyAdministrator();
     
     // デフォルトポリシー設定
     this.setupDefaultPolicies();
@@ -198,8 +203,8 @@ export class AEGISController {
       const policy = this.policies.get('file-system-policy');
       return { name: 'file-system-policy', policy: policy?.policy || '' };
     } else if (lowerResource.includes('delete') || lowerResource.includes('modify')) {
-      const policy = this.policies.get('high-risk-operations-policy');
-      return { name: 'high-risk-operations-policy', policy: policy?.policy || '' };
+      const policy = this.policies.get('critical-operations-policy');
+      return { name: 'critical-operations-policy', policy: policy?.policy || '' };
     } else {
       const policy = this.policies.get('default-policy');
       return { name: 'default-policy', policy: policy?.policy || '' };
@@ -233,9 +238,10 @@ export class AEGISController {
       policyUsed: policyUsed
     });
 
-    // 履歴サイズ制限（最新1000件保持）
-    if (this.decisionHistory.length > 1000) {
-      this.decisionHistory = this.decisionHistory.slice(-1000);
+    // 履歴サイズ制限（設定値または最新1000件保持）
+    const historyLimit = this.config.monitoring?.decisionHistoryLimit || 1000;
+    if (this.decisionHistory.length > historyLimit) {
+      this.decisionHistory = this.decisionHistory.slice(-historyLimit);
     }
   }
 
@@ -244,14 +250,27 @@ export class AEGISController {
     const total = this.decisionHistory.length;
     const permitted = this.decisionHistory.filter(h => h.decision.decision === 'PERMIT').length;
     const denied = this.decisionHistory.filter(h => h.decision.decision === 'DENY').length;
+    const indeterminate = this.decisionHistory.filter(h => h.decision.decision === 'INDETERMINATE').length;
+
+    // 平均処理時間を計算
+    const avgProcessingTime = total > 0
+      ? this.decisionHistory.reduce((sum, h) => {
+          const processingTime = (h.decision as any).processingTime || 0;
+          return sum + processingTime;
+        }, 0) / total
+      : 0;
 
     return {
       totalDecisions: total,
       permitRate: total > 0 ? permitted / total : 0,
       denyRate: total > 0 ? denied / total : 0,
+      permitCount: permitted,
+      denyCount: denied,
+      indeterminateCount: indeterminate,
       averageConfidence: total > 0 
         ? this.decisionHistory.reduce((sum, h) => sum + h.decision.confidence, 0) / total 
         : 0,
+      averageProcessingTime: avgProcessingTime,
       topAgents: this.getTopAgents(),
       topResources: this.getTopResources(),
       riskDistribution: this.getRiskDistribution()
@@ -332,6 +351,36 @@ export class AEGISController {
       this.logger.error('Failed to start AEGIS Controller', error);
       throw error;
     }
+  }
+
+  // ポリシー更新
+  async updatePolicy(policyId: string, newPolicy: string): Promise<void> {
+    const policyMeta = this.policies.get(policyId);
+    if (!policyMeta) {
+      throw new Error(`Policy ${policyId} not found`);
+    }
+    
+    // ポリシー管理システムで更新
+    await this.policyAdmin.updatePolicy(policyId, newPolicy, 'system');
+    
+    // 内部キャッシュを更新
+    policyMeta.policy = newPolicy;
+    policyMeta.metadata.lastModified = new Date();
+    policyMeta.metadata.lastModifiedBy = 'system';
+    
+    this.logger.info(`Policy ${policyId} updated`);
+  }
+
+  // カスタムエンリッチャー追加
+  addContextEnricher(enricher: any): void {
+    this.contextCollector.registerEnricher(enricher);
+    this.logger.info(`Added custom enricher: ${enricher.name}`);
+  }
+
+  // キャッシュクリア
+  clearCache(): void {
+    this.judgmentEngine.clearCache();
+    this.logger.info('Decision cache cleared');
   }
 
   // システム停止

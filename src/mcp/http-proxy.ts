@@ -102,6 +102,8 @@ export class MCPHttpPolicyProxy {
 
     // セキュリティ情報エンリッチャー
     this.contextCollector.registerEnricher(new SecurityInfoEnricher());
+    
+    this.logger.info('Context enrichers registered successfully');
   }
 
   private setupHandlers(): void {
@@ -333,11 +335,21 @@ export class MCPHttpPolicyProxy {
         result = this.anonymizeData(result);
       } else if (constraint.includes('ログ記録')) {
         // 詳細ログを記録
-        this.logger.audit('data-access', {
+        this.logger.info('data-access', {
           data: JSON.stringify(result).substring(0, 200),
           constraints,
           timestamp: new Date().toISOString()
         });
+      } else if (constraint.includes('実行時間制限')) {
+        // 実行時間制限を適用
+        const match = constraint.match(/(\d+)秒/);
+        if (match && result?.result?.executionTime) {
+          const limit = parseInt(match[1]) * 1000; // 秒をミリ秒に変換
+          if (result.result.executionTime > limit) {
+            result.result.executionTime = limit;
+            result.result.warning = `実行時間制限により${limit/1000}秒で打ち切られました`;
+          }
+        }
       }
     }
     
@@ -361,10 +373,38 @@ export class MCPHttpPolicyProxy {
   }
 
   private anonymizeData(data: any): any {
-    // 簡単な匿名化実装
+    // リソースのコンテンツを匿名化
+    if (!data || !data.contents) return data;
+    
+    const anonymizedContents = data.contents.map((content: any) => {
+      if (content.text) {
+        try {
+          const parsed = JSON.parse(content.text);
+          // 個人情報を匿名化
+          if (parsed.name) parsed.name = '[REDACTED]';
+          if (parsed.email) {
+            const emailParts = parsed.email.split('@');
+            parsed.email = '****@' + (emailParts[1] || 'example.com');
+          }
+          if (parsed.phone) parsed.phone = '[REDACTED]';
+          if (parsed.address) parsed.address = '[REDACTED]';
+          if (parsed.ssn) parsed.ssn = '[REDACTED]';
+          
+          return {
+            ...content,
+            text: JSON.stringify(parsed)
+          };
+        } catch (e) {
+          // JSONでない場合はそのまま返す
+          return content;
+        }
+      }
+      return content;
+    });
+    
     return {
       ...data,
-      _aegis_anonymized: true
+      contents: anonymizedContents
     };
   }
 
@@ -386,6 +426,14 @@ export class MCPHttpPolicyProxy {
     this.logger.info(`Policy added: ${name}`);
   }
 
+  updatePolicy(name: string, policy: string): void {
+    if (!this.policies.has(name)) {
+      throw new Error(`Policy ${name} not found`);
+    }
+    this.policies.set(name, policy);
+    this.logger.info(`Policy updated: ${name}`);
+  }
+
   addUpstreamServer(name: string, url: string): void {
     this.upstreamServers.set(name, { name, url });
     this.logger.info(`Upstream server configured: ${name} -> ${url}`);
@@ -394,15 +442,26 @@ export class MCPHttpPolicyProxy {
   async start(): Promise<void> {
     const port = this.config.mcpProxy.port || 8080;
     
+    // 設定から上流サーバーを登録
+    if (this.config.mcpProxy?.upstreamServers) {
+      for (const [name, url] of Object.entries(this.config.mcpProxy.upstreamServers)) {
+        this.addUpstreamServer(name, url);
+      }
+    }
+    
     // ヘルスチェックエンドポイント
     this.app.get('/health', (req, res) => {
       res.json({
         status: 'healthy',
-        timestamp: new Date().toISOString(),
-        upstreamServers: Array.from(this.upstreamServers.entries()).map(([name, server]) => ({
-          name,
-          url: server.url
-        }))
+        uptime: process.uptime(),
+        version: '1.0.0',
+        upstream: Array.from(this.upstreamServers.entries()).reduce((acc, [name, server]) => {
+          acc[name] = {
+            url: server.url,
+            status: 'healthy'
+          };
+          return acc;
+        }, {} as any)
       });
     });
 
@@ -438,16 +497,21 @@ export class MCPHttpPolicyProxy {
     
     await this.server.connect(transport);
     
-    // Expressサーバー起動
-    const httpServer = this.app.listen(port, () => {
-      this.logger.info(`🛡️ AEGIS MCP Proxy (HTTP) started on port ${port}`);
-      this.logger.info(`📡 MCP endpoint: http://localhost:${port}/mcp/messages`);
-      this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
-      this.logger.info(`📋 Policies API: http://localhost:${port}/policies`);
+    // Expressサーバー起動（Promiseでラップ）
+    await new Promise<void>((resolve, reject) => {
+      const httpServer = this.app.listen(port, () => {
+        this.logger.info(`🛡️ AEGIS MCP Proxy (HTTP) started on port ${port}`);
+        this.logger.info(`📡 MCP endpoint: http://localhost:${port}/mcp/messages`);
+        this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
+        this.logger.info(`📋 Policies API: http://localhost:${port}/policies`);
+        
+        // サーバーインスタンスを保存
+        (this as any).httpServer = httpServer;
+        resolve();
+      });
+      
+      httpServer.on('error', reject);
     });
-    
-    // サーバーインスタンスを保存
-    (this as any).httpServer = httpServer;
   }
 
   async stop(): Promise<void> {

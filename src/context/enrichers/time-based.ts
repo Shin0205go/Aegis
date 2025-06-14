@@ -79,28 +79,30 @@ export class TimeBasedEnricher implements ContextEnricher {
     const fiscalQuarter = month >= 4 ? Math.floor((month - 4) / 3) + 1 : Math.floor((month + 8) / 3) + 1;
 
     return {
-      currentTime: now.toISOString(),
-      hour,
-      minute,
-      dayOfWeek,
-      dayOfWeekName: this.getDayOfWeekName(dayOfWeek),
-      dayOfMonth,
-      month,
-      monthName: this.getMonthName(month),
-      year,
-      quarter,
-      fiscalYear,
-      fiscalQuarter,
-      isBusinessHours,
-      isWeekend,
-      isHoliday,
-      isBusinessDay,
-      timeOfDay,
-      isMonthEnd,
-      timezone: this.businessHours.timezone,
-      businessHoursConfig: this.businessHours,
-      timeSinceBusinessStart: isBusinessHours ? this.getTimeSinceBusinessStart(hour, minute) : null,
-      timeUntilBusinessEnd: isBusinessHours ? this.getTimeUntilBusinessEnd(hour, minute) : null
+      [this.name]: {
+        currentTime: now.toISOString(),
+        hour,
+        minute,
+        dayOfWeek,
+        dayOfWeekName: this.getDayOfWeekName(dayOfWeek),
+        dayOfMonth,
+        month,
+        monthName: this.getMonthName(month),
+        year,
+        quarter,
+        fiscalYear,
+        fiscalQuarter,
+        isBusinessHours,
+        isWeekend,
+        isHoliday,
+        isBusinessDay,
+        timeOfDay,
+        isMonthEnd,
+        timezone: this.businessHours.timezone,
+        businessHoursConfig: this.businessHours,
+        timeSinceBusinessStart: isBusinessHours ? this.getTimeSinceBusinessStart(hour, minute) : null,
+        timeUntilBusinessEnd: isBusinessHours ? this.getTimeUntilBusinessEnd(hour, minute) : null
+      }
     };
   }
 

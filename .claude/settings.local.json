@@ -26,7 +26,17 @@
       "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node test-aegis-tools.js 2 >& 1)",
       "Bash(/Users/shingo/.nvm/versions/node/v20.12.2/bin/node:*)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(claude --version)",
+      "mcp__aegis-proxy__filesystem__list_allowed_directories",
+      "mcp__aegis-proxy__filesystem__read_file",
+      "mcp__aegis-proxy__filesystem__write_file",
+      "mcp__aegis-proxy__filesystem__create_directory",
+      "mcp__aegis-proxy__filesystem__search_files",
+      "mcp__aegis-proxy__github__search_repositories",
+      "mcp__aegis-proxy__github__get_file_contents",
+      "mcp__aegis-proxy__github__create_issue",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }

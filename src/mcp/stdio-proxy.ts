@@ -87,6 +87,8 @@ export class MCPStdioPolicyProxy {
 
     // セキュリティ情報エンリッチャー
     this.contextCollector.registerEnricher(new SecurityInfoEnricher());
+    
+    this.logger.info('Context enrichers registered successfully');
   }
 
   private setupHandlers(): void {
@@ -105,8 +107,8 @@ export class MCPStdioPolicyProxy {
         // 上流サーバーに転送
         const result = await this.forwardToUpstream('resources/read', request.params);
         
-        // 制約適用（result.resultを使用）
-        const constrainedResult = await this.applyConstraints(result.result, decision.constraints || []);
+        // 制約適用
+        const constrainedResult = await this.applyConstraints(result, decision.constraints || []);
         
         return constrainedResult;
       } catch (error) {
@@ -341,10 +343,38 @@ export class MCPStdioPolicyProxy {
   }
 
   private anonymizeData(data: any): any {
-    // 簡単な匿名化実装
+    // リソースのコンテンツを匿名化
+    if (!data || !data.contents) return data;
+    
+    const anonymizedContents = data.contents.map((content: any) => {
+      if (content.text) {
+        try {
+          const parsed = JSON.parse(content.text);
+          // 個人情報を匿名化
+          if (parsed.name) parsed.name = '[REDACTED]';
+          if (parsed.email) {
+            const emailParts = parsed.email.split('@');
+            parsed.email = '****@' + (emailParts[1] || 'example.com');
+          }
+          if (parsed.phone) parsed.phone = '[REDACTED]';
+          if (parsed.address) parsed.address = '[REDACTED]';
+          if (parsed.ssn) parsed.ssn = '[REDACTED]';
+          
+          return {
+            ...content,
+            text: JSON.stringify(parsed)
+          };
+        } catch (e) {
+          // JSONでない場合はそのまま返す
+          return content;
+        }
+      }
+      return content;
+    });
+    
     return {
       ...data,
-      _aegis_anonymized: true
+      contents: anonymizedContents
     };
   }
 
@@ -364,6 +394,25 @@ export class MCPStdioPolicyProxy {
   addPolicy(name: string, policy: string): void {
     this.policies.set(name, policy);
     this.logger.info(`Policy added: ${name}`);
+  }
+
+  updatePolicy(name: string, policy: string): void {
+    if (!this.policies.has(name)) {
+      throw new Error(`Policy ${name} not found`);
+    }
+    this.policies.set(name, policy);
+    this.logger.info(`Policy updated: ${name}`);
+  }
+
+  selectPolicy(resource: string): string {
+    // シンプルな実装：リソースタイプに基づいてポリシーを選択
+    if (resource.includes('tool')) {
+      return this.policies.get('tool-policy') || this.policies.get('default') || '';
+    }
+    if (resource.includes('customer')) {
+      return this.policies.get('customer-policy') || this.policies.get('default') || '';
+    }
+    return this.policies.get('default') || '';
   }
 
   addUpstreamServer(name: string, command: string, args: string[] = []): void {
@@ -428,15 +477,22 @@ export class MCPStdioPolicyProxy {
   }
 
   async start(): Promise<void> {
+    // 設定から上流サーバーを登録
+    if (this.config.mcp?.upstreamServers) {
+      for (const serverConfig of this.config.mcp.upstreamServers) {
+        this.stdioRouter.registerUpstreamServer(serverConfig);
+      }
+    }
+    
+    // 上流サーバーを起動
+    await this.stdioRouter.startAllServers();
+    
     // MCPサーバーを作成
     const transport = new StdioServerTransport();
     
     // MCPサーバーを接続（Claudeからの接続を受け付ける）
     await this.server.connect(transport);
     this.logger.info('🛡️ AEGIS MCP Proxy (stdio) started and accepting connections');
-    
-    // 上流サーバーはloadDesktopConfig()で既に起動開始している
-    // tools/listハンドラーで待機するため、ここでは待つ必要なし
   }
 
   async stop(): Promise<void> {

@@ -46,7 +46,7 @@ export class ResourceClassifierEnricher implements ContextEnricher {
     },
     // システムログ
     {
-      pattern: /log|audit|system|debug|error/i,
+      pattern: /\/(logs?|audit|system|debug|error)\//i,
       classification: {
         dataType: 'system-logs',
         sensitivityLevel: 'medium',
@@ -109,28 +109,30 @@ export class ResourceClassifierEnricher implements ContextEnricher {
     const sensitivityScore = this.calculateSensitivityScore(classification);
 
     return {
-      resourceUri: resource,
-      resourceScheme: resourceParts.scheme,
-      resourceHost: resourceParts.host,
-      resourcePath: resourceParts.path,
-      dataType: classification.dataType,
-      sensitivityLevel: classification.sensitivityLevel,
-      sensitivityScore,
-      tags: classification.tags,
-      retentionDays: classification.retentionDays,
-      requiresEncryption: classification.requiresEncryption,
-      owner: ownerInfo.owner,
-      department: ownerInfo.department,
-      dataController: ownerInfo.dataController,
-      isRegulated: classification.tags.includes('regulated'),
-      isPii: classification.tags.includes('pii'),
-      isPhi: classification.tags.includes('phi'),
-      isFinancial: classification.tags.includes('financial'),
-      isPublic: classification.sensitivityLevel === 'low',
-      lineage: lineageInfo,
-      accessFrequency,
-      requiresAudit: classification.tags.includes('audit-required'),
-      dataAge: this.estimateDataAge(resource)
+      [this.name]: {
+        resourceUri: resource,
+        resourceScheme: resourceParts.scheme,
+        resourceHost: resourceParts.host,
+        resourcePath: resourceParts.path,
+        dataType: classification.dataType,
+        sensitivityLevel: classification.sensitivityLevel,
+        sensitivityScore,
+        tags: classification.tags,
+        retentionDays: classification.retentionDays,
+        requiresEncryption: classification.requiresEncryption,
+        owner: ownerInfo.owner,
+        department: ownerInfo.department,
+        dataController: ownerInfo.dataController,
+        isRegulated: classification.tags.includes('regulated'),
+        isPii: classification.tags.includes('pii'),
+        isPhi: classification.tags.includes('phi'),
+        isFinancial: classification.tags.includes('financial'),
+        isPublic: classification.sensitivityLevel === 'low',
+        lineage: lineageInfo,
+        accessFrequency,
+        requiresAudit: classification.tags.includes('audit-required'),
+        dataAge: this.estimateDataAge(resource)
+      }
     };
   }
 
@@ -278,3 +280,6 @@ interface AccessFrequency {
   monthly: number;
   trend: 'increasing' | 'decreasing' | 'stable';
 }
+
+// 互換性のためのエクスポート
+export { ResourceClassifierEnricher as ResourceClassifier };

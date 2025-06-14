@@ -49,10 +49,12 @@ export class AIJudgmentEngine {
   private llm: OpenAILLM;
   private decisionCache: LRUCache<string, PolicyDecision>;
   private promptTemplateCache = new Map<string, string>();
+  private cacheCapacity: number;
 
   constructor(llmConfig: LLMConfig) {
     this.llm = new OpenAILLM(llmConfig);
-    this.decisionCache = new SimpleLRUCache<string, PolicyDecision>(1000);
+    this.cacheCapacity = 1000;
+    this.decisionCache = new SimpleLRUCache<string, PolicyDecision>(this.cacheCapacity);
   }
 
   // メイン判定メソッド
@@ -62,31 +64,45 @@ export class AIJudgmentEngine {
     additionalContext?: Record<string, any>
   ): Promise<PolicyDecision> {
     
-    // 1. キャッシュチェック
-    const cacheKey = this.generateCacheKey(naturalLanguagePolicy, context);
-    const cachedDecision = this.decisionCache.get(cacheKey);
-    if (cachedDecision) {
-      console.error('[AI Judgment] Using cached decision');
-      return cachedDecision;
-    }
+    try {
+      // 1. キャッシュチェック
+      const cacheKey = this.generateCacheKey(naturalLanguagePolicy, context);
+      const cachedDecision = this.decisionCache.get(cacheKey);
+      if (cachedDecision) {
+        console.error('[AI Judgment] Using cached decision');
+        return cachedDecision;
+      }
 
-    // 2. ポリシー分析プロンプト生成
-    const analysisPrompt = this.buildAnalysisPrompt(naturalLanguagePolicy, context);
-    
-    // 3. AI判定実行
-    console.error('[AI Judgment] Executing AI decision...');
-    const rawResponse = await this.llm.complete(analysisPrompt);
-    
-    // 4. 結果パース・検証
-    const decision = this.parseAndValidateDecision(rawResponse);
-    
-    // 5. キャッシュ保存
-    this.decisionCache.set(cacheKey, decision);
-    
-    // 6. ログ記録
-    this.logDecision(context, decision, naturalLanguagePolicy);
-    
-    return decision;
+      // 2. ポリシー分析プロンプト生成
+      const analysisPrompt = this.buildAnalysisPrompt(naturalLanguagePolicy, context);
+      
+      // 3. AI判定実行
+      console.error('[AI Judgment] Executing AI decision...');
+      const rawResponse = await this.llm.complete(analysisPrompt);
+      
+      // 4. 結果パース・検証
+      const decision = this.parseAndValidateDecision(rawResponse);
+      
+      // 5. キャッシュ保存
+      this.decisionCache.set(cacheKey, decision);
+      
+      // 6. ログ記録
+      this.logDecision(context, decision, naturalLanguagePolicy);
+      
+      return decision;
+    } catch (error) {
+      console.error('[AI Judgment] Decision error:', error);
+      return {
+        decision: "INDETERMINATE",
+        reason: `AI判定エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        confidence: 0.0,
+        riskLevel: "HIGH",
+        constraints: ["手動確認が必要"],
+        obligations: ["システム管理者に報告"],
+        monitoringRequirements: ["AI判定エラーとして記録"],
+        metadata: { aiError: true }
+      };
+    }
   }
 
   // ポリシー分析プロンプト構築
@@ -310,4 +326,12 @@ ${contexts.map((ctx, i) => `
       totalDecisions: 100  // モック値
     };
   }
+
+  // キャッシュクリア
+  clearCache(): void {
+    this.decisionCache = new SimpleLRUCache(this.cacheCapacity);
+  }
+
+  // エイリアス（互換性のため）
+  makeDecisionBatch = this.batchDecision;
 }

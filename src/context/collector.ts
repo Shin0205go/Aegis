@@ -64,7 +64,13 @@ export class ContextCollector {
     // 結果を統合
     for (const result of results) {
       if (result.success) {
-        enrichedData[result.name] = result.data;
+        // enricherがすでに{ [name]: data }の形式で返している場合
+        if (result.data && typeof result.data === 'object' && result.name in result.data) {
+          Object.assign(enrichedData, result.data);
+        } else {
+          // そうでない場合は名前をキーとして格納
+          enrichedData[result.name] = result.data;
+        }
       }
     }
 

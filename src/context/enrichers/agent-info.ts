@@ -89,28 +89,30 @@ export class AgentInfoEnricher implements ContextEnricher {
     const hasAdminPrivileges = agentInfo.permissions.includes('*') || agentInfo.type === 'admin';
 
     return {
-      agentId: agentInfo.id,
-      agentType: agentInfo.type,
-      department: agentInfo.department,
-      clearanceLevel: agentInfo.clearanceLevel,
-      clearanceName: this.getClearanceName(agentInfo.clearanceLevel),
-      isExternal: agentInfo.isExternal,
-      createdAt: agentInfo.createdAt.toISOString(),
-      lastActivity: agentInfo.lastActivity.toISOString(),
-      ageDays,
-      inactiveDays,
-      activityStatus,
-      permissions: agentInfo.permissions,
-      tags: agentInfo.tags,
-      riskScore: agentInfo.riskScore,
-      trustScore,
-      hasHighClearance,
-      hasAdminPrivileges,
-      supervisor: agentInfo.supervisor,
-      location: agentInfo.location,
-      isNewAgent: ageDays < 30,
-      isInactive: inactiveDays > 30,
-      requiresSupervision: agentInfo.riskScore > 0.5 || agentInfo.isExternal
+      [this.name]: {
+        agentId: agentInfo.id,
+        agentType: agentInfo.type,
+        department: agentInfo.department,
+        clearanceLevel: agentInfo.clearanceLevel,
+        clearanceName: this.getClearanceName(agentInfo.clearanceLevel),
+        isExternal: agentInfo.isExternal,
+        createdAt: agentInfo.createdAt.toISOString(),
+        lastActivity: agentInfo.lastActivity.toISOString(),
+        ageDays,
+        inactiveDays,
+        activityStatus,
+        permissions: agentInfo.permissions,
+        tags: agentInfo.tags,
+        riskScore: agentInfo.riskScore,
+        trustScore,
+        hasHighClearance,
+        hasAdminPrivileges,
+        supervisor: agentInfo.supervisor,
+        location: agentInfo.location,
+        isNewAgent: ageDays < 30,
+        isInactive: inactiveDays > 30,
+        requiresSupervision: agentInfo.riskScore > 0.5 || agentInfo.isExternal
+      }
     };
   }
 
