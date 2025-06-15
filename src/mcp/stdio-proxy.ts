@@ -27,6 +27,7 @@ import {
 } from '../context/index.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
 import { EnforcementSystem } from '../core/enforcement.js';
+import { PolicyLoader } from '../policies/policy-loader.js';
 
 export class MCPStdioPolicyProxy {
   private server: Server;
@@ -41,6 +42,7 @@ export class MCPStdioPolicyProxy {
   
   // ポリシー管理
   private policies = new Map<string, string>();
+  private policyLoader: PolicyLoader;
   
   private upstreamStartPromise: Promise<void> | null = null;
 
@@ -48,10 +50,14 @@ export class MCPStdioPolicyProxy {
     this.config = config;
     this.logger = logger;
     this.judgmentEngine = judgmentEngine;
+    this.policyLoader = new PolicyLoader();
     
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
     this.setupContextEnrichers();
+    
+    // ポリシーローダー初期化
+    this.initializePolicyLoader();
     
     // 制約・義務実施システム初期化
     this.enforcementSystem = new EnforcementSystem();
@@ -74,6 +80,15 @@ export class MCPStdioPolicyProxy {
     
     // stdioルーター初期化
     this.stdioRouter = new StdioRouter(this.logger);
+  }
+
+  private async initializePolicyLoader(): Promise<void> {
+    try {
+      await this.policyLoader.loadPolicies();
+      this.logger.info('Policy loader initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize policy loader:', error);
+    }
   }
 
   private setupContextEnrichers(): void {
@@ -239,9 +254,20 @@ export class MCPStdioPolicyProxy {
     // コンテキスト拡張
     const enrichedContext = await this.contextCollector.enrichContext(baseContext);
     
-    // 適用ポリシー選択
-    const policyName = this.selectApplicablePolicy(resource, baseContext.agent);
-    const policy = this.policies.get(policyName);
+    // 適用ポリシー選択（設定ファイルから）
+    const activePolicies = this.policyLoader.getActivePolicies();
+    let policy: string | null = null;
+    
+    if (activePolicies.length > 0) {
+      // 優先度順（priority降順）で最初のアクティブポリシーを使用
+      const selectedPolicy = activePolicies[0];
+      policy = this.policyLoader.formatPolicyForAI(selectedPolicy);
+      this.logger.info(`Using policy: ${selectedPolicy.name} (priority: ${selectedPolicy.metadata.priority})`);
+    } else {
+      // フォールバック: 従来のポリシーマップから選択
+      const policyName = this.selectApplicablePolicy(resource, baseContext.agent);
+      policy = this.policies.get(policyName) || null;
+    }
     
     if (!policy) {
       this.logger.warn(`No policy found for resource: ${resource}`);
@@ -261,7 +287,7 @@ export class MCPStdioPolicyProxy {
     return {
       ...decision,
       processingTime: Date.now() - startTime,
-      policyUsed: policyName,
+      policyUsed: activePolicies.length > 0 ? activePolicies[0].name : 'fallback-policy',
       context: enrichedContext
     };
   }

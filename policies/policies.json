@@ -1,0 +1,99 @@
+{
+  "policies": [
+    {
+      "id": "claude-desktop-policy",
+      "name": "Claude Desktop アクセスポリシー",
+      "version": "1.0.0",
+      "status": "inactive",
+      "description": "Claude Desktop (MCP Client) のファイルシステムアクセスを制御",
+      "policy": {
+        "基本原則": [
+          "Claude Desktop (mcp-client) からのアクセスは基本的に許可",
+          "リスト操作（tools/list, resources/list）は常に許可",
+          "初期接続時の探索的アクセスを許可"
+        ],
+        "アクセス許可": [
+          "ツール一覧の取得: 常に許可",
+          "リソース一覧の取得: 常に許可",
+          "上流MCPサーバーへの接続: 許可"
+        ],
+        "制限事項": [
+          "個人情報を含むリソースへの直接アクセスは追加確認が必要",
+          "削除操作は明示的な確認が必要"
+        ],
+        "義務事項": [
+          "全アクセスの詳細ログ記録",
+          "ファイルの内容スキャンによる機密情報チェック",
+          "アクセス後の通知"
+        ]
+      },
+      "metadata": {
+        "createdAt": "2024-01-15",
+        "createdBy": "admin",
+        "tags": ["filesystem", "claude-desktop"],
+        "priority": 100
+      }
+    },
+    {
+      "id": "strict-security-policy",
+      "name": "厳格セキュリティポリシー",
+      "version": "1.0.0", 
+      "status": "inactive",
+      "description": "厳格なセキュリティ制御（テスト用）",
+      "policy": {
+        "基本原則": [
+          "すべてのアクセスは事前承認が必要",
+          "書き込み操作は禁止",
+          "機密情報へのアクセスは完全禁止"
+        ],
+        "制限事項": [
+          "ファイル読み取りは読み取り専用権限のみ",
+          "書き込み・削除操作は全面禁止",
+          "機密ファイル（.env, .key等）へのアクセス禁止"
+        ],
+        "義務事項": [
+          "すべてのアクセス試行をセキュリティチームに即座に通知",
+          "詳細な監査ログ記録",
+          "異常検知アラート"
+        ]
+      },
+      "metadata": {
+        "createdAt": "2024-01-15",
+        "createdBy": "security-team",
+        "tags": ["security", "strict"],
+        "priority": 200
+      }
+    },
+    {
+      "id": "permissive-policy", 
+      "name": "寛容アクセスポリシー",
+      "version": "1.0.0",
+      "status": "active", 
+      "description": "開発環境向けの寛容なアクセス制御",
+      "policy": {
+        "基本原則": [
+          "開発作業のためのアクセスは基本的に許可",
+          "効率性を重視し、制限は最小限に",
+          "開発者の生産性を最優先"
+        ],
+        "アクセス許可": [
+          "すべてのファイルシステム操作: 許可",
+          "コード実行: 許可", 
+          "設定ファイル変更: 許可"
+        ],
+        "制限事項": [
+          "本番環境ファイルへのアクセスは注意喚起のみ"
+        ],
+        "義務事項": [
+          "基本的なアクセスログ記録"
+        ]
+      },
+      "metadata": {
+        "createdAt": "2024-01-15", 
+        "createdBy": "dev-team",
+        "tags": ["development", "permissive"],
+        "priority": 50
+      }
+    }
+  ]
+}

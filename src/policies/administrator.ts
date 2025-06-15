@@ -17,6 +17,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { PolicyLoader, PolicyDefinition } from './policy-loader.js';
 
 /**
  * ポリシーエクスポート形式
@@ -78,10 +79,12 @@ export class PolicyAdministrator implements PolicyManagementAPI {
   private policyHistory = new Map<string, PolicyVersion[]>();
   private logger: Logger;
   private storageDir: string;
+  private policyLoader: PolicyLoader;
 
   constructor(storageDir?: string) {
     this.logger = new Logger();
     this.storageDir = storageDir || './policies-store';
+    this.policyLoader = new PolicyLoader();
     this.initializeStorage();
   }
 
@@ -96,9 +99,42 @@ export class PolicyAdministrator implements PolicyManagementAPI {
       
       // 既存のポリシーを読み込み
       await this.loadPoliciesFromDisk();
+      
+      // 設定ファイルからのポリシーも読み込み
+      await this.loadPoliciesFromConfig();
     } catch (error) {
       this.logger.error('Failed to initialize storage', error);
     }
+  }
+
+  /**
+   * 設定ファイルからポリシーを読み込み
+   */
+  async loadPoliciesFromConfig(): Promise<void> {
+    try {
+      await this.policyLoader.loadPolicies();
+      this.logger.info('Loaded policies from configuration file');
+    } catch (error) {
+      this.logger.warn('Failed to load policies from config file:', error);
+    }
+  }
+
+  /**
+   * アクティブなポリシーを取得（設定ファイル優先）
+   */
+  getActivePoliciesFromConfig(): PolicyDefinition[] {
+    return this.policyLoader.getActivePolicies();
+  }
+
+  /**
+   * 設定ファイルのポリシーをAI判定用にフォーマット
+   */
+  formatConfigPolicyForAI(policyId: string): string | null {
+    const policy = this.policyLoader.getPolicy(policyId);
+    if (!policy || policy.status !== 'active') {
+      return null;
+    }
+    return this.policyLoader.formatPolicyForAI(policy);
   }
 
   /**

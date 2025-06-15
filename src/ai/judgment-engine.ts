@@ -8,6 +8,7 @@ import type {
   LLMConfig 
 } from '../types/index.js';
 import { OpenAILLM } from './openai-llm.js';
+import { AnthropicLLM } from './anthropic-llm.js';
 
 interface LRUCache<K, V> {
   get(key: K): V | undefined;
@@ -46,13 +47,25 @@ class SimpleLRUCache<K, V> implements LRUCache<K, V> {
 }
 
 export class AIJudgmentEngine {
-  private llm: OpenAILLM;
+  private llm: OpenAILLM | AnthropicLLM;
   private decisionCache: LRUCache<string, PolicyDecision>;
   private promptTemplateCache = new Map<string, string>();
   private cacheCapacity: number;
 
   constructor(llmConfig: LLMConfig) {
-    this.llm = new OpenAILLM(llmConfig);
+    // Select LLM provider based on configuration
+    console.error('[AI Judgment] Initializing with provider:', llmConfig.provider);
+    switch (llmConfig.provider) {
+      case 'anthropic':
+        console.error('[AI Judgment] Using Anthropic Claude API for real AI judgment');
+        this.llm = new AnthropicLLM(llmConfig);
+        break;
+      case 'openai':
+      default:
+        this.llm = new OpenAILLM(llmConfig);
+        break;
+    }
+    
     this.cacheCapacity = 1000;
     this.decisionCache = new SimpleLRUCache<string, PolicyDecision>(this.cacheCapacity);
   }
