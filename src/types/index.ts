@@ -106,7 +106,11 @@ export interface ControllerStatistics {
   totalDecisions: number;
   permitRate: number;
   denyRate: number;
+  permitCount: number;
+  denyCount: number;
+  indeterminateCount: number;
   averageConfidence: number;
+  averageProcessingTime: number;
   topAgents: Array<{ agent: string; count: number }>;
   topResources: Array<{ resource: string; count: number }>;
   riskDistribution: Record<string, number>;

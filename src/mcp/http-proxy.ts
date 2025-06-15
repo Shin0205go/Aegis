@@ -332,120 +332,81 @@ export class MCPHttpPolicyProxy {
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
-    // Phase 3: 新システムを使用
-    if (this.enforcementSystem && constraints.length > 0) {
-      try {
-        // ダミーのコンテキストを作成
-        const context: DecisionContext = {
-          agent: 'http-client',
-          action: 'apply-constraints',
-          resource: 'data',
-          purpose: 'constraint-enforcement',
-          time: new Date(),
-          environment: {
-            transport: 'http'
-          }
-        };
-        
-        return await this.enforcementSystem.applyConstraints(constraints, data, context);
-      } catch (error) {
-        this.logger.error('新制約システムエラー、レガシー処理にフォールバック', error);
-      }
+    if (!constraints || constraints.length === 0) {
+      return data;
     }
-    
-    // レガシー処理
-    let result = data;
-    
-    for (const constraint of constraints) {
-      if (constraint.includes('匿名化')) {
-        // データの匿名化処理
-        result = this.anonymizeData(result);
-      } else if (constraint.includes('ログ記録')) {
-        // 詳細ログを記録
-        this.logger.info('data-access', {
-          data: JSON.stringify(result).substring(0, 200),
-          constraints,
-          timestamp: new Date().toISOString()
-        });
-      } else if (constraint.includes('実行時間制限')) {
-        // 実行時間制限を適用
-        const match = constraint.match(/(\d+)秒/);
-        if (match && result?.result?.executionTime) {
-          const limit = parseInt(match[1]) * 1000; // 秒をミリ秒に変換
-          if (result.result.executionTime > limit) {
-            result.result.executionTime = limit;
-            result.result.warning = `実行時間制限により${limit/1000}秒で打ち切られました`;
-          }
+
+    // Phase 3: 新システムを完全に使用
+    try {
+      // 実際のコンテキストを作成
+      const context: DecisionContext = {
+        agent: 'http-client',
+        action: 'apply-constraints',
+        resource: 'data',
+        purpose: 'constraint-enforcement',
+        time: new Date(),
+        environment: {
+          transport: 'http'
         }
-      }
+      };
+      
+      const result = await this.enforcementSystem.applyConstraints(constraints, data, context);
+      
+      // 制約適用の結果をログ
+      this.logger.info('制約適用完了', {
+        constraintCount: constraints.length,
+        appliedConstraints: constraints
+      });
+      
+      return result;
+    } catch (error) {
+      this.logger.error('制約適用エラー', error);
+      // エラー時はデータをそのまま返す（フェイルオープン）
+      return data;
     }
-    
-    return result;
   }
 
   private async executeObligations(obligations: string[], request: any): Promise<void> {
-    for (const obligation of obligations) {
-      try {
-        if (obligation.includes('通知')) {
-          await this.sendNotification(request, obligation);
-        } else if (obligation.includes('削除')) {
-          await this.scheduleDataDeletion(request, obligation);
-        } else if (obligation.includes('レポート')) {
-          await this.generateAccessReport(request, obligation);
+    if (!obligations || obligations.length === 0) {
+      return;
+    }
+
+    // Phase 3: 新システムを完全に使用
+    try {
+      // 実際のコンテキストを作成
+      const context: DecisionContext = {
+        agent: 'http-client',
+        action: request.params?.name || 'unknown',
+        resource: `tool:${request.params?.name || 'unknown'}`,
+        purpose: 'obligation-execution',
+        time: new Date(),
+        environment: {
+          transport: 'http',
+          request
         }
-      } catch (error) {
-        this.logger.error(`Failed to execute obligation: ${obligation}`, error);
-      }
+      };
+      
+      // ダミーの判定結果を作成
+      const decision = {
+        decision: 'PERMIT' as const,
+        reason: 'Obligation execution after permission',
+        confidence: 1.0,
+        obligations
+      };
+      
+      await this.enforcementSystem.executeObligations(obligations, context, decision);
+      
+      this.logger.info('義務実行完了', {
+        obligationCount: obligations.length,
+        executedObligations: obligations
+      });
+    } catch (error) {
+      this.logger.error('義務実行エラー', error);
+      // 義務実行の失敗はリクエスト自体には影響させない
     }
   }
 
-  private anonymizeData(data: any): any {
-    // リソースのコンテンツを匿名化
-    if (!data || !data.contents) return data;
-    
-    const anonymizedContents = data.contents.map((content: any) => {
-      if (content.text) {
-        try {
-          const parsed = JSON.parse(content.text);
-          // 個人情報を匿名化
-          if (parsed.name) parsed.name = '[REDACTED]';
-          if (parsed.email) {
-            const emailParts = parsed.email.split('@');
-            parsed.email = '****@' + (emailParts[1] || 'example.com');
-          }
-          if (parsed.phone) parsed.phone = '[REDACTED]';
-          if (parsed.address) parsed.address = '[REDACTED]';
-          if (parsed.ssn) parsed.ssn = '[REDACTED]';
-          
-          return {
-            ...content,
-            text: JSON.stringify(parsed)
-          };
-        } catch (e) {
-          // JSONでない場合はそのまま返す
-          return content;
-        }
-      }
-      return content;
-    });
-    
-    return {
-      ...data,
-      contents: anonymizedContents
-    };
-  }
-
-  private async sendNotification(request: any, obligation: string): Promise<void> {
-    this.logger.info('Notification sent', { request, obligation });
-  }
-
-  private async scheduleDataDeletion(request: any, obligation: string): Promise<void> {
-    this.logger.info('Data deletion scheduled', { request, obligation });
-  }
-
-  private async generateAccessReport(request: any, obligation: string): Promise<void> {
-    this.logger.info('Access report generated', { request, obligation });
-  }
+  // レガシーメソッドは削除（新システムで完全に処理）
 
   // パブリックメソッド
   addPolicy(name: string, policy: string): void {
@@ -530,18 +491,19 @@ export class MCPHttpPolicyProxy {
     
     // Expressサーバー起動（Promiseでラップ）
     await new Promise<void>((resolve, reject) => {
-      const httpServer = this.app.listen(port, () => {
+      let server: any;
+      server = this.app.listen(port, () => {
         this.logger.info(`🛡️ AEGIS MCP Proxy (HTTP) started on port ${port}`);
         this.logger.info(`📡 MCP endpoint: http://localhost:${port}/mcp/messages`);
         this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
         this.logger.info(`📋 Policies API: http://localhost:${port}/policies`);
         
         // サーバーインスタンスを保存
-        (this as any).httpServer = httpServer;
+        (this as any).httpServer = server;
         resolve();
       });
       
-      httpServer.on('error', reject);
+      server.on('error', reject);
     });
   }
 

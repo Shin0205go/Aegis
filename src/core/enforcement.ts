@@ -1,5 +1,13 @@
 import { PolicyDecision, DecisionContext } from '../types';
 import { Logger } from '../utils/logger';
+import { ConstraintProcessorManager } from './constraints/manager';
+import { ObligationExecutorManager } from './obligations/manager';
+import { DataAnonymizerProcessor } from './constraints/processors/data-anonymizer';
+import { RateLimiterProcessor } from './constraints/processors/rate-limiter';
+import { GeoRestrictorProcessor } from './constraints/processors/geo-restrictor';
+import { AuditLoggerExecutor } from './obligations/executors/audit-logger';
+import { NotifierExecutor } from './obligations/executors/notifier';
+import { DataLifecycleExecutor } from './obligations/executors/data-lifecycle';
 
 const logger = new Logger();
 
@@ -224,9 +232,6 @@ export class ObligationExecutor {
       this.executeObligation(obligation, context, decision)
     );
     
-      this.executeObligationLegacy(obligation, context, decision)
-    );
-    
     await Promise.allSettled(promises);
   }
 
@@ -398,7 +403,7 @@ export class EnforcementSystem {
     return this.obligationManager.getExecutors();
   }
   
-  getExecutionStats() {
+  getExecutionStats(): any {
     return this.obligationManager.getExecutionStats();
   }
 }

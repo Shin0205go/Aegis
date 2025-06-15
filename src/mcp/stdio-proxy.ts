@@ -26,6 +26,7 @@ import {
   SecurityInfoEnricher
 } from '../context/index.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
+import { EnforcementSystem } from '../core/enforcement.js';
 
 export class MCPStdioPolicyProxy {
   private server: Server;
@@ -33,6 +34,7 @@ export class MCPStdioPolicyProxy {
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
   private contextCollector: ContextCollector;
+  private enforcementSystem: EnforcementSystem;
   
   // stdioルーター
   private stdioRouter: StdioRouter;
@@ -50,6 +52,9 @@ export class MCPStdioPolicyProxy {
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
     this.setupContextEnrichers();
+    
+    // 制約・義務実施システム初期化
+    this.enforcementSystem = new EnforcementSystem();
     
     // MCPサーバー作成
     this.server = new Server(
@@ -307,108 +312,81 @@ export class MCPStdioPolicyProxy {
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
-    // Phase 3: 新システムを使用
-    if (this.enforcementSystem && constraints.length > 0) {
-      try {
-        // ダミーのコンテキストを作成
-        const context: DecisionContext = {
-          agent: 'mcp-client',
-          action: 'apply-constraints',
-          resource: 'data',
-          purpose: 'constraint-enforcement',
-          time: new Date(),
-          environment: {}
-        };
-        
-        return await this.enforcementSystem.applyConstraints(constraints, data, context);
-      } catch (error) {
-        this.logger.error('新制約システムエラー、レガシー処理にフォールバック', error);
-      }
+    if (!constraints || constraints.length === 0) {
+      return data;
     }
-    
-    // レガシー処理
-    let result = data;
-    
-    for (const constraint of constraints) {
-      if (constraint.includes('匿名化')) {
-        // データの匿名化処理
-        result = this.anonymizeData(result);
-      } else if (constraint.includes('ログ記録')) {
-        // 詳細ログを記録
-        this.logger.audit('data-access', {
-          data: JSON.stringify(result).substring(0, 200),
-          constraints,
-          timestamp: new Date().toISOString()
-        });
-      }
+
+    // Phase 3: 新システムを完全に使用
+    try {
+      // 実際のコンテキストを作成
+      const context: DecisionContext = {
+        agent: 'mcp-client',
+        action: 'apply-constraints',
+        resource: 'data',
+        purpose: 'constraint-enforcement',
+        time: new Date(),
+        environment: {
+          transport: 'stdio'
+        }
+      };
+      
+      const result = await this.enforcementSystem.applyConstraints(constraints, data, context);
+      
+      // 制約適用の結果をログ
+      this.logger.info('制約適用完了', {
+        constraintCount: constraints.length,
+        appliedConstraints: constraints
+      });
+      
+      return result;
+    } catch (error) {
+      this.logger.error('制約適用エラー', error);
+      // エラー時はデータをそのまま返す（フェイルオープン）
+      return data;
     }
-    
-    return result;
   }
 
   private async executeObligations(obligations: string[], request: any): Promise<void> {
-    for (const obligation of obligations) {
-      try {
-        if (obligation.includes('通知')) {
-          await this.sendNotification(request, obligation);
-        } else if (obligation.includes('削除')) {
-          await this.scheduleDataDeletion(request, obligation);
-        } else if (obligation.includes('レポート')) {
-          await this.generateAccessReport(request, obligation);
+    if (!obligations || obligations.length === 0) {
+      return;
+    }
+
+    // Phase 3: 新システムを完全に使用
+    try {
+      // 実際のコンテキストを作成
+      const context: DecisionContext = {
+        agent: 'mcp-client',
+        action: request.params?.name || 'unknown',
+        resource: `tool:${request.params?.name || 'unknown'}`,
+        purpose: 'obligation-execution',
+        time: new Date(),
+        environment: {
+          transport: 'stdio',
+          request
         }
-      } catch (error) {
-        this.logger.error(`Failed to execute obligation: ${obligation}`, error);
-      }
+      };
+      
+      // ダミーの判定結果を作成
+      const decision = {
+        decision: 'PERMIT' as const,
+        reason: 'Obligation execution after permission',
+        confidence: 1.0,
+        obligations
+      };
+      
+      await this.enforcementSystem.executeObligations(obligations, context, decision);
+      
+      this.logger.info('義務実行完了', {
+        obligationCount: obligations.length,
+        executedObligations: obligations
+      });
+    } catch (error) {
+      this.logger.error('義務実行エラー', error);
+      // 義務実行の失敗はリクエスト自体には影響させない
     }
   }
 
-  private anonymizeData(data: any): any {
-    // リソースのコンテンツを匿名化
-    if (!data || !data.contents) return data;
-    
-    const anonymizedContents = data.contents.map((content: any) => {
-      if (content.text) {
-        try {
-          const parsed = JSON.parse(content.text);
-          // 個人情報を匿名化
-          if (parsed.name) parsed.name = '[REDACTED]';
-          if (parsed.email) {
-            const emailParts = parsed.email.split('@');
-            parsed.email = '****@' + (emailParts[1] || 'example.com');
-          }
-          if (parsed.phone) parsed.phone = '[REDACTED]';
-          if (parsed.address) parsed.address = '[REDACTED]';
-          if (parsed.ssn) parsed.ssn = '[REDACTED]';
-          
-          return {
-            ...content,
-            text: JSON.stringify(parsed)
-          };
-        } catch (e) {
-          // JSONでない場合はそのまま返す
-          return content;
-        }
-      }
-      return content;
-    });
-    
-    return {
-      ...data,
-      contents: anonymizedContents
-    };
-  }
-
-  private async sendNotification(request: any, obligation: string): Promise<void> {
-    this.logger.info('Notification sent', { request, obligation });
-  }
-
-  private async scheduleDataDeletion(request: any, obligation: string): Promise<void> {
-    this.logger.info('Data deletion scheduled', { request, obligation });
-  }
-
-  private async generateAccessReport(request: any, obligation: string): Promise<void> {
-    this.logger.info('Access report generated', { request, obligation });
-  }
+  // レガシーメソッドは削除（新システムで完全に処理）
 
   // パブリックメソッド
   addPolicy(name: string, policy: string): void {
@@ -497,15 +475,19 @@ export class MCPStdioPolicyProxy {
   }
 
   async start(): Promise<void> {
-    // 設定から上流サーバーを登録
-    if (this.config.mcp?.upstreamServers) {
-      for (const serverConfig of this.config.mcp.upstreamServers) {
-        this.stdioRouter.registerUpstreamServer(serverConfig);
-      }
-    }
+    // 制約・義務システムを初期化
+    await this.enforcementSystem.initialize();
+    this.logger.info('制約・義務実施システムを初期化しました');
     
-    // 上流サーバーを起動
-    await this.stdioRouter.startAllServers();
+    // 上流サーバーはloadDesktopConfigまたはaddUpstreamServerで事前に登録されている前提
+    // ここでは起動のみ行う
+    if (this.upstreamStartPromise) {
+      // 既に起動プロセスが開始されている場合は待機
+      await this.upstreamStartPromise;
+    } else {
+      // まだ起動していない場合は起動
+      await this.stdioRouter.startServers();
+    }
     
     // MCPサーバーを作成
     const transport = new StdioServerTransport();

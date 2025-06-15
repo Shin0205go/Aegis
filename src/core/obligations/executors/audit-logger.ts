@@ -25,10 +25,14 @@ export class AuditLoggerExecutor implements ObligationExecutor {
 
   constructor() {
     this.logger = new Logger();
+    // ログパスを安全に設定
+    const baseLogPath = process.env.AEGIS_LOG_PATH || 
+      (process.cwd().startsWith('/Users') ? process.cwd() : path.join(__dirname, '../../../../..'));
+    
     this.config = {
       destination: 'file',
       format: 'json',
-      logPath: path.join(process.cwd(), 'logs', 'audit'),
+      logPath: path.join(baseLogPath, 'logs', 'audit'),
       flushIntervalMs: 5000,
       maxQueueSize: 100,
       includeFullContext: false,

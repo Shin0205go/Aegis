@@ -43,6 +43,7 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
       lowerConstraint.includes('匿名化') ||
       lowerConstraint.includes('anonymize') ||
       lowerConstraint.includes('mask') ||
+      lowerConstraint.includes('マスク') ||
       lowerConstraint.includes('redact') ||
       lowerConstraint.includes('個人情報')
     );
@@ -68,6 +69,17 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
     if (constraint.includes('ハッシュ化') || constraint.includes('hash')) {
       return 'hash';
     }
+    if (constraint.includes('マスク処理') || constraint === 'マスク処理') {
+      return 'mask';
+    }
+    // 個人情報を匿名化の場合は特別な処理
+    if (constraint.includes('個人情報を匿名化')) {
+      return 'personalInfo';
+    }
+    // 特定フィールドのマスク（例: SSNをマスク）
+    if (constraint.includes('をマスク') && !constraint.includes('マスク処理')) {
+      return 'fieldMask';
+    }
     if (constraint.includes('マスク') || constraint.includes('mask')) {
       return 'mask';
     }
@@ -76,10 +88,26 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
 
   private extractFields(constraint: string): string[] | null {
     // 特定フィールドが指定されている場合は抽出
-    const fieldMatch = constraint.match(/フィールド[：:](.*?)($|\s|、)/);
+    const fieldMatch = constraint.match(/フィールド[：:]([^を]+)/);
     if (fieldMatch) {
       return fieldMatch[1].split(',').map(f => f.trim());
     }
+    
+    // "XXXをマスク" パターンの場合
+    const maskMatch = constraint.match(/(\w+)をマスク/);
+    if (maskMatch) {
+      const fieldName = maskMatch[1].toLowerCase();
+      // 一般的な日本語フィールド名を英語に変換
+      const fieldMapping: Record<string, string> = {
+        'ssn': 'ssn',
+        '電話': 'phone',
+        'メール': 'email',
+        '名前': 'name',
+        'クレジットカード': 'creditCard'
+      };
+      return [fieldMapping[fieldName] || fieldName];
+    }
+    
     return null; // nullは全センシティブフィールドを対象とする
   }
 
@@ -99,8 +127,29 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
       return result.map(item => this.anonymizeData(item, method, specificFields));
     }
 
+    // 特別な処理: contents配列の中のtext（JSON文字列）を処理
+    if (result.contents && Array.isArray(result.contents)) {
+      result.contents = result.contents.map((content: any) => {
+        if (content.text && typeof content.text === 'string') {
+          try {
+            const parsed = JSON.parse(content.text);
+            const anonymized = this.anonymizeData(parsed, method, specificFields);
+            return {
+              ...content,
+              text: JSON.stringify(anonymized)
+            };
+          } catch (e) {
+            // JSONでない場合はそのまま
+            return content;
+          }
+        }
+        return content;
+      });
+      return result;
+    }
+
     for (const key in result) {
-      if (fieldsToCheck.includes(key) && result[key] != null) {
+      if (fieldsToCheck && fieldsToCheck.includes(key) && result[key] != null) {
         result[key] = this.anonymizeValue(result[key], key, method);
       } else if (typeof result[key] === 'object') {
         result[key] = this.anonymizeData(result[key], method, specificFields);
@@ -121,6 +170,19 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
       case 'hash':
         return this.hash(value);
       case 'mask':
+        return this.mask(value, fieldName);
+      case 'personalInfo':
+        // 個人情報を匿名化: emailのみマスク、他はREDACTED
+        if (fieldName === 'email') {
+          return this.mask(value, fieldName);
+        } else {
+          return '[REDACTED]';
+        }
+      case 'fieldMask':
+        // 特定フィールドのマスク: 既に処理済みのものはそのまま
+        if (value === '[REDACTED]' || value.includes('****')) {
+          return value; // 既に匿名化されている
+        }
         return this.mask(value, fieldName);
       case 'redact':
       default:
@@ -143,7 +205,7 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
   }
 
   private hash(value: string): string {
-    const hash = crypto.createHash(this.config.hashAlgorithm);
+    const hash = crypto.createHash(this.config.hashAlgorithm || 'sha256');
     hash.update(value + (this.config.salt || ''));
     return `HASH_${hash.digest('hex').substring(0, 16).toUpperCase()}`;
   }
@@ -171,11 +233,8 @@ export class DataAnonymizerProcessor implements ConstraintProcessor {
     const [local, domain] = email.split('@');
     if (!domain) return '****@****';
     
-    const maskedLocal = local.length > 2 
-      ? local[0] + '*'.repeat(local.length - 2) + local[local.length - 1]
-      : '***';
-    
-    return `${maskedLocal}@${domain}`;
+    // 固定で4つのアスタリスクを使用
+    return `****@${domain}`;
   }
 
   private maskPhone(phone: string): string {
@@ -227,4 +286,4 @@ interface DataAnonymizerConfig {
   sensitiveFields?: string[];
 }
 
-type AnonymizationMethod = 'redact' | 'mask' | 'hash' | 'tokenize';
+type AnonymizationMethod = 'redact' | 'mask' | 'hash' | 'tokenize' | 'personalInfo' | 'fieldMask';

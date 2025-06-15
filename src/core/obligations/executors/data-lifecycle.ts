@@ -2,6 +2,19 @@ import { ObligationExecutor, ObligationResult, DataLifecycleConfig } from '../ty
 import { DecisionContext, PolicyDecision } from '../../../types';
 import { Logger } from '../../../utils/logger';
 
+// DataLifecycleExecutor用の設定インターフェース
+interface DataLifecycleExecutorConfig {
+  action: 'archive' | 'delete' | 'anonymize' | 'export';
+  defaultRetentionDays: number;
+  archivePath: string;
+  cleanupIntervalMs: number;
+  notifyBeforeActionDays: number;
+  retentionPeriod?: number;
+  archiveLocation?: string;
+  notifyBeforeAction?: boolean;
+  notifyDays?: number;
+}
+
 /**
  * データライフサイクル義務エグゼキューター
  * データの保持期間、削除、アーカイブ等の管理
@@ -23,6 +36,7 @@ export class DataLifecycleExecutor implements ObligationExecutor {
   constructor() {
     this.logger = new Logger();
     this.config = {
+      action: 'archive', // デフォルトアクション
       defaultRetentionDays: 365,
       archivePath: '/archive',
       cleanupIntervalMs: 86400000, // 24時間
@@ -206,7 +220,7 @@ export class DataLifecycleExecutor implements ObligationExecutor {
 
     // デフォルト: 設定された保持期間後
     const scheduledFor = new Date();
-    scheduledFor.setDate(scheduledFor.getDate() + this.config.defaultRetentionDays);
+    scheduledFor.setDate(scheduledFor.getDate() + (this.config.defaultRetentionDays || 365));
     return { immediate: false, scheduledFor };
   }
 
@@ -246,7 +260,7 @@ export class DataLifecycleExecutor implements ObligationExecutor {
     // 通知が必要な場合
     if (action.config?.notifyBeforeAction && action.scheduledFor) {
       const notifyDate = new Date(action.scheduledFor);
-      notifyDate.setDate(notifyDate.getDate() - this.config.notifyBeforeActionDays);
+      notifyDate.setDate(notifyDate.getDate() - (this.config.notifyBeforeActionDays || 7));
       
       if (notifyDate > new Date()) {
         // TODO: 通知スケジュールを設定
@@ -402,12 +416,6 @@ export class DataLifecycleExecutor implements ObligationExecutor {
   }
 }
 
-interface DataLifecycleExecutorConfig extends DataLifecycleConfig {
-  defaultRetentionDays: number;
-  archivePath: string;
-  cleanupIntervalMs: number;
-  notifyBeforeActionDays: number;
-}
 
 interface ScheduledAction {
   id: string;

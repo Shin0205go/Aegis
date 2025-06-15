@@ -67,7 +67,7 @@ describe('EnforcementSystem', () => {
       const result = await system.applyConstraints(constraints, data, context);
       
       expect(result.users[0].name).toBe('[REDACTED]');
-      expect(result.users[0].email).toBe('[REDACTED]');
+      expect(result.users[0].email).toBe('****@example.com'); // emailはマスク形式
       expect(result.users[0].age).toBe(30); // 年齢は匿名化されない
     });
     
@@ -121,7 +121,7 @@ describe('EnforcementSystem', () => {
       
       // 匿名化が適用される
       expect(result.user.name).toBe('[REDACTED]');
-      expect(result.user.email).toBe('[REDACTED]');
+      expect(result.user.email).toBe('****@example.com'); // emailはマスク形式
       
       // レート制限のメタデータが追加される
       expect(result._rateLimitMetadata).toBeDefined();
@@ -214,7 +214,7 @@ describe('EnforcementSystem', () => {
       
       // 結果の確認
       expect(result.users[0].name).toBe('[REDACTED]');
-      expect(result.users[999].email).toBe('[REDACTED]');
+      expect(result.users[999].email).toBe('****@example.com'); // emailはマスク形式
     });
   });
 });

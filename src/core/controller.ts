@@ -238,8 +238,8 @@ export class AEGISController {
       policyUsed: policyUsed
     });
 
-    // 履歴サイズ制限（設定値または最新1000件保持）
-    const historyLimit = this.config.monitoring?.decisionHistoryLimit || 1000;
+    // 履歴サイズ制限（最新1000件保持）
+    const historyLimit = 1000;
     if (this.decisionHistory.length > historyLimit) {
       this.decisionHistory = this.decisionHistory.slice(-historyLimit);
     }
