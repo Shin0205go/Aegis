@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "id": "strict-security-policy",
+    "name": "厳格セキュリティポリシー",
+    "version": "1.0.0",
+    "status": "inactive",
+    "description": "厳格なセキュリティ制御（テスト用）",
+    "createdAt": "2024-01-15T00:00:00Z",
+    "lastModified": "2024-01-15T00:00:00Z",
+    "createdBy": "security-team",
+    "lastModifiedBy": "security-team",
+    "tags": ["security", "strict"],
+    "priority": 200
+  },
+  "policy": "【基本原則】\n- すべてのアクセスは事前承認が必要\n- 書き込み操作は禁止\n- 機密情報へのアクセスは完全禁止\n\n【制限事項】\n- ファイル読み取りは読み取り専用権限のみ\n- 書き込み・削除操作は全面禁止\n- 機密ファイル（.env, .key等）へのアクセス禁止\n\n【義務事項】\n- すべてのアクセス試行をセキュリティチームに即座に通知\n- 詳細な監査ログ記録\n- 異常検知アラート"
+}

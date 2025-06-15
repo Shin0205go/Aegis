@@ -1,4 +1,5 @@
-export { ContextCollector, ContextEnricher } from './collector';
+export { ContextCollector } from './collector';
+export type { ContextEnricher } from './collector';
 export { 
   TimeBasedEnricher,
   AgentInfoEnricher,

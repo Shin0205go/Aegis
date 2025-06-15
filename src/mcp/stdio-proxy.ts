@@ -28,6 +28,10 @@ import {
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
 import { EnforcementSystem } from '../core/enforcement.js';
 import { PolicyLoader } from '../policies/policy-loader.js';
+import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
+import { RealTimeAnomalyDetector } from '../audit/real-time-anomaly-detector.js';
+import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.js';
+import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
 
 export class MCPStdioPolicyProxy {
   private server: Server;
@@ -44,7 +48,20 @@ export class MCPStdioPolicyProxy {
   private policies = new Map<string, string>();
   private policyLoader: PolicyLoader;
   
+  // Phase 3: 高度な監査システム
+  private advancedAuditSystem: AdvancedAuditSystem;
+  private realTimeAnomalyDetector: RealTimeAnomalyDetector;
+  
+  // Phase 3: パフォーマンス最適化
+  private intelligentCacheSystem: IntelligentCacheSystem;
+  private batchJudgmentSystem: BatchJudgmentSystem;
+  
   private upstreamStartPromise: Promise<void> | null = null;
+  
+  // Phase 3: サーキットブレーカー状態管理
+  private circuitBreakerState: Map<string, { failures: number, lastFailure: Date, isOpen: boolean }> = new Map();
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 5; // 5回連続失敗でオープン
+  private readonly CIRCUIT_BREAKER_TIMEOUT = 60000; // 1分間クールダウン
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine) {
     this.config = config;
@@ -61,6 +78,44 @@ export class MCPStdioPolicyProxy {
     
     // 制約・義務実施システム初期化
     this.enforcementSystem = new EnforcementSystem();
+    
+    // Phase 3: 高度な監査システム初期化
+    this.advancedAuditSystem = new AdvancedAuditSystem();
+    this.realTimeAnomalyDetector = new RealTimeAnomalyDetector(this.advancedAuditSystem);
+    
+    // 異常検知アラートのハンドリング設定
+    this.realTimeAnomalyDetector.onAnomalyAlert((alert) => {
+      this.logger.warn('Real-time anomaly alert', {
+        alertId: alert.alertId,
+        severity: alert.severity,
+        pattern: alert.pattern.name,
+        agent: alert.triggeringContext.agent
+      });
+    });
+
+    // Phase 3: インテリジェントキャッシュシステム初期化
+    this.intelligentCacheSystem = new IntelligentCacheSystem({
+      maxEntries: 500, // 適度なサイズ
+      defaultTtl: 300, // 5分
+      confidenceThreshold: 0.8, // 高信頼度のみキャッシュ
+      enableLRUEviction: true,
+      enableIntelligentTtl: true,
+      contextSensitivity: 0.7,
+      compressionEnabled: true
+    }, {
+      adaptiveTtl: true,
+      contextualGrouping: true,
+      predictivePreloading: false,
+      patternRecognition: true
+    });
+
+    // Phase 3: バッチ判定システム初期化
+    this.batchJudgmentSystem = new BatchJudgmentSystem(this.judgmentEngine, {
+      maxBatchSize: 5, // stdioでは小さなバッチサイズ
+      batchTimeout: 2000, // 2秒
+      enableParallelProcessing: true,
+      priorityQueuing: true
+    });
     
     // MCPサーバー作成
     this.server = new Server(
@@ -124,6 +179,11 @@ export class MCPStdioPolicyProxy {
           throw new Error(`Access denied: ${decision.reason}`);
         }
         
+        // Phase 3: INDETERMINATEも拒否として扱う
+        if (decision.decision === 'INDETERMINATE') {
+          throw new Error(`Access denied (indeterminate): ${decision.reason}`);
+        }
+        
         // 上流サーバーに転送
         const result = await this.forwardToUpstream('resources/read', request.params);
         
@@ -169,6 +229,11 @@ export class MCPStdioPolicyProxy {
         
         if (decision.decision === 'DENY') {
           throw new Error(`Access denied: ${decision.reason}`);
+        }
+        
+        // Phase 3: INDETERMINATEも拒否として扱う
+        if (decision.decision === 'INDETERMINATE') {
+          throw new Error(`Access denied (indeterminate): ${decision.reason}`);
         }
         
         // サーバープレフィックスを除去してから転送
@@ -253,7 +318,7 @@ export class MCPStdioPolicyProxy {
     
     // コンテキスト拡張
     const enrichedContext = await this.contextCollector.enrichContext(baseContext);
-    
+
     // 適用ポリシー選択（設定ファイルから）
     const activePolicies = this.policyLoader.getActivePolicies();
     let policy: string | null = null;
@@ -263,7 +328,49 @@ export class MCPStdioPolicyProxy {
       const selectedPolicy = activePolicies[0];
       policy = this.policyLoader.formatPolicyForAI(selectedPolicy);
       this.logger.info(`Using policy: ${selectedPolicy.name} (priority: ${selectedPolicy.metadata.priority})`);
-    } else {
+    }
+
+    // Phase 3: キャッシュから判定結果を確認
+    const cachedResult = await this.intelligentCacheSystem.get(enrichedContext, policy || '', enrichedContext.environment);
+    if (cachedResult) {
+      this.logger.debug('Using cached decision result', {
+        action,
+        resource,
+        decision: cachedResult.decision,
+        confidence: cachedResult.confidence
+      });
+      
+      // キャッシュヒット時も監査記録
+      try {
+        const outcome = cachedResult.decision === 'PERMIT' ? 'SUCCESS' : 
+                       cachedResult.decision === 'DENY' ? 'FAILURE' : 'ERROR';
+        
+        await this.advancedAuditSystem.recordAuditEntry(
+          enrichedContext,
+          cachedResult,
+          'cached-result',
+          cachedResult.processingTime || 0,
+          outcome,
+          {
+            requestType: action,
+            resourcePath: resource,
+            transport: 'stdio',
+            cacheHit: true
+          }
+        );
+      } catch (auditError) {
+        this.logger.warn('Failed to record cached result audit entry', auditError);
+      }
+
+      return {
+        ...cachedResult,
+        processingTime: Date.now() - startTime,
+        policyUsed: 'cached-result',
+        context: enrichedContext
+      };
+    }
+    
+    if (!policy) {
       // フォールバック: 従来のポリシーマップから選択
       const policyName = this.selectApplicablePolicy(resource, baseContext.agent);
       policy = this.policies.get(policyName) || null;
@@ -271,25 +378,90 @@ export class MCPStdioPolicyProxy {
     
     if (!policy) {
       this.logger.warn(`No policy found for resource: ${resource}`);
-      // ポリシーがない場合はデフォルトで許可
+      // Phase 3: ポリシーがない場合はセキュアなデフォルトでINDETERMINATEを返す
       return {
-        decision: 'PERMIT',
-        reason: 'No policy defined',
-        confidence: 1.0,
+        decision: 'INDETERMINATE',
+        reason: 'No applicable policy found - manual review required',
+        confidence: 0.0,
         processingTime: Date.now() - startTime,
-        policyUsed: 'default'
+        policyUsed: 'no-policy-found',
+        constraints: ['手動承認が必要'],
+        obligations: ['ポリシー管理者に通知']
       };
     }
     
-    // AI判定実行
-    const decision = await this.judgmentEngine.makeDecision(policy, enrichedContext, enrichedContext.environment);
+    // Phase 3: AI判定実行にタイムアウトを設定
+    const decision = await Promise.race([
+      this.judgmentEngine.makeDecision(policy, enrichedContext, enrichedContext.environment),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('AI judgment timeout')), 30000); // 30秒タイムアウト
+      })
+    ]);
     
-    return {
+    const result = {
       ...decision,
       processingTime: Date.now() - startTime,
       policyUsed: activePolicies.length > 0 ? activePolicies[0].name : 'fallback-policy',
       context: enrichedContext
     };
+
+    // Phase 3: 高度な監査システムに判定結果を記録
+    try {
+      const outcome = decision.decision === 'PERMIT' ? 'SUCCESS' : 
+                     decision.decision === 'DENY' ? 'FAILURE' : 'ERROR';
+      
+      await this.advancedAuditSystem.recordAuditEntry(
+        enrichedContext,
+        decision,
+        result.policyUsed,
+        result.processingTime,
+        outcome,
+        {
+          requestType: action,
+          resourcePath: resource,
+          transport: 'stdio'
+        }
+      );
+
+      // Phase 3: リアルタイム異常検知の実行
+      const anomalyAlerts = await this.realTimeAnomalyDetector.detectRealTimeAnomalies(
+        enrichedContext,
+        decision,
+        outcome
+      );
+
+      if (anomalyAlerts.length > 0) {
+        this.logger.info(`Detected ${anomalyAlerts.length} real-time anomalies`, {
+          alerts: anomalyAlerts.map(alert => ({
+            id: alert.alertId,
+            severity: alert.severity,
+            pattern: alert.pattern.name
+          }))
+        });
+      }
+
+      // Phase 3: 新しい判定結果をキャッシュに保存
+      try {
+        await this.intelligentCacheSystem.set(
+          enrichedContext,
+          policy || '',
+          enrichedContext.environment,
+          result
+        );
+      } catch (cacheError) {
+        this.logger.warn('Failed to cache decision result', cacheError);
+      }
+    } catch (auditError) {
+      // Phase 3: 監査記録の失敗も重大なセキュリティ問題として扱う
+      this.logger.error('Critical: Failed to record audit entry or detect anomalies', auditError);
+      
+      // 監査記録の失敗はコンプライアンス違反の可能性があるため、アラートを送信
+      this.sendCriticalObligationFailureAlert(['監査記録失敗'], auditError as Error).catch(() => {
+        this.logger.error('Failed to send audit failure alert');
+      });
+    }
+    
+    return result;
   }
 
   private selectApplicablePolicy(resource: string, agent?: string): string {
@@ -316,25 +488,47 @@ export class MCPStdioPolicyProxy {
   }
 
   private async forwardToUpstream(method: string, params: any): Promise<any> {
-    // stdioルーター経由でリクエストを転送
-    const request = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method,
-      params
-    };
-    
-    const response = await this.stdioRouter.routeRequest(request);
-    
-    this.logger.debug(`Upstream response for ${method}:`, JSON.stringify(response).substring(0, 500));
-    
-    // JSON-RPCレスポンスから結果を抽出
-    if (response.error) {
-      throw new Error(response.error.message || 'Upstream server error');
+    // Phase 3: サーキットブレーカーチェック
+    if (this.isCircuitBreakerOpen(method)) {
+      throw new Error(`Circuit breaker is open for ${method}`);
     }
     
-    // routeRequestの戻り値は既にresultを含んでいる
-    return response;
+    try {
+      // stdioルーター経由でリクエストを転送
+      const request = {
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method,
+        params
+      };
+      
+      // タイムアウト付きでリクエスト実行
+      const response = await Promise.race([
+        this.stdioRouter.routeRequest(request),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Upstream request timeout')), 15000); // 15秒タイムアウト
+        })
+      ]);
+      
+      this.logger.debug(`Upstream response for ${method}:`, JSON.stringify(response).substring(0, 500));
+      
+      // JSON-RPCレスポンスから結果を抽出
+      if (response.error) {
+        this.recordCircuitBreakerFailure(method);
+        throw new Error(response.error.message || 'Upstream server error');
+      }
+      
+      // 成功時はサーキットブレーカーをリセット
+      this.resetCircuitBreaker(method);
+      
+      // routeRequestの戻り値は既にresultを含んでいる
+      return response;
+    } catch (error) {
+      // Phase 3: 上流サーバーエラーも厳格に処理
+      this.recordCircuitBreakerFailure(method);
+      this.logger.error(`Upstream forwarding failed for ${method}`, error);
+      throw new Error(`Upstream service unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private async applyConstraints(data: any, constraints: string[]): Promise<any> {
@@ -367,8 +561,23 @@ export class MCPStdioPolicyProxy {
       return result;
     } catch (error) {
       this.logger.error('制約適用エラー', error);
-      // エラー時はデータをそのまま返す（フェイルオープン）
-      return data;
+      
+      // Phase 3: 新システム完全統合 - より堅牢なエラーハンドリング
+      if (error instanceof Error) {
+        // 制約適用失敗の場合、ポリシーに応じて対応
+        if (error.message.includes('CRITICAL_CONSTRAINT_FAILURE')) {
+          // 重要な制約の失敗時はアクセス拒否
+          throw new Error(`Critical constraint failure: ${error.message}`);
+        } else if (error.message.includes('SOFT_CONSTRAINT_FAILURE')) {
+          // 軽微な制約の失敗時は警告ログと共に通す
+          this.logger.warn('Soft constraint failure, allowing access with warning', error);
+          return data;
+        }
+      }
+      
+      // Phase 3: その他のエラーも厳格に処理
+      this.logger.error('制約適用で予期しないエラー、アクセス拒否', error);
+      throw new Error(`Constraint application failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -408,11 +617,228 @@ export class MCPStdioPolicyProxy {
       });
     } catch (error) {
       this.logger.error('義務実行エラー', error);
-      // 義務実行の失敗はリクエスト自体には影響させない
+      
+      // Phase 3: 新システム完全統合 - 重要な義務の失敗を追跡
+      if (error instanceof Error) {
+        // 重要な義務（監査ログ、コンプライアンス通知等）の失敗を特別扱い
+        if (error.message.includes('CRITICAL_OBLIGATION_FAILURE')) {
+          this.logger.error('重要な義務実行に失敗しました', {
+            obligations,
+            error: error.message,
+            context: request.params
+          });
+          // 重要な義務の失敗は非同期でアラートを送信
+          this.sendCriticalObligationFailureAlert(obligations, error).catch(alertError => {
+            this.logger.error('アラート送信にも失敗', alertError);
+          });
+        }
+      }
+      
+      // Phase 3: 義務実行の失敗はリクエスト自体には影響させない（非機能要件）
+      // ただし、重要な義務の失敗は監視システムで追跡
     }
   }
 
-  // レガシーメソッドは削除（新システムで完全に処理）
+  /**
+   * 重要な義務実行失敗時のアラート送信
+   * Phase 3: 新システム完全統合の一環
+   */
+  private async sendCriticalObligationFailureAlert(obligations: string[], error: Error): Promise<void> {
+    try {
+      // 重要な義務失敗の通知を作成
+      const alertContext: DecisionContext = {
+        agent: 'system-monitor',
+        action: 'critical-obligation-failure',
+        resource: 'obligation-system',
+        purpose: 'system-monitoring',
+        time: new Date(),
+        environment: {
+          transport: 'stdio',
+          failedObligations: obligations,
+          errorMessage: error.message
+        }
+      };
+
+      // 通知システムを使用してアラート送信
+      await this.enforcementSystem.executeObligations(
+        ['緊急システムアラート送信', 'システム管理者への即座通知'], 
+        alertContext, 
+        {
+          decision: 'PERMIT',
+          reason: 'Critical obligation failure alert',
+          confidence: 1.0,
+          obligations: ['緊急システムアラート送信', 'システム管理者への即座通知']
+        }
+      );
+    } catch (alertError) {
+      // アラート送信自体が失敗した場合はログのみ
+      this.logger.error('重要義務失敗アラートの送信に失敗', alertError);
+    }
+  }
+
+  /**
+   * Phase 3: 高度な監査・レポート機能
+   */
+  async generateComplianceReport(hours: number = 24): Promise<any> {
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+    
+    return await this.advancedAuditSystem.generateComplianceReport({
+      start: startTime,
+      end: endTime
+    });
+  }
+
+  async detectAnomalousAccess(threshold: number = 0.1): Promise<any[]> {
+    return await this.advancedAuditSystem.detectAnomalousAccess(threshold);
+  }
+
+  async createAccessPatternAnalysis(days: number = 7): Promise<any> {
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - days * 24 * 60 * 60 * 1000);
+    
+    return await this.advancedAuditSystem.createAccessPatternAnalysis({
+      start: startTime,
+      end: endTime
+    });
+  }
+
+  async exportAuditLogs(format: 'JSON' | 'CSV' = 'JSON', hours: number = 24): Promise<Buffer> {
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
+    
+    return await this.advancedAuditSystem.exportAuditLogs(format, {
+      start: startTime,
+      end: endTime
+    });
+  }
+
+  getAuditSystemStats(): any {
+    return this.advancedAuditSystem.getSystemStats();
+  }
+
+  /**
+   * Phase 3: サーキットブレーナー管理
+   */
+  private isCircuitBreakerOpen(method: string): boolean {
+    const state = this.circuitBreakerState.get(method);
+    if (!state || !state.isOpen) return false;
+    
+    // クールダウン期間が終了したかチェック
+    if (Date.now() - state.lastFailure.getTime() > this.CIRCUIT_BREAKER_TIMEOUT) {
+      state.isOpen = false;
+      state.failures = 0;
+      this.logger.info(`Circuit breaker reset for ${method}`);
+      return false;
+    }
+    
+    return true;
+  }
+  
+  private recordCircuitBreakerFailure(method: string): void {
+    const state = this.circuitBreakerState.get(method) || { failures: 0, lastFailure: new Date(), isOpen: false };
+    
+    state.failures++;
+    state.lastFailure = new Date();
+    
+    if (state.failures >= this.CIRCUIT_BREAKER_THRESHOLD) {
+      state.isOpen = true;
+      this.logger.warn(`Circuit breaker opened for ${method} after ${state.failures} failures`);
+    }
+    
+    this.circuitBreakerState.set(method, state);
+  }
+  
+  private resetCircuitBreaker(method: string): void {
+    const state = this.circuitBreakerState.get(method);
+    if (state && state.failures > 0) {
+      state.failures = 0;
+      state.isOpen = false;
+      this.circuitBreakerState.set(method, state);
+    }
+  }
+  
+  getCircuitBreakerStats(): Record<string, any> {
+    const stats: Record<string, any> = {};
+    
+    this.circuitBreakerState.forEach((state, method) => {
+      stats[method] = {
+        failures: state.failures,
+        isOpen: state.isOpen,
+        lastFailure: state.lastFailure,
+        timeUntilReset: state.isOpen ? 
+          Math.max(0, this.CIRCUIT_BREAKER_TIMEOUT - (Date.now() - state.lastFailure.getTime())) : 0
+      };
+    });
+    
+    return stats;
+  }
+  
+  /**
+   * Phase 3: パフォーマンス統計情報取得
+   */
+  getCacheStats(): any {
+    return this.intelligentCacheSystem.getStats();
+  }
+
+  async clearCache(): Promise<void> {
+    this.intelligentCacheSystem.clear();
+    this.logger.info('Cache cleared manually');
+  }
+
+  async invalidateCacheByPattern(pattern: string): Promise<number> {
+    const count = this.intelligentCacheSystem.invalidateByPattern(pattern);
+    this.logger.info('Cache invalidated by pattern', { pattern, count });
+    return count;
+  }
+
+  getBatchJudgmentStats(): any {
+    return this.batchJudgmentSystem.getStats();
+  }
+
+  getBatchQueueStatus(): any {
+    return this.batchJudgmentSystem.getQueueStatus();
+  }
+
+  async forceProcessBatchQueue(): Promise<void> {
+    await this.batchJudgmentSystem.forceProcessPendingRequests();
+  }
+
+  getSystemPerformanceStats(): {
+    audit: any;
+    cache: any;
+    batchJudgment: any;
+    queueStatus: any;
+    anomalyStats: any;
+    circuitBreaker: any;
+    systemHealth: {
+      upstreamServices: number;
+      openCircuits: number;
+      overallStatus: 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
+    };
+  } {
+    const circuitStats = this.getCircuitBreakerStats();
+    const openCircuits = Object.values(circuitStats).filter((state: any) => state.isOpen).length;
+    const totalServices = Object.keys(circuitStats).length;
+    
+    const overallStatus = 
+      openCircuits === 0 ? 'HEALTHY' :
+      openCircuits < totalServices * 0.5 ? 'DEGRADED' : 'CRITICAL';
+    
+    return {
+      audit: this.getAuditSystemStats(),
+      cache: this.getCacheStats(),
+      batchJudgment: this.getBatchJudgmentStats(),
+      queueStatus: this.getBatchQueueStatus(),
+      anomalyStats: this.realTimeAnomalyDetector.getAnomalyStats(),
+      circuitBreaker: circuitStats,
+      systemHealth: {
+        upstreamServices: totalServices,
+        openCircuits,
+        overallStatus
+      }
+    };
+  }
 
   // パブリックメソッド
   addPolicy(name: string, policy: string): void {
@@ -523,11 +949,47 @@ export class MCPStdioPolicyProxy {
     this.logger.info('🛡️ AEGIS MCP Proxy (stdio) started and accepting connections');
   }
 
+  /**
+   * Phase 3: システム健全性監視の開始
+   */
+  private startSystemHealthMonitoring(): void {
+    // 5分毎にシステム統計をログ出力
+    setInterval(() => {
+      try {
+        const stats = this.getSystemPerformanceStats();
+        this.logger.info('System health check', {
+          overallStatus: stats.systemHealth.overallStatus,
+          openCircuits: stats.systemHealth.openCircuits,
+          cacheHitRate: stats.cache.hitRate,
+          totalAuditEntries: stats.audit.totalEntries
+        });
+        
+        if (stats.systemHealth.overallStatus === 'CRITICAL') {
+          this.logger.error('CRITICAL: System health is degraded, immediate attention required');
+        }
+      } catch (error) {
+        this.logger.warn('Health monitoring failed', error);
+      }
+    }, 5 * 60 * 1000); // 5分毎
+  }
+  
   async stop(): Promise<void> {
-    // 上流サーバーを停止
-    await this.stdioRouter.stopServers();
-    
-    await this.server.close();
-    this.logger.info('🛑 AEGIS MCP Proxy (stdio) stopped');
+    try {
+      // Phase 3: システム停止時のクリーンアップ
+      
+      // 上流サーバーを停止
+      await this.stdioRouter.stopServers();
+      
+      // MCPサーバーを停止
+      await this.server.close();
+      
+      // キャッシュをクリア（機密情報の流出防止）
+      this.intelligentCacheSystem.clear();
+      
+      this.logger.info('🛑 AEGIS MCP Proxy (stdio) stopped cleanly');
+    } catch (error) {
+      this.logger.error('Error during system shutdown', error);
+      throw error;
+    }
   }
 }

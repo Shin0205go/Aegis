@@ -120,6 +120,9 @@ export class AIJudgmentEngine {
 
   // ポリシー分析プロンプト構築
   private buildAnalysisPrompt(policy: string, context: DecisionContext): string {
+    // timeをDateオブジェクトに変換
+    const timeObj = context.time instanceof Date ? context.time : new Date(context.time);
+    
     return `
 # AI利用制御判定システム
 
@@ -135,7 +138,7 @@ ${policy}
 - **要求アクション**: ${context.action}
 - **対象リソース**: ${context.resource}
 - **業務目的**: ${context.purpose || '未指定'}
-- **時刻**: ${context.time.toLocaleString('ja-JP')} (${this.getTimeContext(context.time)})
+- **時刻**: ${timeObj.toLocaleString('ja-JP')} (${this.getTimeContext(timeObj)})
 - **場所**: ${context.location || '不明'}
 - **クリアランスレベル**: ${context.clearanceLevel || '不明'}
 - **過去の違反履歴**: ${context.violationHistory || 'なし'}
@@ -259,14 +262,17 @@ ${policy}
 \`\`\`
 
 ## 判定対象（${contexts.length}件）
-${contexts.map((ctx, i) => `
+${contexts.map((ctx, i) => {
+  const timeObj = ctx.time instanceof Date ? ctx.time : new Date(ctx.time);
+  return `
 ### 要求${i + 1}
 - エージェント: ${ctx.agent}
 - アクション: ${ctx.action}
 - リソース: ${ctx.resource}
 - 目的: ${ctx.purpose || '未指定'}
-- 時刻: ${ctx.time.toLocaleString('ja-JP')}
-`).join('\n')}
+- 時刻: ${timeObj.toLocaleString('ja-JP')}
+`;
+}).join('\n')}
 
 ## 応答形式
 各要求について前述のJSON形式で判定し、配列として返してください：
@@ -292,12 +298,14 @@ ${contexts.map((ctx, i) => `
   // キャッシュキー生成
   private generateCacheKey(policy: string, context: DecisionContext): string {
     const policyHash = this.hashString(policy);
+    // timeをDateオブジェクトに変換
+    const timeObj = context.time instanceof Date ? context.time : new Date(context.time);
     const contextHash = this.hashString(JSON.stringify({
       agent: context.agent,
       action: context.action,
       resource: context.resource,
       purpose: context.purpose,
-      timeHour: context.time.getHours() // 時間は時単位でキャッシュ
+      timeHour: timeObj.getHours() // 時間は時単位でキャッシュ
     }));
     
     return `${policyHash}-${contextHash}`;
@@ -347,4 +355,46 @@ ${contexts.map((ctx, i) => `
 
   // エイリアス（互換性のため）
   makeDecisionBatch = this.batchDecision;
+
+  /**
+   * ポリシーの解析（UI用）
+   */
+  async analyzePolicy(
+    policy: string,
+    context: DecisionContext
+  ): Promise<any> {
+    const prompt = `
+あなたは自然言語ポリシーを解析するAIアシスタントです。
+以下のポリシーを解析し、構造化された形式で解釈してください。
+
+ポリシー:
+${policy}
+
+以下のJSON形式で回答してください:
+{
+  "type": "ポリシーのタイプ（アクセス制御、時間制限など）",
+  "resources": ["対象リソースのリスト"],
+  "timeRestrictions": "時間制限の説明",
+  "agentRestrictions": "エージェント制限の説明",
+  "constraints": ["適用される制約のリスト"],
+  "obligations": ["実行される義務のリスト"]
+}
+`;
+
+    try {
+      const response = await this.llm.complete(prompt);
+      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+      return JSON.parse(jsonMatch ? jsonMatch[1] : response);
+    } catch (error) {
+      console.error('[AI Judgment] ポリシー解析エラー', error);
+      return {
+        type: 'unknown',
+        resources: [],
+        timeRestrictions: '解析できませんでした',
+        agentRestrictions: '解析できませんでした',
+        constraints: [],
+        obligations: []
+      };
+    }
+  }
 }

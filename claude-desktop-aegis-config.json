@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "aegis-proxy": {
+      "command": "node",
+      "args": ["dist/src/mcp-server.js"],
+      "cwd": "/workspace"
+    }
+  }
+}

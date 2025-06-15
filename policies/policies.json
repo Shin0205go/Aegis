@@ -4,7 +4,7 @@
       "id": "claude-desktop-policy",
       "name": "Claude Desktop アクセスポリシー",
       "version": "1.0.0",
-      "status": "inactive",
+      "status": "active",
       "description": "Claude Desktop (MCP Client) のファイルシステムアクセスを制御",
       "policy": {
         "基本原則": [
@@ -68,7 +68,7 @@
       "id": "permissive-policy", 
       "name": "寛容アクセスポリシー",
       "version": "1.0.0",
-      "status": "active", 
+      "status": "inactive", 
       "description": "開発環境向けの寛容なアクセス制御",
       "policy": {
         "基本原則": [
