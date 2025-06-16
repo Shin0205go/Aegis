@@ -3,6 +3,7 @@
 // 自然言語ポリシー管理のためのWebインターフェース
 // ============================================================================
 
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -101,6 +102,27 @@ app.delete('/api/policies/:id', async (req, res) => {
   } catch (error) {
     logger.error('Failed to delete policy', error);
     res.status(500).json({ success: false, error: 'Failed to delete policy' });
+  }
+});
+
+// Update policy status (enable/disable)
+app.patch('/api/policies/:id/status', async (req, res) => {
+  try {
+    const { status, updatedBy } = req.body;
+    
+    // Validate status
+    if (!['draft', 'active', 'deprecated'].includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid status. Must be one of: draft, active, deprecated' 
+      });
+    }
+    
+    await policyAdmin.updatePolicyStatus(req.params.id, status, updatedBy);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Failed to update policy status', error);
+    res.status(500).json({ success: false, error: 'Failed to update policy status' });
   }
 });
 

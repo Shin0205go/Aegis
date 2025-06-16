@@ -11,6 +11,7 @@ interface PolicyListProps {
   onSelectPolicy: (policy: Policy) => void;
   onRefresh: () => void;
   onDeletePolicy?: (policyId: string) => void;
+  onToggleStatus?: (policyId: string, newStatus: string) => void;
 }
 
 const PolicyList: React.FC<PolicyListProps> = ({ 
@@ -18,7 +19,8 @@ const PolicyList: React.FC<PolicyListProps> = ({
   selectedPolicy, 
   onSelectPolicy,
   onRefresh,
-  onDeletePolicy 
+  onDeletePolicy,
+  onToggleStatus 
 }) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -26,6 +28,15 @@ const PolicyList: React.FC<PolicyListProps> = ({
       case 'draft': return '🟡';
       case 'deprecated': return '🔴';
       default: return '⚪';
+    }
+  };
+
+  const getNextStatus = (currentStatus: string) => {
+    switch (currentStatus) {
+      case 'active': return 'deprecated';
+      case 'deprecated': return 'active';
+      case 'draft': return 'active';
+      default: return 'active';
     }
   };
 
@@ -86,20 +97,35 @@ const PolicyList: React.FC<PolicyListProps> = ({
                   </div>
                 )}
               </div>
-              {onDeletePolicy && (
-                <button
-                  className="policy-delete-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm(`ポリシー「${policy.name}」を削除しますか？`)) {
-                      onDeletePolicy(policy.id);
-                    }
-                  }}
-                  title="削除"
-                >
-                  🗑️
-                </button>
-              )}
+              <div className="policy-actions">
+                {onToggleStatus && (
+                  <button
+                    className="policy-toggle-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextStatus = getNextStatus(policy.status);
+                      onToggleStatus(policy.id, nextStatus);
+                    }}
+                    title={policy.status === 'active' ? '無効化' : '有効化'}
+                  >
+                    {policy.status === 'active' ? '⏸️' : '▶️'}
+                  </button>
+                )}
+                {onDeletePolicy && (
+                  <button
+                    className="policy-delete-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`ポリシー「${policy.name}」を削除しますか？`)) {
+                        onDeletePolicy(policy.id);
+                      }
+                    }}
+                    title="削除"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
             </div>
           ))
         )}

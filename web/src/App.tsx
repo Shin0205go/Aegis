@@ -117,6 +117,30 @@ function App() {
     }
   };
 
+  // ポリシーのステータス切り替え
+  const togglePolicyStatus = async (policyId: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/policies/${policyId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: newStatus,
+          updatedBy: 'admin'
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        await fetchPolicies();
+        const statusText = newStatus === 'active' ? '有効' : '無効';
+        alert(`ポリシーを${statusText}にしました`);
+      }
+    } catch (error) {
+      console.error('Failed to toggle policy status:', error);
+      alert('ポリシーのステータス変更に失敗しました');
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -132,6 +156,7 @@ function App() {
             onSelectPolicy={selectPolicy}
             onRefresh={fetchPolicies}
             onDeletePolicy={deletePolicy}
+            onToggleStatus={togglePolicyStatus}
           />
         </div>
 
