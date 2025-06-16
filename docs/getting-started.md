@@ -26,8 +26,8 @@ AEGIS (Agent Governance & Enforcement Intelligence System) は、AIエージェ�
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/your-org/aegis-policy-engine.git
-cd aegis-policy-engine
+git clone https://github.com/Shin0205go/Aegis.git
+cd Aegis
 
 # 依存関係のインストール
 npm install
@@ -43,9 +43,13 @@ cp .env.example .env
 
 ```env
 # 必須設定
-OPENAI_API_KEY=your-openai-api-key
-# または
 ANTHROPIC_API_KEY=your-anthropic-api-key
+# または
+# OPENAI_API_KEY=your-openai-api-key
+
+# LLM設定
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-5-sonnet-20241022
 
 # オプション設定
 PORT=3000
@@ -62,25 +66,53 @@ npm run build
 
 AEGISには複数の起動方法があります：
 
-### 1. MCP公式仕様プロキシサーバー (`npm run start:mcp`)
+### 1. Web UI による管理 (`npm run start:web`)
+
+AEGISには視覚的にポリシーを管理できるWeb UIが含まれています：
+
+```bash
+# 本番モード
+npm run start:web
+
+# 開発モード（ホットリロード付き）
+npm run dev:web
+
+# React UI（オプション、より高度なUI）
+cd web && npm install && npm run dev
+```
+
+ブラウザで http://localhost:3000 にアクセスすると、以下の機能が利用できます：
+- ポリシーの作成・編集・削除
+- リアルタイムポリシー解析
+- アクセス制御のテストシミュレーション
+- ポリシーのバージョン管理
+
+### 2. MCP公式仕様プロキシサーバー (`npm run start:mcp`)
 
 MCP公式仕様にstdioトランスポートで起動します（推奨）。Claude Desktop等のMCPクライアントから接続可能です。
 
 ```bash
 # stdioトランスポート（デフォルト）
-# Claude Desktopの設定から自動的に他のMCPサーバーを読み込みます
 npm run start:mcp
 
 # HTTPトランスポート
 npm run start:mcp:http
 ```
 
-**Claude Desktop統合の利点**:
-- `claude_desktop_config.json`から他のMCPサーバー設定を自動読み込み
-- 既存のMCPサーバー（Gmail、Google Drive等）にポリシー制御を追加
-- 追加設定なしで即座に使用開始可能
+**Claude Desktop統合**:
+```json
+{
+  "mcpServers": {
+    "aegis-proxy": {
+      "command": "node",
+      "args": ["/path/to/Aegis/dist/src/mcp-server.js"],
+      "cwd": "/path/to/Aegis"
+    }
+  }
+}
+```
 
-### 2. WebSocketプロキシサーバーとして起動 (`npm run start:server`)
+### 3. ライブラリとしての統合
 
 カスタムWebSocketトランスポートで起動します（非MCP公式）。
 
@@ -112,9 +144,7 @@ curl http://localhost:3000/policies
 - WebSocketベースのプロキシサーバーが必要な場合
 - 独立したサービスとして運用する場合
 
-### 3. ライブラリとして使用 (`npm run start`)
-
-他のNode.jsアプリケーションに組み込んで使用します。
+他のNode.jsアプリケーションに組み込んで使用できます：
 
 ```typescript
 // your-app.ts
@@ -124,9 +154,9 @@ async function main() {
   // AEGIS初期化
   const aegis = new AEGIS({
     llm: {
-      provider: 'openai',
-      model: 'gpt-4',
-      apiKey: process.env.OPENAI_API_KEY
+      provider: 'anthropic',
+      model: 'claude-3-5-sonnet-20241022',
+      apiKey: process.env.ANTHROPIC_API_KEY
     }
   });
 
@@ -152,13 +182,12 @@ async function main() {
 
 ### 使い分けガイド
 
-| 項目 | `start:server` | `start` (ライブラリ) |
-|------|----------------|---------------------|
-| **起動方法** | コマンドライン | プログラムから |
-| **通信方法** | WebSocket/HTTP | 関数呼び出し |
-| **用途** | MCPプロキシ | 組み込み制御 |
-| **設定** | 環境変数/CLI | コード内 |
-| **スケーリング** | 複数インスタンス | アプリ内 |
+| 項目 | Web UI | MCPプロキシ | ライブラリ |
+|------|--------|------------|------------|
+| **起動方法** | `npm run start:web` | `npm run start:mcp` | コード内 |
+| **用途** | ポリシー管理UI | Claude Desktop統合 | 組み込み制御 |
+| **対象ユーザー** | 管理者 | AIユーザー | 開発者 |
+| **設定方法** | ブラウザ | 設定ファイル | プログラム |
 
 ## 基本的な使い方
 
@@ -224,11 +253,11 @@ if (result.decision === 'PERMIT') {
 主要な環境変数（詳細は`.env.example`参照）：
 
 ```env
-# LLM設定
-LLM_PROVIDER=openai          # 'openai' または 'anthropic'
-LLM_MODEL=gpt-4             # 使用するモデル
-OPENAI_API_KEY=xxx          # OpenAI APIキー
+# AI判定エンジン設定
+LLM_PROVIDER=anthropic      # 'openai' または 'anthropic'
+LLM_MODEL=claude-3-5-sonnet-20241022  # 使用するモデル
 ANTHROPIC_API_KEY=xxx       # Anthropic APIキー
+# OPENAI_API_KEY=xxx        # OpenAI APIキー（代替）
 
 # サーバー設定
 PORT=3000                   # サーバーポート
@@ -239,8 +268,12 @@ NODE_ENV=production        # 環境
 CACHE_ENABLED=true         # キャッシュ有効化
 CACHE_TTL=3600            # キャッシュ期間（秒）
 
-# 上流サーバー（MCPプロキシ用）
-UPSTREAM_SERVERS=gmail:ws://localhost:8080,gdrive:ws://localhost:8081
+# Web UI設定
+POLICY_UI_PORT=3000        # Web UIポート
+
+# セキュリティ設定
+ENABLE_RATE_LIMITING=true  # レート制限
+RATE_LIMIT_MAX_REQUESTS=100 # 最大リクエスト数/分
 ```
 
 ### CLIオプション（server.jsのみ）
@@ -308,6 +341,30 @@ npm run build
 npx tsc --version
 ```
 
+## Phase 3 新機能
+
+AEGISには以下の高度な機能が実装されています：
+
+### 🔄 改良エラーハンドリング
+- Circuit Breakerパターンによる障害の自動隔離
+- 段階的なエラー復旧メカニズム
+- 詳細なエラー分類とレポート
+
+### 🚨 リアルタイム異常検知
+- アクセスパターンの機械学習分析
+- 異常スコアリングとアラート
+- 自動的なリスク評価と対応
+
+### 💾 インテリジェントキャッシュ
+- 判定結果の賢いキャッシュ戦略
+- コンテキスト依存のキャッシュ無効化
+- メモリ効率的な実装
+
+### ⚡ バッチ判定システム
+- 複数リクエストの一括処理
+- レート制限とスロットリング
+- 効率的なリソース利用
+
 ### サポート
 
-問題が解決しない場合は、[GitHubのIssue](https://github.com/your-org/aegis-policy-engine/issues)で報告してください。
+問題が解決しない場合は、[GitHubのIssue](https://github.com/Shin0205go/Aegis/issues)で報告してください。

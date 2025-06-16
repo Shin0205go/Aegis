@@ -48,6 +48,13 @@ npm install
 npm run build
 ```
 
+### 環境設定
+```bash
+# .envファイルを作成し、必要な環境変数を設定
+cp .env.example .env
+# ANTHROPIC_API_KEY を設定してください
+```
+
 ### Claude Desktop統合（推奨）
 
 AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべてのMCPサーバーにポリシー制御を適用できます：
@@ -55,9 +62,10 @@ AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべて
 #### 1. 環境設定
 ```bash
 # 必要な環境変数を設定
-export OPENAI_API_KEY="your-openai-api-key"
-# または .env ファイルで管理
-echo "OPENAI_API_KEY=your-openai-api-key" > .env
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+# または .env ファイルで管理（推奨）
+cp .env.example .env
+# エディタで .env を開き、ANTHROPIC_API_KEY を設定
 ```
 
 #### 2. AEGISサーバー設定を追加
@@ -68,10 +76,8 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
   "mcpServers": {
     "aegis-proxy": {
       "command": "node",
-      "args": ["${HOME}/path/to/aegis-policy-engine/dist/src/mcp-server.js"],
-      "env": {
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
-      }
+      "args": ["/path/to/aegis/dist/src/mcp-server.js"],
+      "cwd": "/path/to/aegis"
     },
     "filesystem": {
       "command": "npx",
@@ -98,13 +104,43 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
 - AEGISが自動的に他のMCPサーバーをプロキシ経由で提供します
 - 全てのツール実行時にポリシー制御が適用されます
 
+### 🌐 Web UI による管理
+
+AEGISには、自然言語ポリシーを視覚的に管理できるWeb UIが含まれています：
+
+```bash
+# Web UIサーバーを起動
+npm run start:web
+
+# 開発モードで起動（ホットリロード対応）
+npm run dev:web
+```
+
+ブラウザで http://localhost:3000 にアクセスすると、以下の機能が利用できます：
+- ポリシーの作成・編集・削除
+- リアルタイムポリシー解析
+- アクセス制御のテストシミュレーション
+- ポリシーのバージョン管理
+
+### React UI（オプション）
+
+より高度なUIが必要な場合は、React版も利用できます：
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+http://localhost:3001 でReact UIにアクセスできます。
+
 ### 基本的な使用方法
 ```typescript
 import { AEGISController } from './src/core/controller';
-import { OpenAILLM } from './src/llm/openai';
+import { AnthropicLLM } from './src/llm/anthropic';
 
 // LLMインスタンス初期化
-const llm = new OpenAILLM({ apiKey: process.env.OPENAI_API_KEY });
+const llm = new AnthropicLLM({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // AEGIS制御システム初期化
 const aegis = new AEGISController(llm);
@@ -157,7 +193,12 @@ aegis-policy-engine/
 │   ├── mcp/            # MCPプロキシ
 │   ├── policies/       # ポリシー管理
 │   ├── monitoring/     # 監視・統計
+│   ├── enforcement/    # Phase 3 高度な制約・義務処理
+│   ├── audit/          # 監査・異常検知
+│   ├── performance/    # キャッシュ・バッチ処理
+│   ├── web/            # Web UI API
 │   └── utils/          # ユーティリティ
+├── web/                # React UI（フロントエンド）
 ├── policies/           # ポリシーファイル
 ├── examples/           # 使用例
 ├── tests/              # テストコード
@@ -166,6 +207,7 @@ aegis-policy-engine/
 
 ## 🔧 開発・テスト
 
+### 起動コマンド
 ```bash
 # 開発サーバー起動
 npm run dev
@@ -181,7 +223,37 @@ npm run start:mcp
 
 # MCPプロキシサーバー起動 (HTTP)
 npm run start:mcp:http
+
+# Web UI起動（本番）
+npm run start:web
+
+# Web UI起動（開発）
+npm run dev:web
 ```
+
+### 新機能: Phase 3 統合
+
+AEGISは以下の高度な機能を搭載しています：
+
+#### 🔄 改良エラーハンドリング
+- Circuit Breakerパターンによる障害の自動隔離
+- 段階的なエラー復旧メカニズム
+- 詳細なエラー分類とレポート
+
+#### 🚨 リアルタイム異常検知
+- アクセスパターンの機械学習分析
+- 異常スコアリングとアラート
+- 自動的なリスク評価と対応
+
+#### 💾 インテリジェントキャッシュ
+- 判定結果の賢いキャッシュ戦略
+- コンテキスト依存のキャッシュ無効化
+- メモリ効率的な実装
+
+#### ⚡ バッチ判定システム
+- 複数リクエストの一括処理
+- レート制限とスロットリング
+- 効率的なリソース利用
 
 ### 実際の動作例
 
