@@ -9,6 +9,14 @@ import path from 'path';
 import { PolicyAdministrator } from '../policies/administrator.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
+import {
+  validate,
+  createPolicySchema,
+  updatePolicySchema,
+  analyzePolicySchema,
+  testPolicySchema,
+  toolCallSchema
+} from './validation.js';
 
 const __dirname = path.resolve();
 
@@ -62,9 +70,9 @@ app.get('/api/policies/:id', async (req, res) => {
 });
 
 // Create new policy
-app.post('/api/policies', async (req, res) => {
+app.post('/api/policies', validate(createPolicySchema), async (req, res) => {
   try {
-    const { name, policy, metadata } = req.body;
+    const { name, policy, metadata } = (req as any).validatedData;
     const id = await policyAdmin.createPolicy(name, policy, metadata);
     res.json({ success: true, data: { id } });
   } catch (error) {
@@ -74,9 +82,9 @@ app.post('/api/policies', async (req, res) => {
 });
 
 // Update policy
-app.put('/api/policies/:id', async (req, res) => {
+app.put('/api/policies/:id', validate(updatePolicySchema), async (req, res) => {
   try {
-    const { policy, updatedBy } = req.body;
+    const { policy, updatedBy } = (req as any).validatedData;
     await policyAdmin.updatePolicy(req.params.id, policy, updatedBy);
     res.json({ success: true });
   } catch (error) {
@@ -101,9 +109,9 @@ app.delete('/api/policies/:id', async (req, res) => {
 // ============================================================================
 
 // Analyze policy (AI interpretation)
-app.post('/api/policies/analyze', async (req, res) => {
+app.post('/api/policies/analyze', validate(analyzePolicySchema), async (req, res) => {
   try {
-    const { policy } = req.body;
+    const { policy } = (req as any).validatedData;
     
     // AIエンジンを使ってポリシーを解析
     const testContext = {
