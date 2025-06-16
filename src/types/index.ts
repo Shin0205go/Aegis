@@ -47,6 +47,11 @@ export interface AccessControlResult extends PolicyDecision {
   policyUsed: string;
   context?: DecisionContext;
   error?: string;
+  conflictResolution?: {
+    conflictingPolicies: string[];
+    resolutionMethod: string;
+    reason: string;
+  };
 }
 
 // ============================================================================
@@ -58,6 +63,16 @@ export interface NaturalLanguagePolicyDefinition {
   policy: string; // 自然言語でのポリシー記述
   examples: PolicyExample[];
   metadata: PolicyMetadata;
+  conditions?: PolicyConditions;
+}
+
+export interface PolicyConditions {
+  timeRange?: {
+    start: number; // 開始時刻（0-23）
+    end: number;   // 終了時刻（0-23）
+  };
+  agentTypes?: string[];
+  resourcePatterns?: string[];
 }
 
 export interface PolicyExample {
@@ -77,6 +92,7 @@ export interface PolicyMetadata {
   lastModifiedBy: string;
   tags: string[];
   status: "draft" | "active" | "deprecated";
+  priority?: number; // 優先度（高い値が優先）
 }
 
 // ポリシーバージョン管理

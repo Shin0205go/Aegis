@@ -22,6 +22,7 @@ import {
   SecurityInfoEnricher
 } from '../context/index.js';
 import { PolicyAdministrator } from '../policies/administrator.js';
+import { PolicyConflictResolver, PolicyApplicabilityFilter } from '../policies/policy-resolver.js';
 
 export class AEGISController {
   private config: AEGISConfig;
@@ -30,6 +31,8 @@ export class AEGISController {
   // Removed old WebSocket proxy reference
   private contextCollector: ContextCollector;
   private policyAdmin: PolicyAdministrator;
+  private policyResolver: PolicyConflictResolver;
+  private policyFilter: PolicyApplicabilityFilter;
   
   // ポリシー管理
   private policies = new Map<string, NaturalLanguagePolicyDefinition>();
@@ -52,6 +55,8 @@ export class AEGISController {
     
     // ポリシー管理者初期化
     this.policyAdmin = new PolicyAdministrator();
+    this.policyResolver = new PolicyConflictResolver();
+    this.policyFilter = new PolicyApplicabilityFilter();
     
     // デフォルトポリシー設定
     this.setupDefaultPolicies();
@@ -104,36 +109,72 @@ export class AEGISController {
       // 2. コンテキスト拡張（PIP呼び出し）
       const enrichedContext = await this.contextCollector.enrichContext(baseContext);
 
-      // 3. 適用ポリシー選択
-      const applicablePolicy = this.selectApplicablePolicy(enrichedContext.resource);
-      
-      // 4. AI判定実行
-      const decision = await this.judgmentEngine.makeDecision(
-        applicablePolicy.policy,
-        enrichedContext,
-        enrichedContext.environment
+      // 3. 適用可能なポリシーを取得
+      const allPolicies = await this.getAllActivePolicies();
+      const applicablePolicies = this.policyFilter.filterApplicablePolicies(
+        allPolicies, 
+        enrichedContext
       );
 
-      // 5. 結果構築
+      if (applicablePolicies.length === 0) {
+        this.logger.warn('No applicable policies found for context');
+        return {
+          decision: 'INDETERMINATE',
+          reason: 'No applicable policies found',
+          confidence: 0,
+          riskLevel: 'MEDIUM',
+          constraints: [],
+          obligations: ['Report missing policy coverage'],
+          monitoringRequirements: [],
+          processingTime: Date.now() - startTime,
+          policyUsed: 'none',
+          context: enrichedContext
+        };
+      }
+
+      // 4. 各ポリシーで判定を実行
+      const decisions = await Promise.all(
+        applicablePolicies.map(async (policy) => {
+          const decision = await this.judgmentEngine.makeDecision(
+            policy.policy,
+            enrichedContext,
+            enrichedContext.environment
+          );
+          return { policy, decision };
+        })
+      );
+
+      // 5. 競合解決戦略を選択
+      const strategy = this.policyResolver.suggestStrategy(enrichedContext);
+      
+      // 6. 競合を解決
+      const resolution = await this.policyResolver.resolveConflicts(decisions, strategy);
+
+      // 7. 結果構築
       const result: AccessControlResult = {
-        decision: decision.decision,
-        reason: decision.reason,
-        confidence: decision.confidence,
-        riskLevel: decision.riskLevel,
-        constraints: decision.constraints || [],
-        obligations: decision.obligations || [],
-        monitoringRequirements: decision.monitoringRequirements || [],
-        validityPeriod: decision.validityPeriod,
+        decision: resolution.finalDecision.decision,
+        reason: resolution.finalDecision.reason,
+        confidence: resolution.finalDecision.confidence,
+        riskLevel: resolution.finalDecision.riskLevel,
+        constraints: resolution.finalDecision.constraints || [],
+        obligations: resolution.finalDecision.obligations || [],
+        monitoringRequirements: resolution.finalDecision.monitoringRequirements || [],
+        validityPeriod: resolution.finalDecision.validityPeriod,
         processingTime: Date.now() - startTime,
-        policyUsed: applicablePolicy.name,
-        context: enrichedContext
+        policyUsed: resolution.appliedPolicies.map(p => p.policyName).join(', '),
+        context: enrichedContext,
+        conflictResolution: resolution.conflictDetails
       };
 
-      // 6. 履歴記録
-      this.recordDecisionHistory(enrichedContext, decision, applicablePolicy.name);
+      // 8. 履歴記録
+      this.recordDecisionHistory(
+        enrichedContext, 
+        resolution.finalDecision, 
+        resolution.appliedPolicies.map(p => p.policyName).join(', ')
+      );
 
-      // 7. ログ記録
-      this.logger.decision(agentId, decision.decision, resource, decision.reason);
+      // 9. ログ記録
+      this.logger.decision(agentId, resolution.finalDecision.decision, resource, resolution.finalDecision.reason);
 
       return result;
 
@@ -243,6 +284,61 @@ export class AEGISController {
     if (this.decisionHistory.length > historyLimit) {
       this.decisionHistory = this.decisionHistory.slice(-historyLimit);
     }
+  }
+
+  // すべてのアクティブなポリシーを取得
+  private async getAllActivePolicies(): Promise<NaturalLanguagePolicyDefinition[]> {
+    const policies: NaturalLanguagePolicyDefinition[] = [];
+    
+    // メモリ内のポリシー
+    for (const policy of this.policies.values()) {
+      if (policy.metadata.status === 'active') {
+        policies.push(policy);
+      }
+    }
+    
+    // 設定ファイルからのポリシー
+    const configPolicies = this.policyAdmin.getActivePoliciesFromConfig();
+    for (const configPolicy of configPolicies) {
+      const policyDef: NaturalLanguagePolicyDefinition = {
+        name: configPolicy.name,
+        description: configPolicy.description || '',
+        policy: this.policyAdmin.formatConfigPolicyForAI(configPolicy.id) || '',
+        examples: [],
+        metadata: {
+          id: configPolicy.id,
+          name: configPolicy.name,
+          description: configPolicy.description || '',
+          version: configPolicy.version,
+          createdAt: new Date(configPolicy.metadata.createdAt),
+          createdBy: configPolicy.metadata.createdBy,
+          lastModified: new Date(configPolicy.metadata.createdAt),
+          lastModifiedBy: configPolicy.metadata.createdBy,
+          tags: configPolicy.metadata.tags || [],
+          status: configPolicy.status as any,
+          priority: configPolicy.metadata.priority
+        }
+      };
+      policies.push(policyDef);
+    }
+    
+    // PolicyAdministratorからのポリシー
+    const adminPolicies = await this.policyAdmin.listPolicies({ status: 'active' });
+    for (const metadata of adminPolicies) {
+      const policyData = await this.policyAdmin.getPolicy(metadata.id);
+      if (policyData) {
+        const policyDef: NaturalLanguagePolicyDefinition = {
+          name: metadata.name,
+          description: metadata.description,
+          policy: policyData.policy,
+          examples: [],
+          metadata: metadata
+        };
+        policies.push(policyDef);
+      }
+    }
+    
+    return policies;
   }
 
   // 統計情報取得
