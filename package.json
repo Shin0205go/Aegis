@@ -33,8 +33,10 @@
     "start": "node dist/src/index.js",
     "start:mcp": "node dist/src/mcp-server.js",
     "start:mcp:http": "node dist/src/mcp-server.js --transport http",
-    "start:web": "node dist/src/web/server.js",
-    "dev:web": "tsx src/web/server.ts",
+    "start:api": "node dist/src/api/server.js",
+    "dev:api": "tsx src/api/server.ts",
+    "start:web": "node dist/src/api/server.js",
+    "dev:web": "tsx src/api/server.ts",
     "clean": "rimraf dist",
     "prepare": "husky install"
   },
