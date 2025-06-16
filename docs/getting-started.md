@@ -44,10 +44,8 @@ cp .env.example .env
 ```env
 # 必須設定
 ANTHROPIC_API_KEY=your-anthropic-api-key
-# または
-# OPENAI_API_KEY=your-openai-api-key
 
-# LLM設定
+# LLM設定（オプション、デフォルト値あり）
 LLM_PROVIDER=anthropic
 LLM_MODEL=claude-3-5-sonnet-20241022
 
@@ -66,22 +64,23 @@ npm run build
 
 AEGISには複数の起動方法があります：
 
-### 1. Web UI による管理 (`npm run start:web`)
+### 1. Web UI による管理 (`npm run start:api`)
 
 AEGISには視覚的にポリシーを管理できるWeb UIが含まれています：
 
 ```bash
 # 本番モード
-npm run start:web
+npm run start:api
 
 # 開発モード（ホットリロード付き）
-npm run dev:web
+npm run dev:api
 
 # React UI（オプション、より高度なUI）
 cd web && npm install && npm run dev
 ```
 
-ブラウザで http://localhost:3000 にアクセスすると、以下の機能が利用できます：
+APIサーバーが起動したら、React UIを別ターミナルで起動してください。
+ブラウザで http://localhost:3001 (React UI) または http://localhost:3000 (API直接アクセス) にアクセスすると、以下の機能が利用できます：
 - ポリシーの作成・編集・削除
 - リアルタイムポリシー解析
 - アクセス制御のテストシミュレーション
@@ -148,20 +147,22 @@ curl http://localhost:3000/policies
 
 ```typescript
 // your-app.ts
-import { AEGIS } from 'aegis-policy-engine';
+import { AEGISController } from 'aegis-policy-engine/dist/src/core/controller';
+import { AnthropicLLM } from 'aegis-policy-engine/dist/src/ai/anthropic-llm';
 
 async function main() {
-  // AEGIS初期化
-  const aegis = new AEGIS({
-    llm: {
-      provider: 'anthropic',
-      model: 'claude-3-5-sonnet-20241022',
-      apiKey: process.env.ANTHROPIC_API_KEY
-    }
+  // LLMインスタンス初期化
+  const llm = new AnthropicLLM({
+    provider: 'anthropic',
+    model: 'claude-3-5-sonnet-20241022',
+    apiKey: process.env.ANTHROPIC_API_KEY
   });
 
-  // システム起動
-  await aegis.start();
+  // AEGIS初期化
+  const aegis = new AEGISController(llm);
+
+  // ポリシー追加
+  await aegis.addPolicy('customer-access', '顧客データは営業時間内のみアクセス可能');
 
   // アクセス制御
   const result = await aegis.controlAccess(
@@ -195,23 +196,32 @@ async function main() {
 
 1. **サーバー起動**
 ```bash
-npm run start:server
+npm run start:mcp
 ```
 
-2. **エージェント接続設定**
+2. **Claude Desktop接続設定**
 
-エージェント側でMCPサーバーのURLを設定：
-```
-ws://localhost:3000/mcp
+Claude Desktopの設定ファイルに追加：
+```json
+{
+  "mcpServers": {
+    "aegis-proxy": {
+      "command": "node",
+      "args": ["/path/to/aegis/dist/src/mcp-server.js"],
+      "cwd": "/path/to/aegis"
+    }
+  }
+}
 ```
 
 3. **ポリシー追加**
 
-REST APIでポリシーを追加：
+Web UIまたはREST APIでポリシーを追加：
 ```bash
-curl -X POST http://localhost:3000/policies/customer-access \
+curl -X POST http://localhost:3000/api/policies \
   -H "Content-Type: application/json" \
   -d '{
+    "name": "customer-access",
     "policy": "顧客データは営業時間内のみアクセス可能。カスタマーサポート部門に限定。"
   }'
 ```
@@ -219,10 +229,17 @@ curl -X POST http://localhost:3000/policies/customer-access \
 ### ライブラリとしての場合
 
 ```typescript
-import { AEGIS, PolicyAdministrator } from 'aegis-policy-engine';
+import { AEGISController } from 'aegis-policy-engine/dist/src/core/controller';
+import { PolicyAdministrator } from 'aegis-policy-engine/dist/src/policies/policy-administrator';
+import { AnthropicLLM } from 'aegis-policy-engine/dist/src/ai/anthropic-llm';
 
 // 初期化
-const aegis = new AEGIS(config);
+const llm = new AnthropicLLM({
+  provider: 'anthropic',
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  model: 'claude-3-5-sonnet-20241022'
+});
+const aegis = new AEGISController(llm);
 const policyAdmin = new PolicyAdministrator();
 
 // ポリシー作成
@@ -254,10 +271,9 @@ if (result.decision === 'PERMIT') {
 
 ```env
 # AI判定エンジン設定
-LLM_PROVIDER=anthropic      # 'openai' または 'anthropic'
+LLM_PROVIDER=anthropic      # 現在は 'anthropic' のみサポート
 LLM_MODEL=claude-3-5-sonnet-20241022  # 使用するモデル
-ANTHROPIC_API_KEY=xxx       # Anthropic APIキー
-# OPENAI_API_KEY=xxx        # OpenAI APIキー（代替）
+ANTHROPIC_API_KEY=xxx       # Anthropic APIキー（必須）
 
 # サーバー設定
 PORT=3000                   # サーバーポート
@@ -276,21 +292,9 @@ ENABLE_RATE_LIMITING=true  # レート制限
 RATE_LIMIT_MAX_REQUESTS=100 # 最大リクエスト数/分
 ```
 
-### CLIオプション（server.jsのみ）
+### CLIオプション
 
-```bash
-# ヘルプ表示
-node dist/server.js --help
-
-# ポート指定
-node dist/server.js --port 8080
-
-# プロバイダー指定
-node dist/server.js --provider anthropic --model claude-3-opus-20240229
-
-# デバッグモード
-node dist/server.js --debug
-```
+現在のバージョンでは、設定は主に環境変数で行います。CLIオプションは将来的に追加予定です。
 
 ## 次のステップ
 
@@ -316,7 +320,7 @@ node dist/server.js --debug
 **Q: "APIキーが設定されていません"エラー**
 ```bash
 # 環境変数を確認
-echo $OPENAI_API_KEY
+echo $ANTHROPIC_API_KEY
 
 # .envファイルが読み込まれているか確認
 cat .env | grep API_KEY

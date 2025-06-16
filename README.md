@@ -78,14 +78,6 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
       "command": "node",
       "args": ["/path/to/aegis/dist/src/mcp-server.js"],
       "cwd": "/path/to/aegis"
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
-    },
-    "execution-server": {
-      "command": "node",
-      "args": ["/path/to/execution-server/dist/index.js"]
     }
   }
 }
@@ -101,12 +93,12 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
 **重要**: 
 - `node`コマンドがNode.js v20以上を指すように設定してください
 - 絶対パスが必要な場合は`$(which node)`を使用するか、環境に応じて設定してください
-- AEGISが自動的に他のMCPサーバーをプロキシ経由で提供します
+- AEGISは`aegis-mcp-config.json`で設定された上流MCPサーバーをプロキシ経由で提供します
 - 全てのツール実行時にポリシー制御が適用されます
 
 ### 🌐 Web UI による管理
 
-AEGISには、自煨言語ポリシーを視覚的に管理できるWeb UIが含まれています：
+AEGISには、自然言語ポリシーを視覚的に管理できるWeb UIが含まれています：
 
 ```bash
 # APIサーバーを起動
@@ -137,7 +129,7 @@ http://localhost:3001 でReact UIにアクセスできます。
 ### 基本的な使用方法
 ```typescript
 import { AEGISController } from './src/core/controller';
-import { AnthropicLLM } from './src/llm/anthropic';
+import { AnthropicLLM } from './src/ai/anthropic-llm';
 
 // LLMインスタンス初期化
 const llm = new AnthropicLLM({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -187,22 +179,20 @@ aegis.addPolicy('customer-data-policy', customerDataPolicy);
 ```
 aegis-policy-engine/
 ├── src/
-│   ├── core/           # コアシステム
+│   ├── core/           # コアシステム（制約・義務処理含む）
 │   ├── ai/             # AI判定エンジン
 │   ├── context/        # コンテキスト収集
 │   ├── mcp/            # MCPプロキシ
 │   ├── policies/       # ポリシー管理
-│   ├── monitoring/     # 監視・統計
-│   ├── enforcement/    # Phase 3 高度な制約・義務処理
 │   ├── audit/          # 監査・異常検知
 │   ├── performance/    # キャッシュ・バッチ処理
 │   ├── api/            # REST APIサーバー
+│   ├── schemas/        # Zodバリデーションスキーマ
 │   └── utils/          # ユーティリティ
 ├── web/                # React UI（フロントエンド）
 ├── policies/           # ポリシーファイル
-├── examples/           # 使用例
-├── tests/              # テストコード
-└── docs/               # ドキュメント
+├── docs/               # ドキュメント
+└── logs/               # ログファイル
 ```
 
 ## 🔧 開発・テスト

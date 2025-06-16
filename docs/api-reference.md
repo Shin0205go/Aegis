@@ -17,22 +17,27 @@ AEGIS APIは、自然言語ポリシーベースのアクセス制御を提供�
 ### 基本的な使用方法
 
 ```typescript
-import { AEGIS } from '@aegis/core';
+import { AEGISController } from '@aegis/core/controller';
+import { AnthropicLLM } from '@aegis/ai/anthropic-llm';
 
-// AEGIS初期化
-const aegis = new AEGIS({
-  llm: {
-    provider: 'openai',
-    model: 'gpt-4',
-    apiKey: process.env.OPENAI_API_KEY
-  }
+// LLMインスタンス初期化
+const llm = new AnthropicLLM({
+  provider: 'anthropic',
+  model: 'claude-3-5-sonnet-20241022',
+  apiKey: process.env.ANTHROPIC_API_KEY
 });
 
-// システム起動
-await aegis.start();
+// AEGISコントローラー初期化
+const controller = new AEGISController(llm);
+
+// ポリシー追加
+await controller.addPolicy(
+  'customer-access',
+  '顧客データは営業時間内のみアクセス可能'
+);
 
 // アクセス制御実行
-const result = await aegis.controlAccess(
+const result = await controller.controlAccess(
   'agent-001',
   'read',
   'customer-data',
@@ -49,7 +54,7 @@ const result = await aegis.controlAccess(
 #### コンストラクタ
 
 ```typescript
-constructor(config: AEGISConfig, logger: Logger)
+constructor(llm: LLMInterface, logger?: Logger)
 ```
 
 **パラメータ:**
@@ -249,7 +254,7 @@ proxy.addUpstreamServer('gdrive', 'ws://localhost:8081/gdrive');
 
 ### REST API エンドポイント
 
-#### `GET /health`
+#### `GET /api/health`
 
 ヘルスチェックエンドポイント
 
@@ -267,7 +272,7 @@ proxy.addUpstreamServer('gdrive', 'ws://localhost:8081/gdrive');
 }
 ```
 
-#### `GET /policies`
+#### `GET /api/policies`
 
 ポリシー一覧を取得
 
@@ -281,16 +286,32 @@ proxy.addUpstreamServer('gdrive', 'ws://localhost:8081/gdrive');
 }
 ```
 
-#### `POST /policies/:name`
+#### `POST /api/policies`
+
+ポリシーを作成
+
+**リクエストボディ:**
+```json
+{
+  "name": "ポリシー名",
+  "policy": "【ポリシー内容】..."
+}
+```
+
+#### `PUT /api/policies/:id`
 
 ポリシーを更新
 
 **リクエストボディ:**
 ```json
 {
-  "policy": "【ポリシー内容】..."
+  "policy": "【新しいポリシー内容】..."
 }
 ```
+
+#### `DELETE /api/policies/:id`
+
+ポリシーを削除
 
 ## ポリシー管理 API
 
@@ -333,6 +354,34 @@ interface PolicyManagementAPI {
     exportData: PolicyExport,
     importedBy?: string
   ): Promise<string>;
+}
+```
+
+#### `POST /api/policies/test`
+
+ポリシーをテスト
+
+**リクエストボディ:**
+```json
+{
+  "agent": "エージェントID",
+  "action": "アクション",
+  "resource": "リソース",
+  "purpose": "目的",
+  "environment": {
+    "clientIP": "192.168.1.1"
+  }
+}
+```
+
+#### `POST /api/policies/analyze`
+
+ポリシーを分析
+
+**リクエストボディ:**
+```json
+{
+  "policy": "分析したいポリシーテキスト"
 }
 ```
 
@@ -455,15 +504,16 @@ interface PolicyMetadata {
 ### `AEGISConfig`
 
 ```typescript
+interface LLMConfig {
+  provider: 'anthropic';  // 現在は 'anthropic' のみサポート
+  model: string;
+  apiKey: string;
+  baseURL?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
 interface AEGISConfig {
-  llm: {
-    provider: 'openai' | 'anthropic';
-    model: string;
-    apiKey?: string;
-    baseURL?: string;
-    temperature?: number;
-    maxTokens?: number;
-  };
   server?: {
     port?: number;
     host?: string;
