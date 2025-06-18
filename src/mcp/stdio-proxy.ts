@@ -29,6 +29,7 @@ import { StdioRouter, MCPServerConfig } from './stdio-router.js';
 import { EnforcementSystem } from '../core/enforcement.js';
 import { PolicyLoader } from '../policies/policy-loader.js';
 import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
+import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
 import { RealTimeAnomalyDetector } from '../audit/real-time-anomaly-detector.js';
 import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.js';
 import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
@@ -50,6 +51,7 @@ export class MCPStdioPolicyProxy {
   
   // Phase 3: 高度な監査システム
   private advancedAuditSystem: AdvancedAuditSystem;
+  private auditDashboardProvider: AuditDashboardDataProvider;
   private realTimeAnomalyDetector: RealTimeAnomalyDetector;
   
   // Phase 3: パフォーマンス最適化
@@ -81,6 +83,7 @@ export class MCPStdioPolicyProxy {
     
     // Phase 3: 高度な監査システム初期化
     this.advancedAuditSystem = new AdvancedAuditSystem();
+    this.auditDashboardProvider = new AuditDashboardDataProvider(this.advancedAuditSystem);
     this.realTimeAnomalyDetector = new RealTimeAnomalyDetector(this.advancedAuditSystem);
     
     // 異常検知アラートのハンドリング設定
@@ -91,6 +94,13 @@ export class MCPStdioPolicyProxy {
         pattern: alert.pattern.name,
         agent: alert.triggeringContext.agent
       });
+      
+      // ダッシュボードにアラートを追加
+      this.auditDashboardProvider.createAlert(
+        alert.severity,
+        'ANOMALY_DETECTED',
+        `異常なアクセスパターンを検知: ${alert.pattern.name}`
+      );
     });
 
     // Phase 3: インテリジェントキャッシュシステム初期化
@@ -225,7 +235,12 @@ export class MCPStdioPolicyProxy {
       
       try {
         // ポリシー判定実行
-        const decision = await this.enforcePolicy('execute', `tool:${request.params.name}`, { request });
+        // ファイルシステムツールの場合、パスも含めたリソース文字列を生成
+        let resourceString = `tool:${request.params.name}`;
+        if (request.params.name === 'filesystem__read_file' && request.params.arguments?.path) {
+          resourceString = `file:${request.params.arguments.path}`;
+        }
+        const decision = await this.enforcePolicy('execute', resourceString, { request });
         
         if (decision.decision === 'DENY') {
           throw new Error(`Access denied: ${decision.reason}`);
@@ -715,6 +730,27 @@ export class MCPStdioPolicyProxy {
 
   getAuditSystemStats(): any {
     return this.advancedAuditSystem.getSystemStats();
+  }
+  
+  /**
+   * ダッシュボードメトリクスを取得
+   */
+  async getDashboardMetrics(): Promise<any> {
+    return await this.auditDashboardProvider.getDashboardMetrics();
+  }
+  
+  /**
+   * 監査システムへの参照を取得（HTTPプロキシ用）
+   */
+  getAuditSystem(): AdvancedAuditSystem {
+    return this.advancedAuditSystem;
+  }
+  
+  /**
+   * ダッシュボードプロバイダーへの参照を取得（HTTPプロキシ用）
+   */
+  getAuditDashboardProvider(): AuditDashboardDataProvider {
+    return this.auditDashboardProvider;
   }
 
   /**

@@ -3,6 +3,8 @@
  * 企業環境での実用的なポリシー例
  */
 
+import { TOOL_CONTROL_POLICY } from './tool-control-policy.js';
+
 // 顧客データアクセスポリシー
 export const CUSTOMER_DATA_POLICY = `
 【顧客データアクセスポリシー】
@@ -246,5 +248,11 @@ export const SAMPLE_POLICIES = {
     description: 'Claude Desktop 専用ポリシー',
     policy: CLAUDE_DESKTOP_POLICY,
     tags: ['claude', 'mcp-client', 'desktop']
+  },
+  'tool-control-policy': {
+    name: 'tool-control-policy',
+    description: 'MCPツール制御ポリシー',
+    policy: TOOL_CONTROL_POLICY.policy,
+    tags: ['tools', 'mcp', 'risk-management']
   }
 };

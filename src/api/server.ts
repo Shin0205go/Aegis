@@ -18,6 +18,9 @@ import {
   testPolicySchema,
   toolCallSchema
 } from './validation.js';
+import { createAuditEndpoints } from './audit-endpoints.js';
+import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
+import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
 
 const __dirname = path.resolve();
 
@@ -28,10 +31,12 @@ const PORT = process.env.POLICY_UI_PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+// 静的ファイルを複数のディレクトリから配信
+app.use(express.static(path.join(process.cwd(), 'public')));
 app.use(express.static(path.join(process.cwd(), 'web/public')));
 
 // Services
-const policyAdmin = new PolicyAdministrator('./policies');
+const policyAdmin = new PolicyAdministrator(path.join(process.cwd(), 'policies'));
 const config = {
   provider: 'anthropic' as 'anthropic',
   apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -40,6 +45,8 @@ const config = {
   maxTokens: 4096
 };
 const judgmentEngine = new AIJudgmentEngine(config);
+const auditSystem = new AdvancedAuditSystem();
+const dashboardProvider = new AuditDashboardDataProvider(auditSystem);
 
 // ============================================================================
 // Policy Management API Routes
@@ -246,11 +253,24 @@ function detectPolicyWarnings(policy: string): string[] {
 }
 
 // ============================================================================
-// Static files for React app
+// Audit API Routes
 // ============================================================================
 
-// Serve React app
-app.get('*', (req, res) => {
+const auditRouter = createAuditEndpoints({
+  auditSystem,
+  dashboardProvider
+});
+app.use('/api/audit', auditRouter);
+
+// ============================================================================
+// Static files
+// ============================================================================
+
+// Serve static files from public directory
+app.use(express.static(path.join(process.cwd(), 'public')));
+
+// Serve React app landing page for root
+app.get('/', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'web/public/index.html'));
 });
 

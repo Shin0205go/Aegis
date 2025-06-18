@@ -229,8 +229,8 @@ export class AdvancedAuditSystem {
       recommendations
     };
 
-    // レポートを保存
-    await this.saveReport(report, 'compliance');
+    // レポートを保存（コメントアウト - ダッシュボードからの頻繁な呼び出しのため）
+    // await this.saveReport(report, 'compliance');
 
     logger.info('Compliance report generated', { 
       reportId: report.reportId, 
@@ -658,5 +658,19 @@ export class AdvancedAuditSystem {
       oldestEntry: new Date(Math.min(...timestamps.map(t => t.getTime()))),
       newestEntry: new Date(Math.max(...timestamps.map(t => t.getTime())))
     };
+  }
+
+  /**
+   * 監査エントリを直接取得（ダッシュボード用）
+   */
+  getAuditEntries(): AuditEntry[] {
+    return Array.from(this.auditEntries.values());
+  }
+
+  /**
+   * 時間範囲でエントリを取得（公開メソッド）
+   */
+  getEntriesInTimeRange(start: Date, end: Date): AuditEntry[] {
+    return this.getEntriesInRange({ start, end });
   }
 }

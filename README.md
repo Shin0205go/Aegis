@@ -12,6 +12,8 @@
 - **⚡ リアルタイム制御**: MCPプロキシによる透明なアクセス制御
 - **📊 統計・監視**: 包括的なアクセス分析とリアルタイム監視
 - **⚖️ ガバナンス統制**: 企業レベルのポリシーガバナンスと執行管理
+- **🔧 ハイブリッドMCPプロキシ**: 設定ベース・動的発見・ネイティブツールの統合管理
+- **🎛️ 柔軟なポリシー制御**: ツール毎、パターン毎の細かいポリシー適用設定
 
 ## 🏛️ アーキテクチャ
 
@@ -57,7 +59,7 @@ cp .env.example .env
 
 ### Claude Desktop統合（推奨）
 
-AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべてのMCPサーバーにポリシー制御を適用できます：
+AEGISは既存のClaude Desktop MCP設定を自動的に読み込み、すべてのMCPサーバーにポリシー制御を適用できます。さらに、Claude Code内蔵ツールや動的に発見されるサードパーティツールも統合管理できます：
 
 #### 1. 環境設定
 ```bash
@@ -86,15 +88,20 @@ Claude Desktopの設定ファイル（`claude_desktop_config.json`）に以下�
 #### 3. 動作確認
 - Claude Desktopを再起動
 - 以下のツールが使用可能になることを確認：
-  - `filesystem__*` - ファイルシステム操作
-  - `execution-server__*` - コマンド・コード実行
-  - その他設定したMCPサーバーのツール
+  - **設定ベースツール**：
+    - `filesystem__*` - ファイルシステム操作
+    - `execution-server__*` - コマンド・コード実行
+    - その他設定したMCPサーバーのツール
+  - **ネイティブツール**（Claude Code内蔵）：
+    - `Agent`, `Bash`, `Edit`, `Read`, `Write` など
+  - **動的発見ツール**：
+    - VSCode統合ツール、サードパーティMCPツール
 
 **重要**: 
 - `node`コマンドがNode.js v20以上を指すように設定してください
 - 絶対パスが必要な場合は`$(which node)`を使用するか、環境に応じて設定してください
 - AEGISは`aegis-mcp-config.json`で設定された上流MCPサーバーをプロキシ経由で提供します
-- 全てのツール実行時にポリシー制御が適用されます
+- 全てのツール実行時にポリシー制御が適用されます（設定により除外可能）
 
 ### 🌐 Web UI による管理
 
@@ -172,6 +179,36 @@ const customerDataPolicy = `
 
 // ポリシー追加
 aegis.addPolicy('customer-data-policy', customerDataPolicy);
+```
+
+### ハイブリッドMCPプロキシ設定例
+```json
+{
+  "mcpServers": {
+    "filesystem": { "command": "npx", "args": ["@modelcontextprotocol/server-filesystem"] }
+  },
+  "proxySettings": {
+    "includeNativeTools": true,
+    "toolSources": [
+      {
+        "type": "native",
+        "name": "claude-code",
+        "policyControlled": true
+      }
+    ],
+    "policyControl": {
+      "defaultEnabled": true,
+      "exceptions": ["TodoRead", "TodoWrite", "LS"],
+      "toolPolicies": {
+        "Bash": {
+          "enabled": true,
+          "constraints": ["危険なコマンドのブロック"],
+          "obligations": ["監査ログ記録"]
+        }
+      }
+    }
+  }
+}
 ```
 
 ## 📁 プロジェクト構造

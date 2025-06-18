@@ -23,7 +23,10 @@ Claude Desktop アクセスポリシー：
 - agent が "mcp-client" の場合、基本的に PERMIT
 - action が "list" の場合、常に PERMIT
 - 初期接続フェーズでは寛容に判定
-- resource が "tool:filesystem__write_file", "tool:filesystem__edit_file", "tool:filesystem__create_directory", "tool:filesystem__move_file" の場合: DENY
-- resource が "tool:filesystem__read", "tool:filesystem__list", "tool:filesystem__search", "tool:filesystem__get", "tool:filesystem__directory_tree" を含む場合: PERMIT
+
+【ツール実行ポリシー】
+- ファイルシステムの書き込み系操作（write_file, edit_file, create_directory, move_file）は禁止
+- ファイルシステムの読み取り系操作（read, list, search, get, directory_tree）は許可
+- その他のツールは、tool-control-policyに従って判定
 `
 };

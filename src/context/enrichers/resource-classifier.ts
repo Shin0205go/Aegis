@@ -11,9 +11,9 @@ export class ResourceClassifierEnricher implements ContextEnricher {
 
   // リソース分類ルール
   private classificationRules: ClassificationRule[] = [
-    // 顧客データ
+    // 顧客データ（より具体的なパターンに変更）
     {
-      pattern: /customer|client|user|profile/i,
+      pattern: /\/(customer|client|user|profile)\/(data|info|record|detail)|customer-database|user-profile|client-record/i,
       classification: {
         dataType: 'customer-data',
         sensitivityLevel: 'high',

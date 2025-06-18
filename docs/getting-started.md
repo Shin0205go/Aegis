@@ -111,6 +111,45 @@ npm run start:mcp:http
 }
 ```
 
+**ハイブリッドMCPプロキシ設定** (aegis-mcp-config.json):
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${HOME}/Documents"]
+    }
+  },
+  "proxySettings": {
+    "includeNativeTools": true,
+    "includeDiscoveredTools": true,
+    "toolSources": [
+      {
+        "type": "native",
+        "name": "claude-code",
+        "policyControlled": true,
+        "prefix": ""
+      }
+    ],
+    "policyControl": {
+      "defaultEnabled": true,
+      "exceptions": ["TodoRead", "TodoWrite", "LS"],
+      "toolPolicies": {
+        "Bash": {
+          "enabled": true,
+          "constraints": ["危険なコマンドのブロック"],
+          "obligations": ["監査ログ記録"]
+        },
+        "WebFetch": {
+          "enabled": true,
+          "constraints": ["HTTPSのみ許可"]
+        }
+      }
+    }
+  }
+}
+```
+
 ### 3. ライブラリとしての統合
 
 カスタムWebSocketトランスポートで起動します（非MCP公式）。
@@ -290,6 +329,42 @@ POLICY_UI_PORT=3000        # Web UIポート
 # セキュリティ設定
 ENABLE_RATE_LIMITING=true  # レート制限
 RATE_LIMIT_MAX_REQUESTS=100 # 最大リクエスト数/分
+```
+
+### ハイブリッドMCPプロキシ設定
+
+AEGISは3種類のツールソースをサポートします：
+
+1. **設定ベースツール** (`configured`)
+   - `aegis-mcp-config.json`で定義したMCPサーバー
+   - 例: filesystem, github, google-drive
+
+2. **ネイティブツール** (`native`)
+   - Claude Code内蔵ツール（Agent, Bash, Edit, Read等）
+   - デフォルトで統合、プレフィックスなし
+
+3. **動的発見ツール** (`discovered`)
+   - VSCode統合、サードパーティMCPツール
+   - 実行時に自動検出
+
+設定例：
+```json
+{
+  "proxySettings": {
+    "includeNativeTools": true,      // Claude Code内蔵ツールを含める
+    "includeDiscoveredTools": true,  // 動的発見ツールを含める
+    "policyControl": {
+      "defaultEnabled": true,        // デフォルトでポリシー制御
+      "exceptions": ["TodoRead"],    // 除外するツール
+      "toolPolicies": {              // ツール別の詳細設定
+        "Bash": {
+          "enabled": true,
+          "constraints": ["危険なコマンドのブロック"]
+        }
+      }
+    }
+  }
+}
 ```
 
 ### CLIオプション

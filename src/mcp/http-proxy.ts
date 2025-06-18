@@ -30,6 +30,9 @@ import {
   SecurityInfoEnricher
 } from '../context/index.js';
 import { EnforcementSystem } from '../core/enforcement.js';
+import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
+import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
+import { createAuditEndpoints } from '../api/audit-endpoints.js';
 // Use Node.js built-in fetch (Node 18+)
 
 export class MCPHttpPolicyProxy {
@@ -47,6 +50,10 @@ export class MCPHttpPolicyProxy {
   // ポリシー管理
   private policies = new Map<string, string>();
   
+  // Phase 3: 高度な監査システム
+  private advancedAuditSystem: AdvancedAuditSystem;
+  private auditDashboardProvider: AuditDashboardDataProvider;
+  
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine) {
     this.config = config;
     this.logger = logger;
@@ -58,6 +65,10 @@ export class MCPHttpPolicyProxy {
     
     // 制約・義務実施システム初期化
     this.enforcementSystem = new EnforcementSystem();
+    
+    // Phase 3: 高度な監査システム初期化
+    this.advancedAuditSystem = new AdvancedAuditSystem();
+    this.auditDashboardProvider = new AuditDashboardDataProvider(this.advancedAuditSystem);
     
     // Express アプリ作成
     this.app = express();
@@ -270,12 +281,35 @@ export class MCPHttpPolicyProxy {
     // AI判定実行
     const decision = await this.judgmentEngine.makeDecision(policy, enrichedContext, enrichedContext.environment);
     
-    return {
+    const result = {
       ...decision,
       processingTime: Date.now() - startTime,
       policyUsed: policyName,
       context: enrichedContext
     };
+    
+    // Phase 3: 監査ログ記録
+    try {
+      const outcome = decision.decision === 'PERMIT' ? 'SUCCESS' : 
+                     decision.decision === 'DENY' ? 'FAILURE' : 'ERROR';
+      
+      await this.advancedAuditSystem.recordAuditEntry(
+        enrichedContext,
+        decision,
+        policyName,
+        result.processingTime,
+        outcome,
+        {
+          requestType: action,
+          resourcePath: resource,
+          transport: 'http'
+        }
+      );
+    } catch (auditError) {
+      this.logger.error('Failed to record audit entry', auditError);
+    }
+    
+    return result;
   }
 
   private selectApplicablePolicy(resource: string): string {
@@ -441,6 +475,9 @@ export class MCPHttpPolicyProxy {
       }
     }
     
+    // 静的ファイルの提供（監査ダッシュボード用）
+    this.app.use('/public', express.static('public'));
+    
     // ヘルスチェックエンドポイント
     this.app.get('/health', (req, res) => {
       res.json({
@@ -473,6 +510,13 @@ export class MCPHttpPolicyProxy {
       
       res.json({ success: true, message: `Policy ${name} updated` });
     });
+    
+    // Phase 3: 監査APIエンドポイントを追加
+    const auditRouter = createAuditEndpoints({
+      auditSystem: this.advancedAuditSystem,
+      dashboardProvider: this.auditDashboardProvider
+    });
+    this.app.use('/audit', auditRouter);
     
     // MCPエンドポイント
     this.app.post('/mcp', async (req, res) => {

@@ -54,7 +54,7 @@ graph TB
 
 ## コンポーネント詳細
 
-### 1. PEP (Policy Enforcement Point) - MCPプロキシサーバー
+### 1. PEP (Policy Enforcement Point) - ハイブリッドMCPプロキシサーバー
 
 **責務**: すべてのMCPリクエストをインターセプトし、ポリシー制御を透明に実行
 
@@ -65,29 +65,76 @@ graph TB
 - リクエスト/レスポンスのインターセプト
 - 制約・義務の実行
 - 上流サーバーへの透過的プロキシ
+- **ハイブリッドツール統合**:
+  - 設定ベースMCPサーバー（filesystem, github等）
+  - Claude Code内蔵ツール（Agent, Bash, Edit等）
+  - 動的発見ツール（VSCode統合、サードパーティ）
 
 **実装詳細**:
 ```typescript
-// src/mcp/proxy.ts
-export class MCPPolicyProxy {
-  // WebSocketサーバーとしてMCPプロトコルを実装
-  private wss: WebSocketServer;
+// src/mcp/stdio-proxy.ts
+export class MCPStdioPolicyProxy {
   private contextCollector: ContextCollector;
   private judgmentEngine: AIJudgmentEngine;
+  private toolDiscovery: ToolDiscoveryService;
   
-  async handleMCPRequest(request: MCPRequest): Promise<MCPResponse> {
-    // 1. コンテキスト構築
-    const context = await this.buildContext(request);
+  async handleToolCall(request: any): Promise<any> {
+    const toolName = request.params.name;
+    const tool = this.toolDiscovery.getTool(toolName);
     
-    // 2. ポリシー判定
-    const decision = await this.judgmentEngine.makeDecision(policy, context);
-    
-    // 3. 判定に基づく処理
-    if (decision.decision === 'PERMIT') {
-      return this.proxyToUpstream(request, decision.constraints);
-    } else {
-      return this.createDenyResponse(decision.reason);
+    // ツールソースに応じた処理
+    if (tool.source.policyControlled) {
+      // ポリシー判定
+      const decision = await this.enforcePolicy('execute', `tool:${toolName}`, { request });
+      if (decision.decision === 'DENY') {
+        throw new Error(`Access denied: ${decision.reason}`);
+      }
     }
+    
+    // ツールタイプに応じた実行
+    switch (tool.source.type) {
+      case 'configured':
+        return await this.forwardToUpstream('tools/call', request.params);
+      case 'native':
+        return await this.executeNativeTool(toolName, request.params);
+      case 'discovered':
+        return await this.executeDiscoveredTool(tool, request.params);
+    }
+  }
+}
+```
+
+**ツール発見サービス**:
+```typescript
+// src/mcp/tool-discovery.ts
+export class ToolDiscoveryService {
+  private registeredTools = new Map<string, DiscoveredTool>();
+  
+  // Claude Code内蔵ツールの登録
+  registerNativeTools(): void {
+    Object.entries(NATIVE_TOOLS).forEach(([name, info]) => {
+      this.registeredTools.set(name, {
+        name,
+        description: info.description,
+        source: {
+          type: 'native',
+          name: 'claude-code',
+          policyControlled: this.shouldApplyPolicy(name, info.risk)
+        }
+      });
+    });
+  }
+  
+  // 動的ツールの登録
+  registerToolFromClient(tool: any, sourceName: string): void {
+    this.registeredTools.set(tool.name, {
+      name: tool.name,
+      source: {
+        type: 'discovered',
+        name: sourceName,
+        policyControlled: this.shouldApplyPolicy(tool.name)
+      }
+    });
   }
 }
 ```

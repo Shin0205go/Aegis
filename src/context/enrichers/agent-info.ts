@@ -11,6 +11,20 @@ export class AgentInfoEnricher implements ContextEnricher {
 
   // エージェント情報のモックデータベース
   private agentDatabase: Map<string, AgentInfo> = new Map([
+    ['mcp-client', {
+      id: 'mcp-client',
+      type: 'mcp-claude-desktop',
+      department: 'ai-tools',
+      clearanceLevel: 3,
+      createdAt: new Date('2024-01-01'),
+      lastActivity: new Date(),
+      permissions: ['read-files', 'list-tools', 'execute-tools', 'access-upstream-servers'],
+      tags: ['production', 'verified', 'claude-desktop', 'mcp-standard'],
+      riskScore: 0.2,
+      isExternal: false,
+      supervisor: 'ai-operations',
+      location: 'claude-desktop'
+    }],
     ['customer-support-agent', {
       id: 'customer-support-agent',
       type: 'support',

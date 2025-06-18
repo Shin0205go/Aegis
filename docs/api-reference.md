@@ -6,9 +6,10 @@
 2. [AEGISController API](#aegiscontroller-api)
 3. [MCPプロキシ API](#mcpプロキシ-api)
 4. [ポリシー管理 API](#ポリシー管理-api)
-5. [コンテキストエンリッチャー API](#コンテキストエンリッチャー-api)
-6. [型定義](#型定義)
-7. [エラーハンドリング](#エラーハンドリング)
+5. [ツール発見 API](#ツール発見-api)
+6. [コンテキストエンリッチャー API](#コンテキストエンリッチャー-api)
+7. [型定義](#型定義)
+8. [エラーハンドリング](#エラーハンドリング)
 
 ## 概要
 
@@ -433,6 +434,111 @@ const collector = new ContextCollector();
 collector.registerEnricher(new GeolocationEnricher());
 collector.registerEnricher(new TimeBasedEnricher());
 collector.registerEnricher(new AgentInfoEnricher());
+```
+
+## ツール発見 API
+
+### クラス: `ToolDiscoveryService`
+
+ハイブリッドMCPプロキシのツール管理を提供します。
+
+#### コンストラクタ
+
+```typescript
+constructor(config: ToolDiscoveryConfig, logger: Logger)
+```
+
+**設定例:**
+```typescript
+const toolDiscovery = new ToolDiscoveryService({
+  includeNativeTools: true,
+  includeDiscoveredTools: true,
+  policyControl: {
+    defaultEnabled: true,
+    exceptions: ['TodoRead', 'TodoWrite', 'LS'],
+    toolPolicies: {
+      'Bash': {
+        enabled: true,
+        constraints: ['危険なコマンドのブロック'],
+        obligations: ['監査ログ記録']
+      }
+    }
+  }
+}, logger);
+```
+
+#### メソッド: `registerNativeTools`
+
+Claude Code内蔵ツールを登録します。
+
+```typescript
+registerNativeTools(): void
+```
+
+**登録されるツール:**
+- Agent: サブエージェント実行
+- Bash: シェルコマンド実行
+- Edit/MultiEdit: ファイル編集
+- Read/Write: ファイル読み書き
+- WebFetch/WebSearch: Web アクセス
+- TodoRead/TodoWrite: タスク管理
+
+#### メソッド: `registerToolFromClient`
+
+動的に発見されたツールを登録します。
+
+```typescript
+registerToolFromClient(tool: any, sourceName: string): void
+```
+
+**パラメータ:**
+- `tool`: ツール定義オブジェクト
+- `sourceName`: ツールのソース名（例: 'vscode', 'third-party'）
+
+#### メソッド: `getTool`
+
+ツール情報を取得します。
+
+```typescript
+getTool(toolName: string): DiscoveredTool | undefined
+```
+
+**戻り値:**
+```typescript
+interface DiscoveredTool {
+  name: string;
+  description?: string;
+  source: ToolSource;
+  metadata?: Record<string, any>;
+}
+
+interface ToolSource {
+  type: 'configured' | 'discovered' | 'native';
+  name: string;
+  policyControlled: boolean;
+  prefix?: string;
+}
+```
+
+#### メソッド: `assessToolRisk`
+
+ツールのリスクレベルを評価します。
+
+```typescript
+assessToolRisk(toolName: string): 'low' | 'medium' | 'high'
+```
+
+#### メソッド: `getStats`
+
+ツール統計情報を取得します。
+
+```typescript
+getStats(): {
+  totalTools: number;
+  bySource: Record<string, number>;
+  policyControlled: number;
+  riskDistribution: Record<string, number>;
+}
 ```
 
 ## 型定義

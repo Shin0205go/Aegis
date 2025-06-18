@@ -2,20 +2,26 @@
   "mcpServers": {
     "filesystem": {
       "command": "node",
-      "args": [
-        "${HOME}/.nvm/versions/node/v20.12.2/lib/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
-        "${HOME}/Develop",
-        "${HOME}/Documents"
-      ]
+      "args": ["/path/to/filesystem-server/dist/index.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "/path/to/repo"]
     },
     "github": {
-      "command": "node",
-      "args": [
-        "${HOME}/.nvm/versions/node/v20.12.2/lib/node_modules/@modelcontextprotocol/server-github/dist/index.js"
-      ],
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-github-token"
       }
+    },
+    "google-drive": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-gdrive"]
     }
   }
 }
+EOF < /dev/null
