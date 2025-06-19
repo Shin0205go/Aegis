@@ -21,17 +21,16 @@
 # 最小限のセットアップ手順
 npm install && npm run build
 cp .env.example .env
-# 詳細は docs/getting-started.md へ
+# 詳細は docs/user-guide/getting-started.md へ
 ```
 
 ## 📚 ドキュメント
 - [はじめに](./docs/) - プロジェクト概要とガイド一覧
-- [導入ガイド](./docs/getting-started.md) - インストールと初期設定
 - [ユーザーガイド](./docs/user-guide/) - 使い方とベストプラクティス
 - [開発者ガイド](./docs/developer-guide/) - API・アーキテクチャ詳細
 
 ## 🤝 コントリビューション
-[CONTRIBUTING.md](./CONTRIBUTING.md) を参照
+[CONTRIBUTING.md](../CONTRIBUTING.md) を参照
 
 ## 📄 ライセンス
 MIT License
