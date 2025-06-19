@@ -61,3 +61,9 @@ yarn-error.log*
 .npm/
 .eslintcache
 .node_repl_history
+
+# TypeScript build artifacts in policies directory
+policies/*.js
+policies/*.js.map
+policies/*.d.ts
+policies/*.d.ts.map
