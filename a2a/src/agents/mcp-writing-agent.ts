@@ -1,0 +1,323 @@
+/**
+ * MCP-Enabled Writing Agent
+ * A2A writing agent that uses MCP tools via AEGIS proxy
+ */
+
+import { MCPEnabledAgent } from './mcp-enabled-agent';
+import { Task, TaskState } from '../types/a2a-protocol';
+
+export class MCPWritingAgent extends MCPEnabledAgent {
+  constructor(port: number, aegisProxyUrl: string) {
+    super({
+      name: 'mcp-writing-agent',
+      description: 'Writes content using MCP tools via AEGIS proxy',
+      port,
+      organization: 'AEGIS A2A Demo',
+      organizationUrl: 'https://github.com/aegis/a2a',
+      aegisProxyUrl,
+      agentMetadata: {
+        department: 'content-creation',
+        clearanceLevel: 'medium',
+        permissions: ['write', 'create', 'edit', 'mcp-tools']
+      }
+    });
+  }
+
+  protected async processTask(task: Task): Promise<void> {
+    try {
+      this.logger.info(`Writing agent processing task: ${task.prompt}`);
+      
+      // Update task state
+      await this.updateTaskState(task.id, TaskState.IN_PROGRESS);
+      
+      // Build task context for policy enforcement
+      const taskContext = this.buildTaskContext(task);
+      
+      // Determine if research is needed
+      const needsResearch = task.prompt.toLowerCase().includes('research') ||
+                           task.prompt.toLowerCase().includes('investigate') ||
+                           task.prompt.toLowerCase().includes('find out');
+      
+      let researchResults = null;
+      const delegatedTasks: any[] = [];
+      const toolsUsed: string[] = [];
+      
+      if (needsResearch) {
+        // Delegate research to research agent
+        try {
+          const researchTask = await this.delegateTask(
+            'http://localhost:8301', // Research agent URL
+            `Research: ${task.prompt}`,
+            {
+              ...task.metadata?.policyContext,
+              delegationChain: [
+                ...(task.metadata?.policyContext?.delegationChain || []),
+                this.config.name
+              ]
+            }
+          );
+          
+          if (researchTask) {
+            delegatedTasks.push(researchTask);
+            // Wait for research to complete
+            await this.waitForTask('http://localhost:8301', researchTask.taskId, 30000);
+            researchResults = researchTask.result;
+          }
+        } catch (error) {
+          this.logger.warn('Failed to delegate research:', error);
+        }
+      }
+      
+      // Create content based on prompt and research
+      let content = await this.generateContent(task.prompt, researchResults);
+      
+      // Save the content to a file
+      const fileName = this.generateFileName(task.prompt);
+      const filePath = `/tmp/a2a-output/${fileName}`;
+      
+      try {
+        // Create directory if it doesn't exist
+        await this.callMCPTool(
+          'filesystem__create_directory',
+          { path: '/tmp/a2a-output' },
+          taskContext
+        );
+        toolsUsed.push('filesystem__create_directory');
+        
+        // Write the content
+        await this.callMCPTool(
+          'filesystem__write_file',
+          { path: filePath, content },
+          taskContext
+        );
+        toolsUsed.push('filesystem__write_file');
+        
+        this.logger.info(`Content saved to: ${filePath}`);
+      } catch (error) {
+        this.logger.error('Failed to save content:', error);
+      }
+      
+      // Complete the task
+      const result = {
+        content,
+        wordCount: content.split(/\s+/).length,
+        savedTo: filePath,
+        toolsUsed,
+        delegatedTasks,
+        researchUsed: !!researchResults
+      };
+      
+      await this.completeTask(task.id, result);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await this.updateTaskState(task.id, TaskState.FAILED, {
+        error: { message: errorMessage, code: 'PROCESSING_ERROR' }
+      });
+    }
+  }
+  
+  private async generateContent(prompt: string, researchResults?: any): Promise<string> {
+    // Simple content generation logic
+    let content = `# ${this.extractTitle(prompt)}\n\n`;
+    
+    if (researchResults) {
+      content += `## Research Summary\n\n`;
+      if (researchResults.findings) {
+        researchResults.findings.forEach((finding: string) => {
+          content += `- ${finding}\n`;
+        });
+      }
+      content += `\n`;
+    }
+    
+    // Add main content based on prompt
+    if (prompt.toLowerCase().includes('article')) {
+      content += this.generateArticle(prompt, researchResults);
+    } else if (prompt.toLowerCase().includes('summary')) {
+      content += this.generateSummary(prompt, researchResults);
+    } else if (prompt.toLowerCase().includes('comparison')) {
+      content += this.generateComparison(prompt, researchResults);
+    } else {
+      content += this.generateGenericContent(prompt, researchResults);
+    }
+    
+    // Add footer
+    content += `\n\n---\n`;
+    content += `*Generated by ${this.config.name} using AEGIS MCP integration*\n`;
+    content += `*Date: ${new Date().toISOString()}*\n`;
+    
+    return content;
+  }
+  
+  private extractTitle(prompt: string): string {
+    // Extract a title from the prompt
+    const words = prompt.split(' ').slice(0, 10);
+    return words.join(' ').replace(/[^\w\s]/g, '');
+  }
+  
+  private generateFileName(prompt: string): string {
+    // Generate a safe filename from the prompt
+    const timestamp = new Date().toISOString().split('T')[0];
+    const safePrompt = prompt
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 50);
+    return `${timestamp}-${safePrompt}.md`;
+  }
+  
+  private generateArticle(prompt: string, research?: any): string {
+    let article = `## Introduction\n\n`;
+    article += `This article explores the topic based on the request: "${prompt}"\n\n`;
+    
+    if (research?.findings?.length > 0) {
+      article += `## Key Findings\n\n`;
+      research.findings.forEach((finding: string, index: number) => {
+        article += `### Finding ${index + 1}\n\n${finding}\n\n`;
+      });
+    }
+    
+    article += `## Analysis\n\n`;
+    article += `Based on the available information, we can conclude that this topic `;
+    article += `represents an important area of consideration in modern software development.\n\n`;
+    
+    article += `## Conclusion\n\n`;
+    article += `Further exploration of this topic would benefit from additional research `;
+    article += `and practical implementation examples.\n`;
+    
+    return article;
+  }
+  
+  private generateSummary(prompt: string, research?: any): string {
+    let summary = `## Executive Summary\n\n`;
+    
+    if (research?.findings?.length > 0) {
+      summary += `Based on research, the following key points were identified:\n\n`;
+      research.findings.slice(0, 5).forEach((finding: string) => {
+        summary += `- ${finding}\n`;
+      });
+    } else {
+      summary += `This summary addresses the request: "${prompt}"\n\n`;
+      summary += `- Key aspect 1: Implementation considerations\n`;
+      summary += `- Key aspect 2: Best practices\n`;
+      summary += `- Key aspect 3: Future directions\n`;
+    }
+    
+    return summary;
+  }
+  
+  private generateComparison(prompt: string, research?: any): string {
+    let comparison = `## Comparative Analysis\n\n`;
+    
+    comparison += `| Aspect | Option A | Option B |\n`;
+    comparison += `|--------|----------|----------|\n`;
+    comparison += `| Ease of Use | High | Medium |\n`;
+    comparison += `| Performance | Medium | High |\n`;
+    comparison += `| Flexibility | High | Medium |\n`;
+    comparison += `| Cost | Low | High |\n\n`;
+    
+    comparison += `## Recommendations\n\n`;
+    comparison += `Based on this analysis, the choice depends on specific requirements `;
+    comparison += `and constraints of your use case.\n`;
+    
+    return comparison;
+  }
+  
+  private generateGenericContent(prompt: string, research?: any): string {
+    let content = `## Content\n\n`;
+    content += `This content addresses the following request: "${prompt}"\n\n`;
+    
+    if (research?.sources?.length > 0) {
+      content += `### Sources Consulted\n\n`;
+      research.sources.forEach((source: string) => {
+        content += `- ${source}\n`;
+      });
+      content += `\n`;
+    }
+    
+    content += `### Main Points\n\n`;
+    content += `1. The topic requires careful consideration of multiple factors\n`;
+    content += `2. Implementation should follow established best practices\n`;
+    content += `3. Regular review and updates are recommended\n\n`;
+    
+    content += `### Next Steps\n\n`;
+    content += `- Review the provided information\n`;
+    content += `- Identify specific requirements\n`;
+    content += `- Plan implementation approach\n`;
+    
+    return content;
+  }
+  
+  private async delegateTask(
+    agentUrl: string,
+    prompt: string,
+    policyContext: any
+  ): Promise<any> {
+    try {
+      const response = await fetch(`${agentUrl}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'tasks/send',
+          params: {
+            prompt,
+            priority: 'normal',
+            policyContext
+          },
+          id: Date.now()
+        })
+      });
+      
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      
+      return result.result;
+    } catch (error) {
+      this.logger.error('Failed to delegate task:', error);
+      throw error;
+    }
+  }
+  
+  private async waitForTask(
+    agentUrl: string,
+    taskId: string,
+    timeout: number
+  ): Promise<any> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      try {
+        const response = await fetch(`${agentUrl}/rpc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'tasks/get',
+            params: { taskId },
+            id: Date.now()
+          })
+        });
+        
+        const result = await response.json();
+        const task = result.result;
+        
+        if (task.state === 'completed') {
+          return task.result;
+        } else if (task.state === 'failed') {
+          throw new Error(task.error?.message || 'Task failed');
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        this.logger.error('Error waiting for task:', error);
+        throw error;
+      }
+    }
+    
+    throw new Error('Task timeout');
+  }
+}

@@ -112,19 +112,46 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       logger.info('Using HTTP transport (MCP standard)');
       mcpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine);
       
-      // 上流サーバー設定（HTTP用）
+      // 1. aegis-mcp-config.jsonから読み込み（ブリッジモード）
+      const aegisConfigPath = path.join(process.cwd(), 'aegis-mcp-config.json');
+      
+      if (fs.existsSync(aegisConfigPath)) {
+        try {
+          const configContent = fs.readFileSync(aegisConfigPath, 'utf-8');
+          const aegisConfig = JSON.parse(configContent);
+          
+          if (aegisConfig.mcpServers) {
+            logger.info('Loading stdio upstream servers via bridge mode from aegis-mcp-config.json...');
+            mcpProxy.loadStdioServersFromConfig(aegisConfig);
+            
+            const serverNames = Object.keys(aegisConfig.mcpServers)
+              .filter(name => name !== 'aegis-proxy' && name !== 'aegis');
+            logger.info(`  ✓ Loaded ${serverNames.length} stdio servers in bridge mode: ${serverNames.join(', ')}`);
+          }
+        } catch (error) {
+          logger.warn('Failed to load aegis-mcp-config.json:', error);
+        }
+      }
+      
+      // 2. HTTP上流サーバー設定（環境変数から）
       const upstreamServers = process.env.UPSTREAM_SERVERS_HTTP;
       if (upstreamServers) {
-        logger.info('Configuring upstream servers...');
+        logger.info('Configuring HTTP upstream servers from UPSTREAM_SERVERS_HTTP...');
         const servers = upstreamServers.split(',');
         servers.forEach(server => {
           const [name, ...urlParts] = server.split(':');
           const url = urlParts.join(':');
           if (name && url) {
             mcpProxy.addUpstreamServer(name.trim(), url.trim());
-            logger.info(`  ✓ Added upstream: ${name} -> ${url}`);
+            logger.info(`  ✓ Added HTTP upstream: ${name} -> ${url}`);
           }
         });
+      }
+      
+      if (!fs.existsSync(aegisConfigPath) && !upstreamServers) {
+        logger.warn('⚠️  No upstream servers configured for HTTP mode');
+        logger.warn('   - Create aegis-mcp-config.json for stdio servers (bridge mode)');
+        logger.warn('   - Or set UPSTREAM_SERVERS_HTTP env var for HTTP servers');
       }
     }
 
