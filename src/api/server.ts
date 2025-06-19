@@ -31,8 +31,7 @@ const PORT = process.env.POLICY_UI_PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-// 静的ファイルを複数のディレクトリから配信
-app.use(express.static(path.join(process.cwd(), 'public')));
+// 静的ファイルを配信
 app.use(express.static(path.join(process.cwd(), 'web/public')));
 
 // Services
@@ -269,9 +268,9 @@ app.use('/api/audit', auditRouter);
 // Serve static files from public directory
 app.use(express.static(path.join(process.cwd(), 'public')));
 
-// Serve React app landing page for root
+// Redirect root to audit dashboard
 app.get('/', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'web/public/index.html'));
+  res.redirect('/audit-dashboard.html');
 });
 
 // ============================================================================

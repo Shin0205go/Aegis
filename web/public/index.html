@@ -3,55 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AEGIS Policy Management Console</title>
+    <title>AEGIS Management Console</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: #0d1117;
-            color: #c9d1d9;
+            background-color: #f5f5f5;
+            color: #333;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
+            min-height: 100vh;
         }
+        
         .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
             text-align: center;
-            padding: 2rem;
         }
+        
         h1 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #2c3e50;
         }
-        p {
-            color: #8b949e;
-            margin-bottom: 2rem;
+        
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 18px;
         }
-        .info {
-            background-color: #161b22;
-            border: 1px solid #30363d;
+        
+        .nav-grid {
+            display: grid;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .nav-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 30px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+            display: block;
+        }
+        
+        .nav-card:hover {
+            border-color: #3498db;
+            background: #e3f2fd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .nav-card h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .nav-card p {
+            color: #7f8c8d;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        
+        .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .external-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
             border-radius: 6px;
-            padding: 1.5rem;
-            max-width: 500px;
-            margin: 0 auto;
+            font-weight: 500;
+            transition: background 0.3s ease;
         }
-        code {
-            background-color: #21262d;
-            padding: 0.2rem 0.4rem;
-            border-radius: 3px;
-            font-family: monospace;
+
+        .external-link:hover {
+            background: #2980b9;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🛡️ AEGIS Policy Management Console</h1>
-        <p>自然言語でセキュリティポリシーを定義・管理</p>
+        <h1>🛡️ AEGIS Management Console</h1>
+        <p class="subtitle">自然言語ポリシーエンフォースメントシステム</p>
         
-        <div class="info">
-            <p>React UIを起動するには、以下のコマンドを実行してください：</p>
-            <p><code>cd web && npm install && npm run dev</code></p>
-            <p>その後、<a href="http://localhost:3001" style="color: #58a6ff;">http://localhost:3001</a> にアクセスしてください。</p>
+        <div class="nav-grid">
+            <a href="/audit-dashboard.html" class="nav-card">
+                <div class="icon">📊</div>
+                <h2>監査ダッシュボード</h2>
+                <p>アクセス統計、リアルタイムメトリクス、コンプライアンスレポートを確認</p>
+            </a>
+            
+            <a href="/request-dashboard.html" class="nav-card">
+                <div class="icon">🔍</div>
+                <h2>リクエストダッシュボード</h2>
+                <p>個別リクエストの詳細、フィルタリング、検索機能</p>
+            </a>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px;">
+            <h3 style="color: #856404; margin-bottom: 10px;">📝 ポリシー管理UI（React）</h3>
+            <p style="color: #856404; margin-bottom: 15px;">
+                ポリシー管理UIは別途起動が必要です：<br>
+                <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">cd web && npm install && npm run dev</code>
+            </p>
+            <a href="http://localhost:3001" class="external-link" target="_blank">
+                ポリシー管理UIを開く（起動済みの場合）→
+            </a>
         </div>
     </div>
 </body>
