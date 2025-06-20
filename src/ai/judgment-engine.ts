@@ -398,52 +398,6 @@ ${policy}
     }
   }
 
-  // 自然言語→ODRL変換のためのポリシー分析
-  async analyzePolicy(nlPolicy: string, context: DecisionContext): Promise<any> {
-    const prompt = `
-自然言語のアクセス制御ポリシーを分析してください。
-
-入力ポリシー: "${nlPolicy}"
-
-以下の要素を抽出してください：
-
-1. 時間制限（例：営業時間内、特定の時間帯）
-2. エージェント制限（例：特定のエージェントタイプ、信頼スコア）
-3. リソース（例：ファイル、ツール、API）
-4. 制約条件（例：地理的制限、ネットワーク制限）
-5. 義務（例：ログ記録、通知、削除）
-6. アクション（例：読み取り、書き込み、実行）
-
-JSON形式で回答してください：
-{
-  "timeRestrictions": "時間に関する制限の説明",
-  "agentRestrictions": "エージェントに関する制限の説明",
-  "resources": ["対象リソース1", "対象リソース2"],
-  "constraints": ["制約1", "制約2"],
-  "obligations": ["義務1", "義務2"],
-  "actions": ["許可/禁止するアクション"],
-  "confidence": 0.0-1.0,
-  "reasoning": "分析の根拠"
-}`;
-
-    try {
-      const response = await this.llm.complete(prompt);
-      return this.parseJSONResponse(response);
-    } catch (error) {
-      console.error('[AI Analysis] Failed to analyze policy:', error);
-      return {
-        timeRestrictions: null,
-        agentRestrictions: null,
-        resources: [],
-        constraints: [],
-        obligations: [],
-        actions: [],
-        confidence: 0,
-        reasoning: 'Analysis failed'
-      };
-    }
-  }
-
   // 汎用分析メソッド
   async analyze(prompt: string, options: any = {}): Promise<any> {
     try {

@@ -23,11 +23,13 @@ import {
 } from '../context/index.js';
 import { PolicyAdministrator } from '../policies/administrator.js';
 import { PolicyConflictResolver, PolicyApplicabilityFilter } from '../policies/policy-resolver.js';
+import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
 
 export class AEGISController {
   private config: AEGISConfig;
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
+  private hybridPolicyEngine: HybridPolicyEngine;
   // Removed old WebSocket proxy reference
   private contextCollector: ContextCollector;
   private policyAdmin: PolicyAdministrator;
@@ -46,6 +48,15 @@ export class AEGISController {
     
     // AI判定エンジン初期化
     this.judgmentEngine = new AIJudgmentEngine(config.llm);
+    
+    // ハイブリッドポリシーエンジン初期化
+    this.hybridPolicyEngine = new HybridPolicyEngine(this.judgmentEngine, {
+      useODRL: true,
+      useAI: true,
+      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      cacheEnabled: true,
+      cacheTTL: 300000 // 5分
+    });
     
     // MCPプロキシ初期化は削除（MCP標準実装を使用）
     
@@ -135,10 +146,9 @@ export class AEGISController {
       // 4. 各ポリシーで判定を実行
       const decisions = await Promise.all(
         applicablePolicies.map(async (policy) => {
-          const decision = await this.judgmentEngine.makeDecision(
-            policy.policy,
+          const decision = await this.hybridPolicyEngine.decide(
             enrichedContext,
-            enrichedContext.environment
+            policy.policy
           );
           return { policy, decision };
         })
@@ -475,8 +485,33 @@ export class AEGISController {
 
   // キャッシュクリア
   clearCache(): void {
-    this.judgmentEngine.clearCache();
+    this.hybridPolicyEngine.clearCache();
     this.logger.info('Decision cache cleared');
+  }
+
+  // ODRL ポリシー管理
+  addODRLPolicy(policyId: string, policy: any): void {
+    this.hybridPolicyEngine.addODRLPolicy(policyId, policy);
+    this.logger.info(`ODRL policy added: ${policyId}`);
+  }
+
+  removeODRLPolicy(policyId: string): boolean {
+    const removed = this.hybridPolicyEngine.removeODRLPolicy(policyId);
+    if (removed) {
+      this.logger.info(`ODRL policy removed: ${policyId}`);
+    } else {
+      this.logger.warn(`ODRL policy not found: ${policyId}`);
+    }
+    return removed;
+  }
+
+  listODRLPolicies(): Array<{ id: string; name: string }> {
+    return this.hybridPolicyEngine.listODRLPolicies();
+  }
+
+  // ハイブリッドエンジン統計情報
+  getHybridEngineStats(): any {
+    return this.hybridPolicyEngine.getStats();
   }
 
   // システム停止
