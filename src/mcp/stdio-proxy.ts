@@ -77,7 +77,7 @@ export class MCPStdioPolicyProxy {
     this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
       useODRL: true,
       useAI: true,
-      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'), // Lower AI confidence threshold to address overly strict decisions
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
     });
