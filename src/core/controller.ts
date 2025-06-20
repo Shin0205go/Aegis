@@ -11,6 +11,7 @@ import type {
   AEGISConfig
 } from '../types/index.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
+import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
 // Removed old WebSocket proxy import
 import { Logger } from '../utils/logger.js';
 import { SAMPLE_POLICIES } from '../../policies/sample-policies.js';
@@ -28,6 +29,7 @@ export class AEGISController {
   private config: AEGISConfig;
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
+  private hybridPolicyEngine: HybridPolicyEngine;
   // Removed old WebSocket proxy reference
   private contextCollector: ContextCollector;
   private policyAdmin: PolicyAdministrator;
@@ -46,6 +48,15 @@ export class AEGISController {
     
     // AI判定エンジン初期化
     this.judgmentEngine = new AIJudgmentEngine(config.llm);
+    
+    // ハイブリッドポリシーエンジン初期化
+    this.hybridPolicyEngine = new HybridPolicyEngine(this.judgmentEngine, {
+      useODRL: true,
+      useAI: true,
+      aiThreshold: 0.7, // AI判定の信頼度閾値
+      cacheEnabled: true,
+      cacheTTL: 300000 // 5分
+    });
     
     // MCPプロキシ初期化は削除（MCP標準実装を使用）
     
@@ -132,13 +143,12 @@ export class AEGISController {
         };
       }
 
-      // 4. 各ポリシーで判定を実行
+      // 4. 各ポリシーで判定を実行（ハイブリッドエンジン使用）
       const decisions = await Promise.all(
         applicablePolicies.map(async (policy) => {
-          const decision = await this.judgmentEngine.makeDecision(
-            policy.policy,
+          const decision = await this.hybridPolicyEngine.decide(
             enrichedContext,
-            enrichedContext.environment
+            policy.policy
           );
           return { policy, decision };
         })
@@ -440,8 +450,10 @@ export class AEGISController {
       // MCPプロキシサーバー起動は削除（MCP標準実装は別途起動）
       
       this.logger.info('🛡️ AEGIS Controller started successfully');
-      this.logger.info(`📊 Loaded ${this.policies.size} policies`);
+      this.logger.info(`📊 Loaded ${this.policies.size} natural language policies`);
+      this.logger.info(`📋 Loaded ${this.hybridPolicyEngine.getPolicies().length} ODRL policies`);
       this.logger.info(`🤖 AI Engine: ${this.config.llm.provider} (${this.config.llm.model})`);
+      this.logger.info('🔗 Hybrid Policy Engine: ODRL + AI integrated');
       
     } catch (error) {
       this.logger.error('Failed to start AEGIS Controller', error);
@@ -473,10 +485,40 @@ export class AEGISController {
     this.logger.info(`Added custom enricher: ${enricher.name}`);
   }
 
+  // ODRL ポリシー管理
+  addODRLPolicy(policy: any): void {
+    this.hybridPolicyEngine.addPolicy(policy);
+    this.logger.info(`ODRL policy added: ${policy.uid}`);
+  }
+
+  removeODRLPolicy(policyId: string): boolean {
+    const result = this.hybridPolicyEngine.removePolicy(policyId);
+    if (result) {
+      this.logger.info(`ODRL policy removed: ${policyId}`);
+    } else {
+      this.logger.warn(`ODRL policy not found: ${policyId}`);
+    }
+    return result;
+  }
+
+  listODRLPolicies(): any[] {
+    return this.hybridPolicyEngine.getPolicies();
+  }
+
+  // ハイブリッドエンジンの設定を取得
+  getHybridEngineStats(): any {
+    return {
+      odrlPoliciesCount: this.hybridPolicyEngine.getPolicies().length,
+      aiEngine: this.hybridPolicyEngine.getAIEngine() ? 'enabled' : 'disabled',
+      cacheEnabled: true // 設定値を実際の設定から取得するのが理想
+    };
+  }
+
   // キャッシュクリア
   clearCache(): void {
     this.judgmentEngine.clearCache();
-    this.logger.info('Decision cache cleared');
+    this.hybridPolicyEngine.clearCache();
+    this.logger.info('Decision cache cleared (AI + Hybrid engines)');
   }
 
   // システム停止

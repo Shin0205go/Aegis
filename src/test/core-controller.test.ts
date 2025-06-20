@@ -1,5 +1,6 @@
 import { AEGISController } from '../core/controller';
 import { AIJudgmentEngine } from '../ai/judgment-engine';
+import { HybridPolicyEngine } from '../policy/hybrid-policy-engine';
 import { ContextCollector } from '../context/collector';
 import { PolicyAdministrator } from '../policies/administrator';
 import { DecisionContext, PolicyDecision, AEGISConfig } from '../types';
@@ -7,6 +8,7 @@ import { Logger } from '../utils/logger';
 
 // 依存モジュールをモック
 jest.mock('../ai/judgment-engine');
+jest.mock('../policy/hybrid-policy-engine');
 jest.mock('../context/collector');
 jest.mock('../policies/administrator');
 jest.mock('../utils/logger');
@@ -18,6 +20,7 @@ jest.mock('../context/enrichers/security-info');
 describe('AEGISController - Phase2統合テスト', () => {
   let controller: AEGISController;
   let mockJudgmentEngine: jest.Mocked<AIJudgmentEngine>;
+  let mockHybridPolicyEngine: jest.Mocked<HybridPolicyEngine>;
   let mockContextCollector: jest.Mocked<ContextCollector>;
   let mockPolicyAdministrator: jest.Mocked<PolicyAdministrator>;
   let mockLogger: jest.Mocked<Logger>;
@@ -57,6 +60,15 @@ describe('AEGISController - Phase2統合テスト', () => {
       clearCache: jest.fn()
     } as any;
 
+    mockHybridPolicyEngine = {
+      decide: jest.fn(),
+      addPolicy: jest.fn(),
+      removePolicy: jest.fn(),
+      getPolicies: jest.fn(),
+      clearCache: jest.fn(),
+      getAIEngine: jest.fn()
+    } as any;
+
     mockContextCollector = {
       enrichContext: jest.fn(),
       registerEnricher: jest.fn()
@@ -85,6 +97,9 @@ describe('AEGISController - Phase2統合テスト', () => {
     (AIJudgmentEngine as jest.MockedClass<typeof AIJudgmentEngine>).mockImplementation(
       () => mockJudgmentEngine
     );
+    (HybridPolicyEngine as jest.MockedClass<typeof HybridPolicyEngine>).mockImplementation(
+      () => mockHybridPolicyEngine
+    );
     (ContextCollector as jest.MockedClass<typeof ContextCollector>).mockImplementation(
       () => mockContextCollector
     );
@@ -101,6 +116,16 @@ describe('AEGISController - Phase2統合テスト', () => {
   describe('初期化とセットアップ', () => {
     it('正しく初期化される', () => {
       expect(AIJudgmentEngine).toHaveBeenCalledWith(testConfig.llm);
+      expect(HybridPolicyEngine).toHaveBeenCalledWith(
+        mockJudgmentEngine,
+        expect.objectContaining({
+          useODRL: true,
+          useAI: true,
+          aiThreshold: 0.7,
+          cacheEnabled: true,
+          cacheTTL: 300000
+        })
+      );
       expect(ContextCollector).toHaveBeenCalled();
       expect(mockContextCollector.registerEnricher).toHaveBeenCalledTimes(4); // 4つのエンリッチャー
       expect(mockLogger.info).toHaveBeenCalledWith('Context enrichers registered successfully');
@@ -130,7 +155,7 @@ describe('AEGISController - Phase2統合テスト', () => {
 
       mockContextCollector.enrichContext.mockResolvedValueOnce(enrichedContext);
 
-      // AI判定結果
+      // ハイブリッドエンジン判定結果
       const decision: PolicyDecision = {
         decision: 'PERMIT',
         reason: 'Internal agent during business hours',
@@ -140,7 +165,7 @@ describe('AEGISController - Phase2統合テスト', () => {
         obligations: ['アクセスログ記録']
       };
 
-      mockJudgmentEngine.makeDecision.mockResolvedValueOnce(decision);
+      mockHybridPolicyEngine.decide.mockResolvedValueOnce(decision);
 
       // アクセス制御を実行
       const result = await controller.controlAccess(
@@ -161,10 +186,9 @@ describe('AEGISController - Phase2統合テスト', () => {
         })
       );
 
-      expect(mockJudgmentEngine.makeDecision).toHaveBeenCalledWith(
-        expect.any(String), // ポリシー文字列
+      expect(mockHybridPolicyEngine.decide).toHaveBeenCalledWith(
         enrichedContext,
-        enrichedContext.environment
+        expect.any(String) // ポリシー文字列
       );
 
       expect(result).toMatchObject({
@@ -207,7 +231,7 @@ describe('AEGISController - Phase2統合テスト', () => {
         riskLevel: 'CRITICAL'
       };
 
-      mockJudgmentEngine.makeDecision.mockResolvedValueOnce(denyDecision);
+      mockHybridPolicyEngine.decide.mockResolvedValueOnce(denyDecision);
 
       const result = await controller.controlAccess(
         'external-agent',
@@ -260,6 +284,45 @@ describe('AEGISController - Phase2統合テスト', () => {
       const deletePolicy = controller['selectApplicablePolicy']('database://delete/all');
       expect(deletePolicy.name).toBe('critical-operations-policy');
     });
+
+    it('ODRLポリシーを管理できる', () => {
+      const odrlPolicy = {
+        '@context': ['http://www.w3.org/ns/odrl/2/'],
+        '@type': 'Policy',
+        'uid': 'test-odrl-policy',
+        'permission': []
+      };
+
+      // ODRLポリシー追加
+      controller.addODRLPolicy(odrlPolicy);
+      expect(mockHybridPolicyEngine.addPolicy).toHaveBeenCalledWith(odrlPolicy);
+      expect(mockLogger.info).toHaveBeenCalledWith('ODRL policy added: test-odrl-policy');
+
+      // ODRLポリシー削除
+      mockHybridPolicyEngine.removePolicy.mockReturnValueOnce(true);
+      const removed = controller.removeODRLPolicy('test-odrl-policy');
+      expect(removed).toBe(true);
+      expect(mockHybridPolicyEngine.removePolicy).toHaveBeenCalledWith('test-odrl-policy');
+
+      // ODRLポリシー一覧取得
+      const mockPolicies = [odrlPolicy];
+      mockHybridPolicyEngine.getPolicies.mockReturnValueOnce(mockPolicies);
+      const policies = controller.listODRLPolicies();
+      expect(policies).toEqual(mockPolicies);
+    });
+
+    it('ハイブリッドエンジンの統計情報を取得できる', () => {
+      mockHybridPolicyEngine.getPolicies.mockReturnValueOnce([{}, {}]); // 2つのポリシー
+      mockHybridPolicyEngine.getAIEngine.mockReturnValueOnce(mockJudgmentEngine);
+
+      const stats = controller.getHybridEngineStats();
+      
+      expect(stats).toEqual({
+        odrlPoliciesCount: 2,
+        aiEngine: 'enabled',
+        cacheEnabled: true
+      });
+    });
   });
 
   describe('エラーハンドリング', () => {
@@ -298,7 +361,7 @@ describe('AEGISController - Phase2統合テスト', () => {
         environment: {}
       });
 
-      mockJudgmentEngine.makeDecision.mockRejectedValueOnce(
+      mockHybridPolicyEngine.decide.mockRejectedValueOnce(
         new Error('AI service unavailable')
       );
 
@@ -332,7 +395,7 @@ describe('AEGISController - Phase2統合テスト', () => {
         confidence: 0.9
       };
 
-      mockJudgmentEngine.makeDecision.mockResolvedValueOnce(decision);
+      mockHybridPolicyEngine.decide.mockResolvedValueOnce(decision);
 
       await controller.controlAccess('test-agent', 'read', 'test-resource');
 
@@ -366,7 +429,7 @@ describe('AEGISController - Phase2統合テスト', () => {
         }
       }));
 
-      mockJudgmentEngine.makeDecision.mockResolvedValue({
+      mockHybridPolicyEngine.decide.mockResolvedValue({
         decision: 'PERMIT',
         reason: 'Test',
         confidence: 0.9
@@ -408,7 +471,7 @@ describe('AEGISController - Phase2統合テスト', () => {
       ];
 
       for (const decision of decisions) {
-        mockJudgmentEngine.makeDecision.mockResolvedValueOnce(decision);
+        mockHybridPolicyEngine.decide.mockResolvedValueOnce(decision);
         await controller.controlAccess('test-agent', 'read', 'test-resource');
       }
 
