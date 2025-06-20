@@ -33,12 +33,14 @@ import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
 import { RealTimeAnomalyDetector } from '../audit/real-time-anomaly-detector.js';
 import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.js';
 import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
+import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
 
 export class MCPStdioPolicyProxy {
   private server: Server;
   private config: AEGISConfig;
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
+  private hybridPolicyEngine: HybridPolicyEngine;
   private contextCollector: ContextCollector;
   private enforcementSystem: EnforcementSystem;
   
@@ -70,6 +72,15 @@ export class MCPStdioPolicyProxy {
     this.logger = logger;
     this.judgmentEngine = judgmentEngine;
     this.policyLoader = new PolicyLoader();
+    
+    // ハイブリッドポリシーエンジン初期化
+    this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
+      useODRL: true,
+      useAI: true,
+      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      cacheEnabled: true,
+      cacheTTL: 300000 // 5分
+    });
     
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
@@ -411,11 +422,11 @@ export class MCPStdioPolicyProxy {
       };
     }
     
-    // Phase 3: AI判定実行にタイムアウトを設定
+    // Phase 3: ハイブリッド判定実行にタイムアウトを設定
     const decision = await Promise.race([
-      this.judgmentEngine.makeDecision(policy, enrichedContext, enrichedContext.environment),
+      this.hybridPolicyEngine.decide(enrichedContext, policy),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('AI judgment timeout')), 30000); // 30秒タイムアウト
+        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), 30000); // 30秒タイムアウト
       })
     ]);
     
