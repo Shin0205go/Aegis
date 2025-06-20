@@ -397,4 +397,123 @@ ${policy}
       };
     }
   }
+
+  // 自然言語→ODRL変換のためのポリシー分析
+  async analyzePolicy(nlPolicy: string, context: DecisionContext): Promise<any> {
+    const prompt = `
+自然言語のアクセス制御ポリシーを分析してください。
+
+入力ポリシー: "${nlPolicy}"
+
+以下の要素を抽出してください：
+
+1. 時間制限（例：営業時間内、特定の時間帯）
+2. エージェント制限（例：特定のエージェントタイプ、信頼スコア）
+3. リソース（例：ファイル、ツール、API）
+4. 制約条件（例：地理的制限、ネットワーク制限）
+5. 義務（例：ログ記録、通知、削除）
+6. アクション（例：読み取り、書き込み、実行）
+
+JSON形式で回答してください：
+{
+  "timeRestrictions": "時間に関する制限の説明",
+  "agentRestrictions": "エージェントに関する制限の説明",
+  "resources": ["対象リソース1", "対象リソース2"],
+  "constraints": ["制約1", "制約2"],
+  "obligations": ["義務1", "義務2"],
+  "actions": ["許可/禁止するアクション"],
+  "confidence": 0.0-1.0,
+  "reasoning": "分析の根拠"
+}`;
+
+    try {
+      const response = await this.llm.complete(prompt);
+      return this.parseJSONResponse(response);
+    } catch (error) {
+      console.error('[AI Analysis] Failed to analyze policy:', error);
+      return {
+        timeRestrictions: null,
+        agentRestrictions: null,
+        resources: [],
+        constraints: [],
+        obligations: [],
+        actions: [],
+        confidence: 0,
+        reasoning: 'Analysis failed'
+      };
+    }
+  }
+
+  // 汎用分析メソッド
+  async analyze(prompt: string, options: any = {}): Promise<any> {
+    try {
+      const response = await this.llm.complete(prompt, {
+        temperature: options.temperature || 0.3,
+        maxTokens: options.maxTokens || 1000
+      });
+      
+      if (options.responseFormat === 'json') {
+        return this.parseJSONResponse(response);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('[AI Analysis] Failed:', error);
+      throw error;
+    }
+  }
+
+  // 汎用生成メソッド
+  async generate(prompt: string, options: any = {}): Promise<any> {
+    try {
+      const response = await this.llm.complete(prompt, {
+        temperature: options.temperature || 0.2,
+        maxTokens: options.maxTokens || 2000
+      });
+      
+      if (options.responseFormat === 'json') {
+        return this.parseJSONResponse(response);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('[AI Generate] Failed:', error);
+      throw error;
+    }
+  }
+
+  // 学習メソッド（現在は記録のみ）
+  async learn(prompt: string): Promise<void> {
+    // TODO: 実際の学習実装
+    // 現在は学習データを記録するのみ
+    console.error('[AI Learn] Learning from:', prompt.substring(0, 100) + '...');
+    
+    // 将来的には:
+    // - ファインチューニングAPIの呼び出し
+    // - 学習データの保存
+    // - パターンの抽出と記録
+  }
+
+  // パブリックメソッド：AI判定の実行
+  async judge(context: DecisionContext, policyText?: string): Promise<PolicyDecision> {
+    const policy = policyText || 'すべてのアクセスを適切に判定してください';
+    return this.makeDecision(policy, context);
+  }
+
+  private parseJSONResponse(response: string): any {
+    try {
+      // JSON部分を抽出
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      
+      // フォールバック：全体をパース
+      return JSON.parse(response);
+    } catch (error) {
+      console.error('[AI Parse] Failed to parse JSON:', error);
+      // デフォルトレスポンス
+      return {};
+    }
+  }
 }

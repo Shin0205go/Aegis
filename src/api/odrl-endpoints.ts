@@ -11,7 +11,9 @@ import { logger } from '../utils/logger';
 
 export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
   const router = Router();
-  const nlConverter = new NLToODRLConverter();
+  // Initialize converter with AI engine if available
+  const aiEngine = hybridEngine.getAIEngine ? hybridEngine.getAIEngine() : null;
+  const nlConverter = new NLToODRLConverter(aiEngine);
 
   /**
    * GET /odrl/policies - List all ODRL policies
@@ -187,17 +189,21 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
   });
 
   /**
-   * POST /odrl/convert - Convert natural language to ODRL
+   * POST /odrl/convert - Convert natural language to ODRL with AI support
    */
   router.post('/convert', async (req: Request, res: Response) => {
     try {
-      const { text } = req.body;
+      const { text, useAI = true, saveHistory = true, learnFromSuccess = true } = req.body;
       
       if (!text) {
         return res.status(400).json({ error: 'Text is required' });
       }
       
-      const result = await nlConverter.convert(text);
+      const result = await nlConverter.convert(text, {
+        useAI,
+        saveHistory,
+        learnFromSuccess
+      });
       
       if (!result.success) {
         return res.status(400).json({ 
@@ -210,7 +216,9 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
         success: true,
         policy: result.policy,
         confidence: result.confidence,
-        patterns: result.patterns
+        patterns: result.patterns,
+        conversionMethod: result.conversionMethod,
+        aiAnalysis: result.aiAnalysis
       });
       
     } catch (error) {
@@ -289,6 +297,203 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
     } catch (error) {
       logger.error('Failed to get suggestions', error);
       res.status(500).json({ error: 'Failed to get suggestions' });
+    }
+  });
+
+  /**
+   * GET /odrl/convert/history - Get conversion history
+   */
+  router.get('/convert/history', (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const history = nlConverter.getHistory(limit);
+      
+      res.json({
+        success: true,
+        count: history.length,
+        history: history.map(h => ({
+          id: h.id,
+          timestamp: h.timestamp,
+          naturalLanguage: h.naturalLanguage,
+          policyId: h.odrlPolicy.uid,
+          confidence: h.confidence,
+          conversionMethod: h.conversionMethod,
+          patterns: h.patterns
+        }))
+      });
+      
+    } catch (error) {
+      logger.error('Failed to get conversion history', error);
+      res.status(500).json({ error: 'Failed to get conversion history' });
+    }
+  });
+  
+  /**
+   * GET /odrl/convert/patterns - Get learned patterns
+   */
+  router.get('/convert/patterns', (req: Request, res: Response) => {
+    try {
+      const patterns = nlConverter.getLearnedPatterns();
+      
+      res.json({
+        success: true,
+        count: patterns.length,
+        patterns: patterns.map(p => ({
+          id: p.id,
+          confidence: p.confidence,
+          usageCount: p.usageCount,
+          successRate: p.successRate,
+          source: p.source,
+          type: p.type
+        }))
+      });
+      
+    } catch (error) {
+      logger.error('Failed to get learned patterns', error);
+      res.status(500).json({ error: 'Failed to get learned patterns' });
+    }
+  });
+  
+  /**
+   * POST /odrl/convert/patterns/export - Export learned patterns
+   */
+  router.post('/convert/patterns/export', (req: Request, res: Response) => {
+    try {
+      const exportData = nlConverter.exportLearnedPatterns();
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename="learned-patterns.json"');
+      res.send(exportData);
+      
+    } catch (error) {
+      logger.error('Failed to export patterns', error);
+      res.status(500).json({ error: 'Failed to export patterns' });
+    }
+  });
+  
+  /**
+   * POST /odrl/convert/patterns/import - Import learned patterns
+   */
+  router.post('/convert/patterns/import', (req: Request, res: Response) => {
+    try {
+      const { data } = req.body;
+      
+      if (!data) {
+        return res.status(400).json({ error: 'Pattern data is required' });
+      }
+      
+      nlConverter.importLearnedPatterns(
+        typeof data === 'string' ? data : JSON.stringify(data)
+      );
+      
+      res.json({
+        success: true,
+        message: 'Patterns imported successfully'
+      });
+      
+    } catch (error) {
+      logger.error('Failed to import patterns', error);
+      res.status(500).json({ error: 'Failed to import patterns' });
+    }
+  });
+  
+  /**
+   * GET /odrl/convert/history - Get conversion history
+   */
+  router.get('/convert/history', async (req: Request, res: Response) => {
+    try {
+      const { limit = 100 } = req.query;
+      const history = nlConverter.getHistory(Number(limit));
+      
+      res.json(history);
+    } catch (error) {
+      logger.error('Failed to get conversion history', error);
+      res.status(500).json({ error: 'Failed to get conversion history' });
+    }
+  });
+
+  /**
+   * GET /odrl/convert/statistics - Get conversion statistics
+   */
+  router.get('/convert/statistics', async (req: Request, res: Response) => {
+    try {
+      const history = nlConverter.getHistory(1000);
+      const patterns = nlConverter.getLearnedPatterns();
+      
+      const stats = {
+        total: history.length,
+        pattern: history.filter(h => h.conversionMethod === 'pattern').length,
+        ai: history.filter(h => h.conversionMethod === 'ai').length,
+        hybrid: history.filter(h => h.conversionMethod === 'hybrid').length,
+        learnedPatterns: patterns.length,
+        avgConfidence: history.reduce((sum, h) => sum + h.confidence, 0) / (history.length || 1)
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      logger.error('Failed to get conversion statistics', error);
+      res.status(500).json({ error: 'Failed to get conversion statistics' });
+    }
+  });
+
+  /**
+   * GET /odrl/convert/patterns - Get learned patterns
+   */
+  router.get('/convert/patterns', async (req: Request, res: Response) => {
+    try {
+      const patterns = nlConverter.getLearnedPatterns();
+      
+      res.json({
+        count: patterns.length,
+        patterns: patterns.map(p => ({
+          id: p.id,
+          confidence: p.confidence,
+          usageCount: p.usageCount,
+          successRate: p.successRate,
+          source: p.source
+        }))
+      });
+    } catch (error) {
+      logger.error('Failed to get patterns', error);
+      res.status(500).json({ error: 'Failed to get patterns' });
+    }
+  });
+
+  /**
+   * GET /odrl/convert/patterns/export - Export learned patterns
+   */
+  router.get('/convert/patterns/export', async (req: Request, res: Response) => {
+    try {
+      const patterns = nlConverter.exportLearnedPatterns();
+      
+      res.json(patterns);
+    } catch (error) {
+      logger.error('Failed to export patterns', error);
+      res.status(500).json({ error: 'Failed to export patterns' });
+    }
+  });
+
+  /**
+   * POST /odrl/convert/patterns/import - Import learned patterns
+   */
+  router.post('/convert/patterns/import', async (req: Request, res: Response) => {
+    try {
+      const { patterns } = req.body;
+      
+      if (!patterns || !Array.isArray(patterns)) {
+        return res.status(400).json({ error: 'Patterns array is required' });
+      }
+      
+      nlConverter.importLearnedPatterns(patterns);
+      
+      res.json({
+        success: true,
+        imported: patterns.length,
+        message: 'Patterns imported successfully'
+      });
+    } catch (error) {
+      logger.error('Failed to import patterns', error);
+      res.status(500).json({ error: 'Failed to import patterns' });
     }
   });
 

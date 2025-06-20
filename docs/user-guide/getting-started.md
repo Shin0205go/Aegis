@@ -61,8 +61,8 @@ OPENAI_API_KEY=sk-...
 # ログレベル（debug, info, warn, error）
 LOG_LEVEL=info
 
-# ポート番号（デフォルト: 3000）
-PORT=3000
+# HTTPサーバーポート番号（デフォルト: 8080）
+MCP_PROXY_HTTP_PORT=8080
 
 # キャッシュ設定
 CACHE_ENABLED=true
@@ -80,9 +80,10 @@ node mcp-launcher.js
 ```
 
 起動後、以下のURLでアクセスできます：
-- Web UI: http://localhost:3000/
-- 監査ダッシュボード: http://localhost:3000/audit-dashboard.html
-- リクエストダッシュボード: http://localhost:3000/request-dashboard.html
+- Web UI: http://localhost:8080/
+- 監査ダッシュボード: http://localhost:8080/audit-dashboard.html
+- リクエストダッシュボード: http://localhost:8080/request-dashboard.html
+- Policy Management API: http://localhost:8080/api/policies
 
 ### 方法2: 個別起動
 
@@ -95,16 +96,18 @@ npm run start:mcp
 npm run start:mcp:http
 ```
 
-#### Web UIのみ
+#### Web UIのみ（非推奨 - 統合サーバーを使用してください）
 ```bash
-npm run start:api
+# Web UIはMCPプロキシサーバーに統合されました
+# HTTPモードでMCPサーバーを起動すると、Web UIも利用可能です
+npm run start:mcp:http
 ```
 
 ## ✅ 動作確認
 
 ### 1. Web UI の確認
 
-ブラウザで http://localhost:3000 にアクセスし、以下を確認：
+ブラウザで http://localhost:8080 にアクセスし、以下を確認：
 
 - ✅ ホームページが表示される
 - ✅ 各ダッシュボードへのリンクが機能する
@@ -113,7 +116,7 @@ npm run start:api
 ### 2. ヘルスチェック
 
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:8080/health
 ```
 
 正常な応答例：
@@ -138,12 +141,12 @@ tail -f logs/audit/audit_*.json
 
 ### ポートが既に使用されている
 
-エラー: `Error: listen EADDRINUSE: address already in use :::3000`
+エラー: `Error: listen EADDRINUSE: address already in use :::8080`
 
 解決方法：
 ```bash
 # 別のポートを使用
-PORT=3001 node mcp-launcher.js
+MCP_PROXY_HTTP_PORT=8081 node mcp-launcher.js
 ```
 
 ### APIキーが設定されていない

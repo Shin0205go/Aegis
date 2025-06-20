@@ -689,6 +689,11 @@ export class MCPHttpPolicyProxy {
     });
     this.app.use('/audit', auditRouter);
     
+    // Enhanced Audit Statistics API
+    const { createAuditStatisticsAPI } = await import('../api/audit-statistics-api.js');
+    const statsRouter = createAuditStatisticsAPI(this.advancedAuditSystem);
+    this.app.use('/audit', statsRouter);
+    
     // ODRL Policy APIエンドポイントを追加
     const odrlRouter = createODRLEndpoints(this.hybridPolicyEngine);
     this.app.use('/odrl', odrlRouter);
@@ -725,9 +730,11 @@ export class MCPHttpPolicyProxy {
       server = this.app.listen(port, () => {
         this.logger.info(`🛡️ AEGIS MCP Proxy (HTTP) started on port ${port}`);
         this.logger.info(`📡 MCP endpoint: http://localhost:${port}/mcp/messages`);
+        this.logger.info(`🌐 Web UI: http://localhost:${port}/`);
         this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
-        this.logger.info(`📋 Policies API: http://localhost:${port}/policies`);
-        this.logger.info(`📊 ODRL API: http://localhost:${port}/odrl`);
+        this.logger.info(`📋 Policy Management API: http://localhost:${port}/policies`);
+        this.logger.info(`📊 Audit API: http://localhost:${port}/audit`);
+        this.logger.info(`🔐 ODRL API: http://localhost:${port}/odrl`);
         
         // サーバーインスタンスを保存
         (this as any).httpServer = server;
@@ -755,6 +762,55 @@ export class MCPHttpPolicyProxy {
     
     await this.server.close();
     this.logger.info('🛑 AEGIS MCP Proxy (HTTP) stopped');
+  }
+
+  // ============================================================================
+  // Helper Functions (from API server)
+  // ============================================================================
+
+  private generatePolicySuggestions(policy: string): string[] {
+    const suggestions = [];
+    
+    // 時間指定の曖昧さをチェック
+    if (policy.includes('営業時間') && !policy.match(/\d+時/)) {
+      suggestions.push('「営業時間」を「平日9時から18時」のように具体的に指定することをお勧めします');
+    }
+    
+    // 対象の明確化
+    if (policy.includes('外部') && !policy.includes('外部エージェント')) {
+      suggestions.push('「外部」が何を指すか明確にしてください（例：外部エージェント、外部ネットワーク）');
+    }
+    
+    // 義務の明確化
+    if (policy.includes('ログ') && !policy.match(/\d+日/)) {
+      suggestions.push('ログの保存期間を明確に指定してください（例：30日間）');
+    }
+    
+    return suggestions;
+  }
+
+  private detectPolicyWarnings(policy: string): string[] {
+    const warnings = [];
+    
+    // 矛盾チェック
+    if (policy.includes('すべて許可') && policy.includes('禁止')) {
+      warnings.push('「すべて許可」と「禁止」が同じポリシー内に存在します。矛盾している可能性があります');
+    }
+    
+    // セキュリティ警告
+    if (policy.includes('制限なし') || policy.includes('無制限')) {
+      warnings.push('セキュリティリスク: 無制限なアクセスは推奨されません');
+    }
+    
+    // 曖昧な表現
+    const ambiguousTerms = ['適切に', '必要に応じて', '場合によって'];
+    ambiguousTerms.forEach(term => {
+      if (policy.includes(term)) {
+        warnings.push(`曖昧な表現「${term}」が含まれています。具体的な条件を指定してください`);
+      }
+    });
+    
+    return warnings;
   }
 }
 

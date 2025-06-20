@@ -265,11 +265,13 @@ export class StdioRouter extends EventEmitter {
       server.process!.stdin?.write(JSON.stringify(request) + '\n');
       
       // レスポンス待ち
-      this.once(`response-${id}`, (response) => {
+      const responseHandler = (response: any) => {
         clearTimeout(timeout);
         this.pendingRequests.delete(id);
+        this.removeListener(`response-${id}`, responseHandler);
         resolve(response);
-      });
+      };
+      this.on(`response-${id}`, responseHandler);
     });
   }
 
@@ -287,7 +289,7 @@ export class StdioRouter extends EventEmitter {
     });
     
     const responses = await Promise.allSettled(
-      connectedServers.map(([name, _]) => this.sendRequestToServer(name, { method, params, id: `${id}-${name}`, jsonrpc: '2.0' }))
+      connectedServers.map(([name, _]) => this.sendRequestToServer(name, { method, params, id: `${id}-${name}-${Date.now()}-${Math.random()}`, jsonrpc: '2.0' }))
     );
 
     // デバッグ: レスポンス状況を確認
@@ -358,11 +360,13 @@ export class StdioRouter extends EventEmitter {
 
       server.process!.stdin?.write(JSON.stringify(request) + '\n');
       
-      this.once(`response-${requestId}`, (response) => {
+      const responseHandler = (response: any) => {
         clearTimeout(timeout);
         this.pendingRequests.delete(requestId);
+        this.removeListener(`response-${requestId}`, responseHandler);
         resolve(response);
-      });
+      };
+      this.on(`response-${requestId}`, responseHandler);
     });
   }
 

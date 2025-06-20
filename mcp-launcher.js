@@ -2,7 +2,7 @@
 
 /**
  * MCP Launcher - Claude Desktop用ラッパー
- * MCPサーバーとWeb UI（ポリシー管理・監査ダッシュボード）を同時に起動
+ * 統合MCPサーバー（MCP機能 + Web UI）を起動
  */
 
 const { spawn } = require('child_process');
@@ -21,29 +21,7 @@ function log(message) {
   logStream.write(`[${timestamp}] ${message}\n`);
 }
 
-log('🚀 Starting AEGIS MCP Server with Web UI...');
-
-// APIサーバー（Web UI）を起動
-// tsx を使用してTypeScriptファイルを直接実行
-const apiServer = spawn('npx', [
-  'tsx',
-  path.join(__dirname, 'src/api/server.ts')
-], {
-  stdio: ['ignore', 'ignore', 'pipe'], // stderrをパイプして取得
-  cwd: __dirname, // 作業ディレクトリを設定
-  detached: false,
-  env: process.env
-});
-
-// APIサーバーのエラー出力をログファイルに記録
-apiServer.stderr.on('data', (data) => {
-  log(`[API Server Error] ${data.toString().trim()}`);
-});
-
-log(`🌐 Web UI started on http://localhost:3000 (PID: ${apiServer.pid})`);
-log('  📝 Policy Management: http://localhost:3000/');
-log('  📊 Audit Dashboard: http://localhost:3000/audit-dashboard.html');
-log('  🔍 Request Dashboard: http://localhost:3000/request-dashboard.html');
+log('🚀 Starting AEGIS MCP Server (統合版)...');
 
 // MCPサーバーを起動（stdioで通信）
 const mcpServer = spawn('node', [
@@ -53,10 +31,16 @@ const mcpServer = spawn('node', [
   env: process.env
 });
 
+log('🛡️ AEGIS MCP Server started (統合版)');
+log('  🌐 Web UI: http://localhost:8080/');
+log('  📝 Policy Management: http://localhost:8080/api/policies');
+log('  📊 Audit Dashboard: http://localhost:8080/audit-dashboard.html');
+log('  🔍 Request Dashboard: http://localhost:8080/request-dashboard.html');
+log('  📡 MCP Endpoint: http://localhost:8080/mcp/messages');
+
 // プロセス終了時の処理
 process.on('SIGINT', () => {
   log('⏹️  Shutting down...');
-  apiServer.kill();
   mcpServer.kill();
   logStream.end();
   process.exit(0);
@@ -64,14 +48,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   log('Terminated');
-  apiServer.kill();
   mcpServer.kill();
   logStream.end();
   process.exit(0);
-});
-
-// MCPサーバーが終了したらAPIサーバーも終了
-mcpServer.on('exit', (code) => {
-  apiServer.kill();
-  process.exit(code);
 });

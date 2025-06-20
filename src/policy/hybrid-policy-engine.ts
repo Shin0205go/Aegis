@@ -406,4 +406,11 @@ export class HybridPolicyEngine {
     this.decisionCache.clear();
     logger.info('Policy cache cleared');
   }
+  
+  /**
+   * Get AI engine instance
+   */
+  getAIEngine(): AIJudgmentEngine | null {
+    return this.config.useAI ? this.aiEngine : null;
+  }
 }

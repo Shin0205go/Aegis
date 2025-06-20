@@ -7,6 +7,7 @@ import PolicyEditor from './components/PolicyEditor';
 import PolicyList from './components/PolicyList';
 import PolicyPreview from './components/PolicyPreview';
 import TestSimulator from './components/TestSimulator';
+import AuditDashboard from './components/AuditDashboard';
 import { Policy, PolicyAnalysis } from './types';
 import './App.css';
 
@@ -16,6 +17,7 @@ function App() {
   const [editingPolicy, setEditingPolicy] = useState<string>('');
   const [analysis, setAnalysis] = useState<PolicyAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'editor' | 'audit'>('editor');
 
   // ポリシー一覧の取得
   useEffect(() => {
@@ -146,45 +148,67 @@ function App() {
       <header className="app-header">
         <h1>🛡️ AEGIS ポリシー管理コンソール</h1>
         <p>自然言語でセキュリティポリシーを定義・管理</p>
+        <div className="header-tabs">
+          <button 
+            className={`tab ${activeTab === 'editor' ? 'active' : ''}`}
+            onClick={() => setActiveTab('editor')}
+          >
+            📝 ポリシー管理
+          </button>
+          <button 
+            className={`tab ${activeTab === 'audit' ? 'active' : ''}`}
+            onClick={() => setActiveTab('audit')}
+          >
+            🔍 監査ダッシュボード
+          </button>
+        </div>
       </header>
 
       <div className="app-container">
-        <div className="left-panel">
-          <PolicyList 
-            policies={policies}
-            selectedPolicy={selectedPolicy}
-            onSelectPolicy={selectPolicy}
-            onRefresh={fetchPolicies}
-            onDeletePolicy={deletePolicy}
-            onToggleStatus={togglePolicyStatus}
-          />
-        </div>
+        {activeTab === 'editor' ? (
+          <>
+            <div className="left-panel">
+              <PolicyList 
+                policies={policies}
+                selectedPolicy={selectedPolicy}
+                onSelectPolicy={selectPolicy}
+                onRefresh={fetchPolicies}
+                onDeletePolicy={deletePolicy}
+                onToggleStatus={togglePolicyStatus}
+              />
+            </div>
 
-        <div className="center-panel">
-          <PolicyEditor
-            value={editingPolicy}
-            onChange={(value) => {
-              setEditingPolicy(value);
-              analyzePolicy(value);
-            }}
-            onSave={savePolicy}
-            selectedPolicy={selectedPolicy}
-          />
-        </div>
+            <div className="center-panel">
+              <PolicyEditor
+                value={editingPolicy}
+                onChange={(value) => {
+                  setEditingPolicy(value);
+                  analyzePolicy(value);
+                }}
+                onSave={savePolicy}
+                selectedPolicy={selectedPolicy}
+              />
+            </div>
 
-        <div className="right-panel">
-          <PolicyPreview 
-            analysis={analysis}
-            loading={loading}
-          />
-          
-          {selectedPolicy && (
-            <TestSimulator 
-              policyId={selectedPolicy.id}
-              policyName={selectedPolicy.name}
-            />
-          )}
-        </div>
+            <div className="right-panel">
+              <PolicyPreview 
+                analysis={analysis}
+                loading={loading}
+              />
+              
+              {selectedPolicy && (
+                <TestSimulator 
+                  policyId={selectedPolicy.id}
+                  policyName={selectedPolicy.name}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="full-width-panel">
+            <AuditDashboard />
+          </div>
+        )}
       </div>
     </div>
   );

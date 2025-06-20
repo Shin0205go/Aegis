@@ -23,7 +23,7 @@ npm install && npm run build
 cp .env.example .env
 # ANTHROPIC_API_KEY または OPENAI_API_KEY を設定
 
-# AEGIS起動（Web UIも同時起動）
+# AEGIS起動（統合サーバー: MCP機能 + Web UI）
 node mcp-launcher.js
 
 # ODRLハイブリッドエンジンのテスト

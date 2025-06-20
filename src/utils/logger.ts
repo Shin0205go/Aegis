@@ -94,3 +94,6 @@ export class Logger {
     });
   }
 }
+
+// デフォルトloggerインスタンスをエクスポート
+export const logger = new Logger();

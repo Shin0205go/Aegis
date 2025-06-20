@@ -137,6 +137,7 @@ export class MCPStdioPolicyProxy {
         capabilities: {
           resources: {},
           tools: {},
+          prompts: {},
         },
       }
     );
@@ -303,10 +304,15 @@ export class MCPStdioPolicyProxy {
         if (result && result.result) {
           this.logger.info(`Returning ${result.result.tools?.length || 0} tools to client`);
           return result.result;
+        } else if (result && result.tools) {
+          // 直接toolsが含まれている場合
+          this.logger.info(`Returning ${result.tools?.length || 0} tools to client (direct format)`);
+          return { tools: result.tools };
         }
         
         // フォールバック（空の配列を返す）
         this.logger.warn('No valid result from upstream, returning empty tools array');
+        this.logger.debug('Full result object:', JSON.stringify(result));
         return { tools: [] };
       } catch (error) {
         this.logger.error('List tools error', error);
@@ -537,6 +543,7 @@ export class MCPStdioPolicyProxy {
       this.resetCircuitBreaker(method);
       
       // routeRequestの戻り値は既にresultを含んでいる
+      this.logger.debug(`forwardToUpstream returning:`, JSON.stringify(response).substring(0, 200));
       return response;
     } catch (error) {
       // Phase 3: 上流サーバーエラーも厳格に処理

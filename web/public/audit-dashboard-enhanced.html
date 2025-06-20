@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEGIS Audit Dashboard - Enhanced</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --dark-bg: #1a1a1a;
+            --dark-card: #2d2d2d;
+            --dark-border: #404040;
+            --text-light: #ecf0f1;
+            --text-muted: #95a5a6;
+            --odrl-color: #9b59b6;
+            --ai-color: #3498db;
+            --hybrid-color: #16a085;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--dark-bg);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: var(--dark-card);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--dark-border);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: var(--text-light);
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        select {
+            background: var(--dark-bg);
+            color: var(--text-light);
+            border: 1px solid var(--dark-border);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-light);
+            border: 1px solid var(--dark-border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--dark-border);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary-color);
+        }
+
+        .stat-card.odrl::before { background: var(--odrl-color); }
+        .stat-card.ai::before { background: var(--ai-color); }
+        .stat-card.hybrid::before { background: var(--hybrid-color); }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .stat-change {
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .stat-change.positive { color: var(--success-color); }
+        .stat-change.negative { color: var(--danger-color); }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chart-card {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+
+        .engine-breakdown {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .breakdown-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .engine-card {
+            background: var(--dark-bg);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .engine-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .engine-card.odrl .engine-icon { color: var(--odrl-color); }
+        .engine-card.ai .engine-icon { color: var(--ai-color); }
+        .engine-card.hybrid .engine-icon { color: var(--hybrid-color); }
+
+        .engine-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid var(--dark-border);
+        }
+
+        .engine-stat {
+            text-align: center;
+        }
+
+        .engine-stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--text-light);
+        }
+
+        .engine-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .recent-decisions {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .decisions-table {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .decisions-table th {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid var(--dark-border);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .decisions-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--dark-border);
+            font-size: 14px;
+        }
+
+        .decision-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .decision-badge.permit {
+            background: rgba(39, 174, 96, 0.2);
+            color: var(--success-color);
+        }
+
+        .decision-badge.deny {
+            background: rgba(231, 76, 60, 0.2);
+            color: var(--danger-color);
+        }
+
+        .engine-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .engine-badge.odrl {
+            background: rgba(155, 89, 182, 0.2);
+            color: var(--odrl-color);
+        }
+
+        .engine-badge.ai {
+            background: rgba(52, 152, 219, 0.2);
+            color: var(--ai-color);
+        }
+
+        .engine-badge.hybrid {
+            background: rgba(22, 160, 133, 0.2);
+            color: var(--hybrid-color);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--dark-border);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metric-item {
+            background: var(--dark-bg);
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .conversion-stats {
+            background: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--dark-border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill.odrl { background: var(--odrl-color); }
+        .progress-fill.ai { background: var(--ai-color); }
+        .progress-fill.hybrid { background: var(--hybrid-color); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ AEGIS Audit Dashboard - Enhanced</h1>
+            <div class="filters">
+                <div class="filter-group">
+                    <span class="filter-label">Time Range:</span>
+                    <select id="timeRange" onchange="updateDashboard()">
+                        <option value="1h">Last Hour</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Engine:</span>
+                    <select id="engineFilter" onchange="updateDashboard()">
+                        <option value="all">All Engines</option>
+                        <option value="odrl">ODRL Only</option>
+                        <option value="ai">AI Only</option>
+                        <option value="hybrid">Hybrid Only</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="refreshDashboard()">
+                    🔄 Refresh
+                </button>
+                <button class="btn btn-secondary" onclick="location.href='/'">
+                    ← Back
+                </button>
+            </div>
+        </div>
+
+        <!-- Key Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalDecisions">0</div>
+                <div class="stat-label">Total Decisions</div>
+                <div class="stat-change positive" id="totalChange">↑ 0% from last period</div>
+            </div>
+            <div class="stat-card odrl">
+                <div class="stat-value" id="odrlDecisions">0</div>
+                <div class="stat-label">ODRL Decisions</div>
+                <div class="stat-change positive" id="odrlChange">0% of total</div>
+            </div>
+            <div class="stat-card ai">
+                <div class="stat-value" id="aiDecisions">0</div>
+                <div class="stat-label">AI Decisions</div>
+                <div class="stat-change" id="aiChange">0% of total</div>
+            </div>
+            <div class="stat-card hybrid">
+                <div class="stat-value" id="hybridDecisions">0</div>
+                <div class="stat-label">Hybrid Decisions</div>
+                <div class="stat-change" id="hybridChange">0% of total</div>
+            </div>
+        </div>
+
+        <!-- Engine Performance Breakdown -->
+        <div class="engine-breakdown">
+            <h2 class="chart-title">Engine Performance Comparison</h2>
+            <div class="breakdown-grid">
+                <div class="engine-card odrl">
+                    <div class="engine-icon">⚡</div>
+                    <h3>ODRL Engine</h3>
+                    <div class="performance-metrics">
+                        <div class="metric-item">
+                            <div class="metric-value" id="odrlAvgTime">0ms</div>
+                            <div class="metric-label">Avg Response Time</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="odrlPermitRate">0%</div>
+                            <div class="metric-label">Permit Rate</div>
+                        </div>
+                    </div>
+                    <div class="engine-stats">
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="odrlConfidence">0%</div>
+                            <div class="engine-stat-label">Avg Confidence</div>
+                        </div>
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="odrlCacheHit">0%</div>
+                            <div class="engine-stat-label">Cache Hit Rate</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="engine-card ai">
+                    <div class="engine-icon">🧠</div>
+                    <h3>AI Engine</h3>
+                    <div class="performance-metrics">
+                        <div class="metric-item">
+                            <div class="metric-value" id="aiAvgTime">0ms</div>
+                            <div class="metric-label">Avg Response Time</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="aiPermitRate">0%</div>
+                            <div class="metric-label">Permit Rate</div>
+                        </div>
+                    </div>
+                    <div class="engine-stats">
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="aiConfidence">0%</div>
+                            <div class="engine-stat-label">Avg Confidence</div>
+                        </div>
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="aiCost">$0.00</div>
+                            <div class="engine-stat-label">API Cost</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="engine-card hybrid">
+                    <div class="engine-icon">🔄</div>
+                    <h3>Hybrid Engine</h3>
+                    <div class="performance-metrics">
+                        <div class="metric-item">
+                            <div class="metric-value" id="hybridAvgTime">0ms</div>
+                            <div class="metric-label">Avg Response Time</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-value" id="hybridPermitRate">0%</div>
+                            <div class="metric-label">Permit Rate</div>
+                        </div>
+                    </div>
+                    <div class="engine-stats">
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="hybridEfficiency">0%</div>
+                            <div class="engine-stat-label">ODRL First Hit</div>
+                        </div>
+                        <div class="engine-stat">
+                            <div class="engine-stat-value" id="hybridSavings">$0.00</div>
+                            <div class="engine-stat-label">Cost Savings</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conversion Statistics -->
+        <div class="conversion-stats">
+            <h2 class="chart-title">Natural Language to ODRL Conversion</h2>
+            <div class="breakdown-grid">
+                <div class="metric-item">
+                    <div class="metric-value" id="totalConversions">0</div>
+                    <div class="metric-label">Total Conversions</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="patternConversions">0</div>
+                    <div class="metric-label">Pattern-based</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill odrl" id="patternProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="aiConversions">0</div>
+                    <div class="metric-label">AI-based</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill ai" id="aiProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="hybridConversions">0</div>
+                    <div class="metric-label">Hybrid</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill hybrid" id="hybridProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="learnedPatterns">0</div>
+                    <div class="metric-label">Learned Patterns</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="avgConfidence">0%</div>
+                    <div class="metric-label">Avg Confidence</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Decision Distribution Over Time</h3>
+                </div>
+                <canvas id="decisionChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Engine Usage Distribution</h3>
+                </div>
+                <canvas id="engineChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Performance Comparison</h3>
+                </div>
+                <canvas id="performanceChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3 class="chart-title">Decision Outcomes by Engine</h3>
+                </div>
+                <canvas id="outcomeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Recent Decisions -->
+        <div class="recent-decisions">
+            <h2 class="chart-title">Recent Policy Decisions</h2>
+            <table class="decisions-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Agent</th>
+                        <th>Resource</th>
+                        <th>Engine</th>
+                        <th>Decision</th>
+                        <th>Response Time</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="decisionsTable">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <p>Loading recent decisions...</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Chart instances
+        let decisionChart, engineChart, performanceChart, outcomeChart;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCharts();
+            refreshDashboard();
+            // Auto-refresh every 30 seconds
+            setInterval(refreshDashboard, 30000);
+        });
+
+        function initializeCharts() {
+            // Decision Distribution Chart
+            const decisionCtx = document.getElementById('decisionChart').getContext('2d');
+            decisionChart = new Chart(decisionCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'ODRL',
+                            data: [],
+                            borderColor: '#9b59b6',
+                            backgroundColor: 'rgba(155, 89, 182, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'AI',
+                            data: [],
+                            borderColor: '#3498db',
+                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Hybrid',
+                            data: [],
+                            borderColor: '#16a085',
+                            backgroundColor: 'rgba(22, 160, 133, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ecf0f1' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        },
+                        y: {
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        }
+                    }
+                }
+            });
+
+            // Engine Usage Pie Chart
+            const engineCtx = document.getElementById('engineChart').getContext('2d');
+            engineChart = new Chart(engineCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#9b59b6', '#3498db', '#16a085']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ecf0f1' }
+                        }
+                    }
+                }
+            });
+
+            // Performance Comparison Chart
+            const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(performanceCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    datasets: [{
+                        label: 'Avg Response Time (ms)',
+                        data: [0, 0, 0],
+                        backgroundColor: ['#9b59b6', '#3498db', '#16a085']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ecf0f1' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        },
+                        y: {
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        }
+                    }
+                }
+            });
+
+            // Decision Outcomes Chart
+            const outcomeCtx = document.getElementById('outcomeChart').getContext('2d');
+            outcomeChart = new Chart(outcomeCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    datasets: [
+                        {
+                            label: 'Permit',
+                            data: [0, 0, 0],
+                            backgroundColor: '#27ae60'
+                        },
+                        {
+                            label: 'Deny',
+                            data: [0, 0, 0],
+                            backgroundColor: '#e74c3c'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ecf0f1' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { color: '#95a5a6' },
+                            grid: { color: '#404040' }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function refreshDashboard() {
+            const timeRange = document.getElementById('timeRange').value;
+            const engineFilter = document.getElementById('engineFilter').value;
+
+            try {
+                // Fetch audit statistics
+                const statsResponse = await fetch(`/audit/statistics?timeRange=${timeRange}&engine=${engineFilter}`);
+                const stats = await statsResponse.json();
+
+                updateStatistics(stats);
+                updateCharts(stats);
+
+                // Fetch recent decisions
+                const decisionsResponse = await fetch(`/audit/recent?limit=10&engine=${engineFilter}`);
+                const decisions = await decisionsResponse.json();
+
+                updateDecisionsTable(decisions);
+
+                // Fetch conversion statistics
+                const conversionResponse = await fetch('/odrl/convert/statistics');
+                const conversionStats = await conversionResponse.json();
+
+                updateConversionStats(conversionStats);
+
+            } catch (error) {
+                console.error('Failed to refresh dashboard:', error);
+            }
+        }
+
+        function updateStatistics(stats) {
+            // Total decisions
+            document.getElementById('totalDecisions').textContent = stats.totalDecisions.toLocaleString();
+            document.getElementById('totalChange').textContent = 
+                `${stats.changeFromLastPeriod > 0 ? '↑' : '↓'} ${Math.abs(stats.changeFromLastPeriod)}% from last period`;
+            document.getElementById('totalChange').className = 
+                `stat-change ${stats.changeFromLastPeriod > 0 ? 'positive' : 'negative'}`;
+
+            // Engine breakdown
+            const odrlPercent = ((stats.engineBreakdown.odrl / stats.totalDecisions) * 100).toFixed(1);
+            const aiPercent = ((stats.engineBreakdown.ai / stats.totalDecisions) * 100).toFixed(1);
+            const hybridPercent = ((stats.engineBreakdown.hybrid / stats.totalDecisions) * 100).toFixed(1);
+
+            document.getElementById('odrlDecisions').textContent = stats.engineBreakdown.odrl.toLocaleString();
+            document.getElementById('odrlChange').textContent = `${odrlPercent}% of total`;
+
+            document.getElementById('aiDecisions').textContent = stats.engineBreakdown.ai.toLocaleString();
+            document.getElementById('aiChange').textContent = `${aiPercent}% of total`;
+
+            document.getElementById('hybridDecisions').textContent = stats.engineBreakdown.hybrid.toLocaleString();
+            document.getElementById('hybridChange').textContent = `${hybridPercent}% of total`;
+
+            // Performance metrics
+            document.getElementById('odrlAvgTime').textContent = `${stats.performance.odrl.avgTime}ms`;
+            document.getElementById('odrlPermitRate').textContent = `${stats.performance.odrl.permitRate}%`;
+            document.getElementById('odrlConfidence').textContent = `${stats.performance.odrl.avgConfidence}%`;
+            document.getElementById('odrlCacheHit').textContent = `${stats.performance.odrl.cacheHitRate}%`;
+
+            document.getElementById('aiAvgTime').textContent = `${stats.performance.ai.avgTime}ms`;
+            document.getElementById('aiPermitRate').textContent = `${stats.performance.ai.permitRate}%`;
+            document.getElementById('aiConfidence').textContent = `${stats.performance.ai.avgConfidence}%`;
+            document.getElementById('aiCost').textContent = `$${stats.performance.ai.estimatedCost.toFixed(2)}`;
+
+            document.getElementById('hybridAvgTime').textContent = `${stats.performance.hybrid.avgTime}ms`;
+            document.getElementById('hybridPermitRate').textContent = `${stats.performance.hybrid.permitRate}%`;
+            document.getElementById('hybridEfficiency').textContent = `${stats.performance.hybrid.odrlFirstHit}%`;
+            document.getElementById('hybridSavings').textContent = `$${stats.performance.hybrid.costSavings.toFixed(2)}`;
+        }
+
+        function updateCharts(stats) {
+            // Update decision distribution chart
+            decisionChart.data.labels = stats.timeline.labels;
+            decisionChart.data.datasets[0].data = stats.timeline.odrl;
+            decisionChart.data.datasets[1].data = stats.timeline.ai;
+            decisionChart.data.datasets[2].data = stats.timeline.hybrid;
+            decisionChart.update();
+
+            // Update engine usage chart
+            engineChart.data.datasets[0].data = [
+                stats.engineBreakdown.odrl,
+                stats.engineBreakdown.ai,
+                stats.engineBreakdown.hybrid
+            ];
+            engineChart.update();
+
+            // Update performance chart
+            performanceChart.data.datasets[0].data = [
+                stats.performance.odrl.avgTime,
+                stats.performance.ai.avgTime,
+                stats.performance.hybrid.avgTime
+            ];
+            performanceChart.update();
+
+            // Update outcome chart
+            outcomeChart.data.datasets[0].data = [
+                stats.outcomes.odrl.permit,
+                stats.outcomes.ai.permit,
+                stats.outcomes.hybrid.permit
+            ];
+            outcomeChart.data.datasets[1].data = [
+                stats.outcomes.odrl.deny,
+                stats.outcomes.ai.deny,
+                stats.outcomes.hybrid.deny
+            ];
+            outcomeChart.update();
+        }
+
+        function updateDecisionsTable(decisions) {
+            const tbody = document.getElementById('decisionsTable');
+            
+            if (decisions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No recent decisions</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = decisions.map(decision => {
+                const time = new Date(decision.timestamp).toLocaleTimeString();
+                const engineBadgeClass = `engine-badge ${decision.engine.toLowerCase()}`;
+                const decisionBadgeClass = `decision-badge ${decision.decision.toLowerCase()}`;
+                
+                return `
+                    <tr>
+                        <td>${time}</td>
+                        <td>${decision.agent}</td>
+                        <td>${decision.resource}</td>
+                        <td><span class="${engineBadgeClass}">${decision.engine}</span></td>
+                        <td><span class="${decisionBadgeClass}">${decision.decision}</span></td>
+                        <td>${decision.responseTime}ms</td>
+                        <td>${Math.round(decision.confidence * 100)}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateConversionStats(stats) {
+            document.getElementById('totalConversions').textContent = stats.total.toLocaleString();
+            document.getElementById('patternConversions').textContent = stats.pattern.toLocaleString();
+            document.getElementById('aiConversions').textContent = stats.ai.toLocaleString();
+            document.getElementById('hybridConversions').textContent = stats.hybrid.toLocaleString();
+            document.getElementById('learnedPatterns').textContent = stats.learnedPatterns.toLocaleString();
+            document.getElementById('avgConfidence').textContent = `${Math.round(stats.avgConfidence * 100)}%`;
+
+            // Update progress bars
+            const total = stats.total || 1;
+            document.getElementById('patternProgress').style.width = `${(stats.pattern / total) * 100}%`;
+            document.getElementById('aiProgress').style.width = `${(stats.ai / total) * 100}%`;
+            document.getElementById('hybridProgress').style.width = `${(stats.hybrid / total) * 100}%`;
+        }
+
+        function updateDashboard() {
+            refreshDashboard();
+        }
+    </script>
+</body>
+</html>
