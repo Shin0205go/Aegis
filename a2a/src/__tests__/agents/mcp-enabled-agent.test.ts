@@ -154,7 +154,7 @@ describe('MCPEnabledAgent', () => {
 
       expect(result).toEqual(['file1.txt', 'file2.md']);
       expect(mockedAxios.post).toHaveBeenCalledWith(
-        'http://localhost:3000/mcp',
+        'http://localhost:3000/mcp/messages',
         expect.objectContaining({
           method: 'tools/call',
           params: {
@@ -179,12 +179,12 @@ describe('MCPEnabledAgent', () => {
         headers: {
           'content-type': 'text/event-stream'
         },
-        data: 'event: message\ndata: {"jsonrpc":"2.0","error":{"code":-32001,"message":"Policy denied: Agent lacks permission for filesystem access"},"id":2}\n\n'
+        data: 'data: {"jsonrpc":"2.0","error":{"code":-32001,"message":"Policy denied: Agent lacks permission for filesystem access"},"id":2}\n\n'
       });
 
       await expect(
         (agent as any).callMCPTool('filesystem__read_file', { path: '/secret' })
-      ).rejects.toThrow('Policy denied');
+      ).rejects.toThrow('MCP Error: Policy denied');
     });
 
     it('should handle generic MCP errors', async () => {
@@ -193,12 +193,12 @@ describe('MCPEnabledAgent', () => {
         headers: {
           'content-type': 'text/event-stream'
         },
-        data: 'event: message\ndata: {"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":2}\n\n'
+        data: 'data: {"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":2}\n\n'
       });
 
       await expect(
         (agent as any).callMCPTool('unknown_tool', {})
-      ).rejects.toThrow('MCP tool error');
+      ).rejects.toThrow('MCP Error: Internal error');
     });
 
     it('should handle network errors', async () => {
@@ -364,7 +364,7 @@ describe('MCPEnabledAgent', () => {
 
       expect((taskResult as any).state).toBe(TaskState.FAILED);
       expect((taskResult as any).error.code).toBe('MCP_ERROR');
-      expect((taskResult as any).error.message).toContain('Policy denied');
+      expect((taskResult as any).error.message).toContain('No valid data in SSE response');
     });
   });
 

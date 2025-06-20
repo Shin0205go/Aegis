@@ -127,14 +127,10 @@ export class MCPResearchAgent extends MCPEnabledAgent {
         
         // MCPレスポンスフォーマットの処理
         let output: string;
-        if (execResult.content && Array.isArray(execResult.content)) {
-          // MCP標準フォーマット
-          const textContent = execResult.content.find((c: any) => c.type === 'text');
-          output = textContent?.text || 'No output';
-        } else if (execResult.stdout) {
+        if (execResult.stdout) {
           output = execResult.stdout;
         } else {
-          output = String(execResult);
+          output = 'No output';
         }
         
         findings.push(`Command output: ${output}`);

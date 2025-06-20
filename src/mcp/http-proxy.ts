@@ -33,7 +33,9 @@ import { EnforcementSystem } from '../core/enforcement.js';
 import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
 import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
 import { createAuditEndpoints } from '../api/audit-endpoints.js';
+import { createODRLEndpoints } from '../api/odrl-endpoints.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
+import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
 // Use Node.js built-in fetch (Node 18+)
 
 export class MCPHttpPolicyProxy {
@@ -42,6 +44,7 @@ export class MCPHttpPolicyProxy {
   private config: AEGISConfig;
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
+  private hybridPolicyEngine: HybridPolicyEngine;
   private contextCollector: ContextCollector;
   private enforcementSystem: EnforcementSystem;
   
@@ -66,6 +69,15 @@ export class MCPHttpPolicyProxy {
     this.config = config;
     this.logger = logger;
     this.judgmentEngine = judgmentEngine;
+    
+    // ハイブリッドポリシーエンジン初期化
+    this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
+      useODRL: true,
+      useAI: true,
+      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      cacheEnabled: true,
+      cacheTTL: 300000 // 5分
+    });
     
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
@@ -370,8 +382,8 @@ export class MCPHttpPolicyProxy {
       };
     }
     
-    // AI判定実行
-    const decision = await this.judgmentEngine.makeDecision(policy, enrichedContext, enrichedContext.environment);
+    // ハイブリッドポリシーエンジンで判定実行
+    const decision = await this.hybridPolicyEngine.decide(enrichedContext, policy);
     
     const result = {
       ...decision,
@@ -677,6 +689,10 @@ export class MCPHttpPolicyProxy {
     });
     this.app.use('/audit', auditRouter);
     
+    // ODRL Policy APIエンドポイントを追加
+    const odrlRouter = createODRLEndpoints(this.hybridPolicyEngine);
+    this.app.use('/odrl', odrlRouter);
+    
     // HTTPトランスポートを初期化
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => {
@@ -711,6 +727,7 @@ export class MCPHttpPolicyProxy {
         this.logger.info(`📡 MCP endpoint: http://localhost:${port}/mcp/messages`);
         this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
         this.logger.info(`📋 Policies API: http://localhost:${port}/policies`);
+        this.logger.info(`📊 ODRL API: http://localhost:${port}/odrl`);
         
         // サーバーインスタンスを保存
         (this as any).httpServer = server;

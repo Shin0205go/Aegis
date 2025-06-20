@@ -184,7 +184,10 @@ describe('A2AAgent', () => {
       taskId = result.taskId;
     });
 
-    it('should update task state', () => {
+    it('should update task state', async () => {
+      // タイミングテストのために少し待つ
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
       (agent as any).updateTaskState(taskId, TaskState.WORKING);
       
       const task = (agent as any).tasks.get(taskId);

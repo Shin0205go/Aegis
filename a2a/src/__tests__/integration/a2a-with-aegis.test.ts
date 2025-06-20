@@ -52,7 +52,7 @@ describe('A2A Integration with AEGIS MCP Proxy', () => {
       cacheEnabled: false,
       strictMode: false
     });
-    coordinatorAgent = new CoordinatorAgent(COORDINATOR_PORT, policyEnforcer);
+    coordinatorAgent = new CoordinatorAgent(COORDINATOR_PORT);
 
     await Promise.all([
       researchAgent.start(),

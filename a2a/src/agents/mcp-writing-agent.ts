@@ -4,7 +4,7 @@
  */
 
 import { MCPEnabledAgent } from './mcp-enabled-agent';
-import { Task, TaskState } from '../types/a2a-protocol';
+import { Task, TaskState, SendTaskParams } from '../types/a2a-protocol';
 
 export class MCPWritingAgent extends MCPEnabledAgent {
   constructor(port: number, aegisProxyUrl: string) {
@@ -28,7 +28,7 @@ export class MCPWritingAgent extends MCPEnabledAgent {
       this.logger.info(`Writing agent processing task: ${task.prompt}`);
       
       // Update task state
-      await this.updateTaskState(task.id, TaskState.IN_PROGRESS);
+      await this.updateTaskState(task.id, TaskState.WORKING);
       
       // Build task context for policy enforcement
       const taskContext = this.buildTaskContext(task);
@@ -45,7 +45,7 @@ export class MCPWritingAgent extends MCPEnabledAgent {
       if (needsResearch) {
         // Delegate research to research agent
         try {
-          const researchTask = await this.delegateTask(
+          const researchTask = await this.delegateTaskToAgent(
             'http://localhost:8301', // Research agent URL
             `Research: ${task.prompt}`,
             {
@@ -107,7 +107,7 @@ export class MCPWritingAgent extends MCPEnabledAgent {
         researchUsed: !!researchResults
       };
       
-      await this.completeTask(task.id, result);
+      await this.updateTaskState(task.id, TaskState.COMPLETED, { result });
       
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -249,33 +249,21 @@ export class MCPWritingAgent extends MCPEnabledAgent {
     return content;
   }
   
-  private async delegateTask(
+  private async delegateTaskToAgent(
     agentUrl: string,
     prompt: string,
     policyContext: any
   ): Promise<any> {
     try {
-      const response = await fetch(`${agentUrl}/rpc`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'tasks/send',
-          params: {
-            prompt,
-            priority: 'normal',
-            policyContext
-          },
-          id: Date.now()
-        })
-      });
+      // Use the parent class delegateTask method with proper params
+      const params: SendTaskParams = {
+        prompt,
+        priority: 'normal',
+        policyContext
+      };
       
-      const result = await response.json();
-      if (result.error) {
-        throw new Error(result.error.message);
-      }
-      
-      return result.result;
+      const response = await this.delegateTask(agentUrl, params);
+      return response;
     } catch (error) {
       this.logger.error('Failed to delegate task:', error);
       throw error;
@@ -302,7 +290,7 @@ export class MCPWritingAgent extends MCPEnabledAgent {
           })
         });
         
-        const result = await response.json();
+        const result = await response.json() as any;
         const task = result.result;
         
         if (task.state === 'completed') {

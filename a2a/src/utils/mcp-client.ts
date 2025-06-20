@@ -170,21 +170,28 @@ export class SimpleMCPClient {
       );
 
       // Handle response based on content type
-      if (response.headers['content-type']?.includes('text/event-stream')) {
+      const contentType = response.headers ? response.headers['content-type'] : null;
+      if (contentType?.includes('text/event-stream')) {
         // Parse SSE response
         const eventData = response.data;
         const lines = eventData.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const jsonData = line.substring(6);
-            try {
-              const parsed = JSON.parse(jsonData);
-              if (parsed.error) {
-                throw new Error(`MCP Error: ${parsed.error.message}`);
+            const jsonData = line.substring(6).trim();
+            if (jsonData) {
+              try {
+                const parsed = JSON.parse(jsonData);
+                if (parsed.error) {
+                  throw new Error(`MCP Error: ${parsed.error.message}`);
+                }
+                if (parsed.result !== undefined) {
+                  return parsed.result;
+                }
+                // Return the whole parsed object if no result field
+                return parsed;
+              } catch (e) {
+                // Continue to next line
               }
-              return parsed.result;
-            } catch (e) {
-              // Continue to next line
             }
           }
         }

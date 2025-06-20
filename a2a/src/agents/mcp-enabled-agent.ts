@@ -54,7 +54,7 @@ export abstract class MCPEnabledAgent extends A2AAgent {
         'X-Agent-ID': this.config.name,
         'X-Agent-Type': 'a2a-agent',
         'X-Agent-Metadata': JSON.stringify(this.agentMetadata),
-        'X-Agent-Instance': `${this.config.name}-${port}` // Unique instance identifier
+        'X-Agent-Instance': `${this.config.name}-${this.config.port}` // Unique instance identifier
       }
     });
   }

@@ -41,6 +41,16 @@ AEGISを拡張・カスタマイズする開発者向けのガイドです。
 - **[用語集](./reference/glossary.md)** - AEGIS関連の用語解説
 - **[よくある質問](./reference/faq.md)** - FAQ
 
+### 🚀 [ODRLハイブリッドポリシーエンジン](../src/odrl/)
+AIの過度な厳格さを解決する新しいハイブリッド判定システムです。
+
+- **[📚 ODRLドキュメントインデックス](./ODRL_INDEX.md)** - 全ODRLドキュメントへの統一アクセスポイント
+- **[ODRLテストガイド](../ODRL_TEST_GUIDE.md)** - 今すぐテストを実行する方法
+- **[実装ロジック詳解](./ODRL_IMPLEMENTATION_LOGIC.md)** - なぜODRLを導入したか、どう動作するか
+- **[判定フロー図解](./ODRL_DECISION_FLOW.md)** - 判定の詳細な流れとパターン
+- **[アーキテクチャ概要](./ODRL_ARCHITECTURE_OVERVIEW.md)** - システム全体構成と設計
+- **[ODRLテスト実践ガイド](./odrl-testing-guide.md)** - 包括的なテスト方法
+
 ## 🎯 はじめての方へ
 
 1. **ユーザーの方**: [導入・初期設定](./user-guide/getting-started.md) から始めてください
