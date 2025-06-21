@@ -77,7 +77,7 @@ export class MCPStdioPolicyProxy {
     this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
       useODRL: true,
       useAI: true,
-      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'), // Lower AI confidence threshold to address overly strict decisions
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
     });
@@ -585,15 +585,15 @@ export class MCPStdioPolicyProxy {
       
       const result = await this.enforcementSystem.applyConstraints(constraints, data, context);
       
-      // 制約適用の結果をログ
-      this.logger.info('制約適用完了', {
+      // Log constraint application results
+      this.logger.info('Constraints applied successfully', {
         constraintCount: constraints.length,
         appliedConstraints: constraints
       });
       
       return result;
     } catch (error) {
-      this.logger.error('制約適用エラー', error);
+      this.logger.error('Error applying constraints', error);
       
       // Phase 3: 新システム完全統合 - より堅牢なエラーハンドリング
       if (error instanceof Error) {
@@ -609,7 +609,7 @@ export class MCPStdioPolicyProxy {
       }
       
       // Phase 3: その他のエラーも厳格に処理
-      this.logger.error('制約適用で予期しないエラー、アクセス拒否', error);
+      this.logger.error('Unexpected error applying constraints, access denied', error);
       throw new Error(`Constraint application failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -644,25 +644,25 @@ export class MCPStdioPolicyProxy {
       
       await this.enforcementSystem.executeObligations(obligations, context, decision);
       
-      this.logger.info('義務実行完了', {
+      this.logger.info('Obligations executed successfully', {
         obligationCount: obligations.length,
         executedObligations: obligations
       });
     } catch (error) {
-      this.logger.error('義務実行エラー', error);
+      this.logger.error('Error executing obligations', error);
       
       // Phase 3: 新システム完全統合 - 重要な義務の失敗を追跡
       if (error instanceof Error) {
         // 重要な義務（監査ログ、コンプライアンス通知等）の失敗を特別扱い
         if (error.message.includes('CRITICAL_OBLIGATION_FAILURE')) {
-          this.logger.error('重要な義務実行に失敗しました', {
+          this.logger.error('Critical obligation execution failed', {
             obligations,
             error: error.message,
             context: request.params
           });
           // 重要な義務の失敗は非同期でアラートを送信
           this.sendCriticalObligationFailureAlert(obligations, error).catch(alertError => {
-            this.logger.error('アラート送信にも失敗', alertError);
+            this.logger.error('Alert sending also failed', alertError);
           });
         }
       }
@@ -694,18 +694,18 @@ export class MCPStdioPolicyProxy {
 
       // 通知システムを使用してアラート送信
       await this.enforcementSystem.executeObligations(
-        ['緊急システムアラート送信', 'システム管理者への即座通知'], 
+        ['Send emergency system alert', 'Immediate notification to system administrators'], 
         alertContext, 
         {
           decision: 'PERMIT',
           reason: 'Critical obligation failure alert',
           confidence: 1.0,
-          obligations: ['緊急システムアラート送信', 'システム管理者への即座通知']
+          obligations: ['Send emergency system alert', 'Immediate notification to system administrators']
         }
       );
     } catch (alertError) {
       // アラート送信自体が失敗した場合はログのみ
-      this.logger.error('重要義務失敗アラートの送信に失敗', alertError);
+      this.logger.error('Failed to send critical obligation failure alert', alertError);
     }
   }
 
@@ -897,6 +897,8 @@ export class MCPStdioPolicyProxy {
   // パブリックメソッド
   addPolicy(name: string, policy: string): void {
     this.policies.set(name, policy);
+    // Clear cache when natural language policies are added
+    this.hybridPolicyEngine.clearCache();
     this.logger.info(`Policy added: ${name}`);
   }
 
@@ -905,6 +907,8 @@ export class MCPStdioPolicyProxy {
       throw new Error(`Policy ${name} not found`);
     }
     this.policies.set(name, policy);
+    // Clear cache when natural language policies are updated
+    this.hybridPolicyEngine.clearCache();
     this.logger.info(`Policy updated: ${name}`);
   }
 
@@ -981,9 +985,9 @@ export class MCPStdioPolicyProxy {
   }
 
   async start(): Promise<void> {
-    // 制約・義務システムを初期化
+    // Initialize constraint and obligation system
     await this.enforcementSystem.initialize();
-    this.logger.info('制約・義務実施システムを初期化しました');
+    this.logger.info('Constraint and obligation enforcement system initialized');
     
     // 上流サーバーはloadDesktopConfigまたはaddUpstreamServerで事前に登録されている前提
     // ここでは起動のみ行う

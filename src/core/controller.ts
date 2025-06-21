@@ -53,7 +53,7 @@ export class AEGISController {
     this.hybridPolicyEngine = new HybridPolicyEngine(this.judgmentEngine, {
       useODRL: true,
       useAI: true,
-      aiThreshold: 0.7, // AI判定の信頼度閾値を下げる（現在の厳格すぎる問題に対処）
+      aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'), // Lower AI confidence threshold to address overly strict decisions
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
     });
@@ -143,14 +143,29 @@ export class AEGISController {
         };
       }
 
-      // 4. 各ポリシーで判定を実行
+      // 4. 各ポリシーで判定を実行（個別エラーハンドリング付き）
       const decisions = await Promise.all(
         applicablePolicies.map(async (policy) => {
-          const decision = await this.hybridPolicyEngine.decide(
-            enrichedContext,
-            policy.policy
-          );
-          return { policy, decision };
+          try {
+            const decision = await this.hybridPolicyEngine.decide(
+              enrichedContext,
+              policy.policy
+            );
+            return { policy, decision };
+          } catch (error) {
+            // 個別のポリシー評価エラーをログに記録し、DENYとして扱う
+            console.error(`[Controller] Policy evaluation error for ${policy.name}:`, error);
+            return { 
+              policy, 
+              decision: {
+                decision: 'DENY' as const,
+                reason: `Policy evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                confidence: 1.0,
+                constraints: [],
+                obligations: []
+              }
+            };
+          }
         })
       );
 
@@ -490,14 +505,63 @@ export class AEGISController {
   }
 
   // ODRL ポリシー管理
+  private validateODRLPolicy(policy: any): void {
+    if (!policy) {
+      throw new Error('Policy cannot be null or undefined');
+    }
+    
+    // Check required fields
+    if (!policy['@type'] || !['Policy', 'Set', 'Offer', 'Agreement'].includes(policy['@type'])) {
+      throw new Error('Invalid policy type. Must be one of: Policy, Set, Offer, Agreement');
+    }
+    
+    if (!policy.uid) {
+      throw new Error('Policy must have a uid');
+    }
+    
+    // Validate structure
+    const hasRules = policy.permission || policy.prohibition || policy.obligation;
+    if (!hasRules) {
+      throw new Error('Policy must have at least one rule (permission, prohibition, or obligation)');
+    }
+    
+    // Validate each rule
+    const allRules = [
+      ...(policy.permission || []),
+      ...(policy.prohibition || []),
+      ...(policy.obligation || [])
+    ];
+    
+    allRules.forEach((rule: any, index: number) => {
+      if (!rule.action) {
+        throw new Error(`Rule at index ${index} must have an action`);
+      }
+    });
+  }
+
   addODRLPolicy(policyId: string, policy: any): void {
+    if (!policyId || typeof policyId !== 'string') {
+      throw new Error('Policy ID must be a non-empty string');
+    }
+    
+    this.validateODRLPolicy(policy);
+    
+    // Ensure cache invalidation
+    this.hybridPolicyEngine.clearCache();
+    
     this.hybridPolicyEngine.addODRLPolicy(policyId, policy);
     this.logger.info(`ODRL policy added: ${policyId}`);
   }
 
   removeODRLPolicy(policyId: string): boolean {
+    if (!policyId || typeof policyId !== 'string') {
+      throw new Error('Policy ID must be a non-empty string');
+    }
+    
     const removed = this.hybridPolicyEngine.removeODRLPolicy(policyId);
     if (removed) {
+      // Ensure cache invalidation
+      this.hybridPolicyEngine.clearCache();
       this.logger.info(`ODRL policy removed: ${policyId}`);
     } else {
       this.logger.warn(`ODRL policy not found: ${policyId}`);
@@ -509,8 +573,8 @@ export class AEGISController {
     return this.hybridPolicyEngine.listODRLPolicies();
   }
 
-  // ハイブリッドエンジン統計情報
-  getHybridEngineStats(): any {
+  // Engine statistics
+  getEngineStats(): any {
     return this.hybridPolicyEngine.getStats();
   }
 
