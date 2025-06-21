@@ -63,14 +63,13 @@ export function createAuditStatisticsAPI(auditSystem: AdvancedAuditSystem): Rout
       const previousStartDate = getPreviousPeriodStartDate(timeRange as string);
       
       // Get entries for current period
-      const entries = await auditSystem.getAuditEntriesForDateRange(
-        startDate,
-        endDate,
-        engine === 'all' ? undefined : { engine: engine as string }
-      );
+      const allEntries = auditSystem.getEntriesInTimeRange(startDate, endDate);
+      const entries = engine === 'all' 
+        ? allEntries 
+        : allEntries.filter(e => e.metadata?.engine === engine);
       
       // Get entries for previous period
-      const previousEntries = await auditSystem.getAuditEntriesForDateRange(
+      const previousEntries = auditSystem.getEntriesInTimeRange(
         previousStartDate,
         startDate
       );
@@ -91,12 +90,17 @@ export function createAuditStatisticsAPI(auditSystem: AdvancedAuditSystem): Rout
     try {
       const { limit = 10, engine = 'all' } = req.query;
       
-      const entries = await auditSystem.getRecentAuditEntries(
-        Number(limit),
-        engine === 'all' ? undefined : { engine: engine as string }
+      // Get all entries and sort by timestamp, then take the most recent
+      const allEntries = auditSystem.getAuditEntries();
+      const sortedEntries = allEntries.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
+      const filteredEntries = engine === 'all' 
+        ? sortedEntries 
+        : sortedEntries.filter(e => e.metadata?.engine === engine);
+      const entries = filteredEntries.slice(0, Number(limit));
       
-      const formattedEntries = entries.map(entry => ({
+      const formattedEntries = entries.map((entry: any) => ({
         timestamp: entry.timestamp,
         agent: entry.context.agent,
         resource: entry.context.resource,
@@ -123,7 +127,7 @@ export function createAuditStatisticsAPI(auditSystem: AdvancedAuditSystem): Rout
       const endDate = new Date();
       const startDate = getStartDate(timeRange as string);
       
-      const entries = await auditSystem.getAuditEntriesForDateRange(startDate, endDate);
+      const entries = auditSystem.getEntriesInTimeRange(startDate, endDate);
       
       if (format === 'csv') {
         const csv = convertToCSV(entries);

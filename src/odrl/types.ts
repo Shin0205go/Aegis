@@ -68,9 +68,16 @@ export interface Constraint {
   xone?: Constraint[];
 }
 
-export interface Duty extends Rule {
+export interface Duty {
   '@type': 'Duty';
+  uid?: URI;
+  action: Action | Action[];
+  target?: Asset | Asset[];
+  assigner?: Party | Party[];
+  assignee?: Party | Party[];
+  constraint?: Constraint[];
   consequence?: Duty[];
+  metadata?: RuleMetadata;
 }
 
 // Operators

@@ -3,7 +3,7 @@
  * These demonstrate common policy patterns
  */
 
-import { AEGISPolicy } from './types';
+import { AEGISPolicy, Operator } from './types';
 
 /**
  * Business hours access policy
@@ -44,6 +44,40 @@ export const businessHoursPolicy: AEGISPolicy = {
           '@type': 'Constraint',
           'leftOperand': 'aegis:emergency',
           'operator': 'eq',
+          'rightOperand': true
+        }
+      ]
+    }]
+  }],
+  'prohibition': [{
+    '@type': 'Prohibition',
+    'action': {
+      'value': 'filesystem:read'
+    },
+    'constraint': [{
+      '@type': 'LogicalConstraint',
+      'and': [
+        {
+          '@type': 'LogicalConstraint',
+          'or': [
+            {
+              '@type': 'Constraint',
+              'leftOperand': 'timeOfDay',
+              'operator': 'lt',
+              'rightOperand': '09:00:00'
+            },
+            {
+              '@type': 'Constraint',
+              'leftOperand': 'timeOfDay',
+              'operator': 'gt',
+              'rightOperand': '18:00:00'
+            }
+          ]
+        },
+        {
+          '@type': 'Constraint',
+          'leftOperand': 'aegis:emergency',
+          'operator': 'neq',
           'rightOperand': true
         }
       ]
@@ -168,18 +202,32 @@ export const mcpToolPolicy: AEGISPolicy = {
       }]
     }
   ],
-  'prohibition': [{
-    '@type': 'Prohibition',
-    'action': {
-      'value': 'tool:execution-server__*'
+  'prohibition': [
+    {
+      '@type': 'Prohibition',
+      'action': {
+        'value': 'tool:filesystem__write_*'
+      },
+      'constraint': [{
+        '@type': 'Constraint',
+        'leftOperand': 'aegis:agentType',
+        'operator': 'eq',
+        'rightOperand': 'research'
+      }]
     },
-    'constraint': [{
-      '@type': 'Constraint',
-      'leftOperand': 'aegis:agentType',
-      'operator': 'isNoneOf',
-      'rightOperand': ['admin', 'system']
-    }]
-  }]
+    {
+      '@type': 'Prohibition',
+      'action': {
+        'value': 'tool:execution-server__*'
+      },
+      'constraint': [{
+        '@type': 'Constraint',
+        'leftOperand': 'aegis:agentType',
+        'operator': 'isNoneOf',
+        'rightOperand': ['admin', 'system']
+      }]
+    }
+  ]
 };
 
 /**
@@ -259,7 +307,7 @@ export const defaultPolicySet: AEGISPolicy[] = [
  */
 export function createSimplePermission(
   action: string,
-  condition?: { operand: string; operator: string; value: any }
+  condition?: { operand: string; operator: Operator; value: any }
 ): AEGISPolicy {
   const policy: AEGISPolicy = {
     '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
@@ -289,7 +337,7 @@ export function createSimplePermission(
  */
 export function createSimpleProhibition(
   action: string,
-  condition?: { operand: string; operator: string; value: any }
+  condition?: { operand: string; operator: Operator; value: any }
 ): AEGISPolicy {
   const policy: AEGISPolicy = {
     '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],

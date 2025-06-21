@@ -12,7 +12,8 @@ import {
   mcpToolPolicy,
   claudeDesktopPolicy
 } from '../sample-policies';
-import { DecisionContext } from '../../types/policy';
+import { AEGISPolicy } from '../types';
+import { DecisionContext } from '../../types';
 
 // Mock AI engine for testing
 class MockAIEngine implements Pick<AIJudgmentEngine, 'judge'> {
@@ -82,8 +83,7 @@ describe('Hybrid Policy Engine Tests', () => {
         action: 'filesystem:read',
         resource: 'file:test.txt',
         time: new Date('2024-01-01T20:00:00'),
-        environment: {},
-        emergency: true
+        environment: { emergency: true }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -99,10 +99,11 @@ describe('Hybrid Policy Engine Tests', () => {
         agent: 'trusted-agent',
         action: 'resource:access',
         resource: 'confidential-data',
-        resourceClassification: 'confidential',
         trustScore: 0.8,
         time: new Date(),
-        environment: {}
+        environment: {
+          resourceClassification: 'confidential'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -115,10 +116,11 @@ describe('Hybrid Policy Engine Tests', () => {
         agent: 'untrusted-agent',
         action: 'resource:access',
         resource: 'confidential-data',
-        resourceClassification: 'confidential',
         trustScore: 0.3,
         time: new Date(),
-        environment: {}
+        environment: {
+          resourceClassification: 'confidential'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -134,9 +136,10 @@ describe('Hybrid Policy Engine Tests', () => {
         agentType: 'research',
         action: 'execute',
         resource: 'tool:filesystem__read_file',
-        mcpTool: 'filesystem__read_file',
         time: new Date(),
-        environment: {}
+        environment: {
+          mcpTool: 'filesystem__read_file'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -150,9 +153,10 @@ describe('Hybrid Policy Engine Tests', () => {
         agentType: 'research',
         action: 'execute',
         resource: 'tool:filesystem__write_file',
-        mcpTool: 'filesystem__write_file',
         time: new Date(),
-        environment: {}
+        environment: {
+          mcpTool: 'filesystem__write_file'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -166,9 +170,10 @@ describe('Hybrid Policy Engine Tests', () => {
         agentType: 'writing',
         action: 'execute',
         resource: 'tool:filesystem__write_file',
-        mcpTool: 'filesystem__write_file',
         time: new Date(),
-        environment: {}
+        environment: {
+          mcpTool: 'filesystem__write_file'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -183,9 +188,10 @@ describe('Hybrid Policy Engine Tests', () => {
         agent: 'claude-desktop',
         action: 'execute',
         resource: 'tool:any_dangerous_tool',
-        mcpTool: 'any_dangerous_tool',
         time: new Date('2024-01-01T22:00:00'), // Outside business hours
-        environment: {}
+        environment: {
+          mcpTool: 'any_dangerous_tool'
+        }
       };
 
       const decision = await hybridEngine.decide(context);
@@ -244,13 +250,13 @@ describe('Hybrid Policy Engine Tests', () => {
 
   describe('Policy Management', () => {
     test('should add new policies dynamically', () => {
-      const newPolicy = {
+      const newPolicy: AEGISPolicy = {
         '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-        '@type': 'Policy' as const,
+        '@type': 'Policy',
         'uid': 'test:policy',
         'profile': 'https://aegis.example.com/odrl/profile',
         'permission': [{
-          '@type': 'Permission' as const,
+          '@type': 'Permission',
           'action': { 'value': 'test:action' }
         }]
       };
@@ -303,10 +309,11 @@ if (require.main === module) {
       agentType: 'external',
       action: 'resource:access',
       resource: 'confidential-data',
-      resourceClassification: 'confidential',
       trustScore: 0.3,
       time: new Date(),
-      environment: {}
+      environment: {
+        resourceClassification: 'confidential'
+      }
     });
     console.log(`Result: ${result2.decision} - ${result2.reason}\n`);
 
@@ -317,9 +324,10 @@ if (require.main === module) {
       agentType: 'research',
       action: 'execute',
       resource: 'tool:filesystem__read_file',
-      mcpTool: 'filesystem__read_file',
       time: new Date(),
-      environment: {}
+      environment: {
+        mcpTool: 'filesystem__read_file'
+      }
     });
     console.log(`Result: ${result3.decision} - ${result3.reason}\n`);
 

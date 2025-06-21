@@ -12,7 +12,7 @@ import {
   PolicyDecision as ODRLDecision 
 } from '../odrl/types';
 import { defaultPolicySet } from '../odrl/sample-policies';
-import { PolicyDecision, DecisionContext } from '../types/policy';
+import { PolicyDecision, DecisionContext } from '../types';
 import { logger } from '../utils/logger';
 import { AIJudgmentEngine } from '../ai/judgment-engine';
 
@@ -140,32 +140,32 @@ export class HybridPolicyEngine {
       agent: {
         id: context.agent,
         type: context.agentType || 'unknown',
-        role: context.agentRole,
+        role: context.environment?.agentRole,
         clearanceLevel: context.clearanceLevel,
         trustScore: context.trustScore || 0.5
       },
       
       resource: {
         type: context.resource,
-        id: context.resourceId,
-        classification: context.resourceClassification || 'internal'
+        id: context.environment?.resourceId || context.resource,
+        classification: context.environment?.resourceClassification || 'internal'
       },
       
       action: {
         type: context.action,
-        mcpMethod: context.mcpMethod,
-        mcpTool: context.mcpTool
+        mcpMethod: context.environment?.mcpMethod,
+        mcpTool: context.environment?.mcpTool
       },
       
       environment: {
-        ipAddress: context.ipAddress,
+        ipAddress: context.environment?.ipAddress,
         location: context.location,
-        emergency: context.emergency || false,
-        delegationChain: context.delegationChain,
-        sessionId: context.sessionId
+        emergency: context.environment?.emergency || false,
+        delegationChain: context.environment?.delegationChain,
+        sessionId: context.environment?.sessionId
       },
       
-      extensions: context.metadata
+      extensions: context.environment?.metadata
     };
   }
 
@@ -199,11 +199,15 @@ export class HybridPolicyEngine {
     originalContext: DecisionContext
   ): PolicyDecision {
     // Build reason from matched rules and constraints
-    let reason = 'Decision based on ODRL policy';
+    let reason = 'ODRL: ';
     
     if (odrlDecision.matchedRules && odrlDecision.matchedRules.length > 0) {
       const ruleTypes = odrlDecision.matchedRules.map(r => r['@type'] || 'Rule');
-      reason = `Matched ${ruleTypes.join(', ')}`;
+      reason += `Matched ${ruleTypes.join(', ')}`;
+    } else if (odrlDecision.decision === 'NOT_APPLICABLE') {
+      reason += 'No matching rules';
+    } else {
+      reason += 'Policy evaluation';
     }
     
     if (odrlDecision.failedConstraints && odrlDecision.failedConstraints.length > 0) {

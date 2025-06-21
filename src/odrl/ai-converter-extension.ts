@@ -237,11 +237,13 @@ W3C ODRL 2.2標準に準拠した有効なJSONを生成してください。
     policy.metadata = {
       ...policy.metadata,
       created: new Date().toISOString(),
-      description: `AI-generated from: ${nlPolicy.substring(0, 100)}...`,
-      conversionMethod: 'ai',
-      aiConfidence: analysis.confidence,
-      aiReasoning: analysis.reasoning
+      description: `AI-generated from: ${nlPolicy.substring(0, 100)}...`
     };
+    
+    // Store AI-specific metadata separately in the policy object
+    (policy as any).conversionMethod = 'ai';
+    (policy as any).aiConfidence = analysis.confidence;
+    (policy as any).aiReasoning = analysis.reasoning;
     
     // 優先度を設定（AI生成は中程度の優先度）
     policy.priority = policy.priority || 500;

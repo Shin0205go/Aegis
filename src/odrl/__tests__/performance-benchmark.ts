@@ -5,7 +5,7 @@
 
 import { HybridPolicyEngine } from '../../policy/hybrid-policy-engine';
 import { AIJudgmentEngine } from '../../ai/judgment-engine';
-import { DecisionContext } from '../../types/policy';
+import { DecisionContext } from '../../types';
 import { businessHoursPolicy, agentTrustPolicy, mcpToolPolicy } from '../sample-policies';
 
 // Mock AI engine with realistic latency
@@ -14,9 +14,9 @@ class BenchmarkAIEngine extends AIJudgmentEngine {
 
   constructor(latency: number = 100) {
     super({
+      provider: 'anthropic',
       apiKey: 'benchmark-key',
-      model: 'claude-3-haiku-20240307',
-      systemPrompt: 'benchmark'
+      model: 'claude-3-haiku-20240307'
     });
     this.latency = latency;
   }
@@ -82,8 +82,9 @@ class PolicyBenchmark {
             resource,
             time: new Date(`2024-01-01T${hour.toString().padStart(2, '0')}:00:00`),
             trustScore: Math.random(),
-            resourceClassification: resource.includes('confidential') ? 'confidential' : 'internal',
-            environment: {}
+            environment: {
+              resourceClassification: resource.includes('confidential') ? 'confidential' : 'internal'
+            }
           });
         }
       }
