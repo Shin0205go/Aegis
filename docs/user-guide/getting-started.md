@@ -15,8 +15,8 @@
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/youraccount/aegis-policy-engine.git
-cd aegis-policy-engine
+git clone https://github.com/Shin0205go/Aegis.git
+cd Aegis
 ```
 
 ### 2. 依存関係のインストール
@@ -141,12 +141,12 @@ tail -f logs/audit/audit_*.json
 
 ### ポートが既に使用されている
 
-エラー: `Error: listen EADDRINUSE: address already in use :::3000`
+エラー: `Error: listen EADDRINUSE: address already in use :::8080`
 
 解決方法：
 ```bash
 # 別のポートを使用
-PORT=3001 node mcp-launcher.js
+MCP_PROXY_HTTP_PORT=8081 node mcp-launcher.js
 ```
 
 ### APIキーが設定されていない
