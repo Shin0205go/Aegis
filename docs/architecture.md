@@ -181,6 +181,12 @@ export class ToolDiscoveryService {
 - VPN接続判定
 - 脅威スコア計算
 
+#### データ系譜エンリッチャー
+- データの出所・インポート履歴
+- 変換・加工の追跡
+- 依存リソースの管理
+- アクセス履歴と頻度
+
 ### 4. PAP (Policy Administration Point) - ポリシー管理
 
 **責務**: 自然言語ポリシーのライフサイクル管理
@@ -190,6 +196,57 @@ export class ToolDiscoveryService {
 - バージョン管理
 - メタデータ管理
 - インポート/エクスポート
+
+### 5. EnforcementSystem (Phase 3) - 高度な制約・義務処理
+
+**責務**: 判定結果に基づく高度な制約適用と義務実行
+
+**アーキテクチャ**:
+```typescript
+// src/core/enforcement.ts
+export class EnforcementSystem {
+  private constraintManager: ConstraintProcessorManager;
+  private obligationManager: ObligationExecutorManager;
+}
+```
+
+#### 制約プロセッサー (ConstraintProcessorManager)
+
+**実装済みプロセッサー**:
+
+1. **DataAnonymizerProcessor** - データ匿名化
+   - マスク化、トークン化、ハッシュ化、削除
+   - 日本語対応（個人情報、マスク等のパターン認識）
+   - 形式保持マスキング（メールアドレス、電話番号等）
+
+2. **RateLimiterProcessor** - レート制限
+   - スライディングウィンドウ方式
+   - 時間単位（秒/分/時/日）対応
+   - キャッシュ機能と自動クリーンアップ
+
+3. **GeoRestrictorProcessor** - 地理的制限
+   - IPベース位置判定
+   - 国・地域単位での制限
+   - 許可/拒否パターン設定
+
+#### 義務エグゼキューター (ObligationExecutorManager)
+
+**実装済みエグゼキューター**:
+
+1. **AuditLoggerExecutor** - 監査ログ
+   - 複数フォーマット対応（JSON、CSV、Syslog）
+   - AES-256-GCM暗号化
+   - 複数出力先（ファイル、DB、SIEM、クラウド）
+
+2. **NotifierExecutor** - 通知システム
+   - マルチチャンネル（Email、Slack、Teams、SMS、Webhook）
+   - 優先度別通知
+   - エスカレーション機能
+
+3. **DataLifecycleExecutor** - データライフサイクル管理
+   - スケジュールアクション（削除、アーカイブ、匿名化、エクスポート）
+   - 保持期間管理
+   - 事前通知機能
 
 ## データフロー
 
@@ -333,6 +390,66 @@ export class CustomConstraint implements Constraint {
 - **SIEM連携**: セキュリティイベントの転送
 - **ワークフロー連携**: 承認フローの自動化
 - **通知連携**: Slack、メール通知
+
+## 実装ロードマップ
+
+### ✅ Phase 1: MVP完了
+- ✅ PDP基本実装 (自然言語→AI判定)
+- ✅ PEP基本実装 (MCPプロキシ)
+- ✅ Claude Desktop統合
+- ✅ 上流MCPサーバーのツール集約
+- ✅ ツールルーティングとプレフィックス処理
+- ✅ 基本的なポリシー制御の動作確認
+
+### ✅ Phase 2: 基本機能完了
+- ✅ PIP実装 (コンテキスト収集)
+- ✅ PAP実装 (ポリシー管理)
+- ✅ 制約・義務の基本実装
+- ✅ stdio/HTTPトランスポート対応
+
+### 🚧 Phase 3: 本格運用 (部分完了)
+- ✅ 高度な制約・義務処理
+  - ✅ ConstraintProcessorManager: 制約プロセッサ統合管理
+  - ✅ DataAnonymizerProcessor: 高度な匿名化
+  - ✅ RateLimiterProcessor: レート制限
+  - ✅ GeoRestrictorProcessor: 地理的制限
+  - ✅ ObligationExecutorManager: 義務エグゼキューター統合管理
+  - ✅ AuditLoggerExecutor: 監査ログ
+  - ✅ NotifierExecutor: 通知システム
+  - ✅ DataLifecycleExecutor: データライフサイクル管理
+  - ⚠️ MCPプロキシへの完全統合（部分的に実装、レガシーシステムと併存）
+- ⏳ 監査・レポート機能（基本的な監査ログは実装済み、高度なレポート機能は未実装）
+- ⏳ 性能最適化・スケーラビリティ
+
+### 📋 Phase 4: エンタープライズ (計画中)
+- ⏳ 高可用性・フェイルオーバー
+- ⏳ 詳細な権限管理
+- ⏳ 法的要件対応 (GDPR等)
+
+## 現在の動作状況
+
+**AEGIS MCPプロキシ**が正常に動作中：
+- **12個のツール**がClaude Desktop経由で利用可能
+- **ファイルシステム操作** (`filesystem__*`)
+- **コマンド・コード実行** (`execution-server__*`)
+- **内蔵ツール** (artifacts, repl, web_search, web_fetch)
+- **リアルタイムポリシー制御**が全ツールに適用済み
+
+### 移行状況
+- **レガシーシステム**: 基本的な制約・義務処理（Phase 2実装）
+- **新システム（EnforcementSystem）**: 高度な制約・義務処理（Phase 3実装）
+- 現在は両システムが併存し、段階的に新システムへ移行中
+
+## 従来IDSとの比較
+
+| 要素 | 従来のIDS | AEGIS |
+|------|-----------|--------|
+| **ポリシー記述** | XACML/ODRL (XML) | 自然言語 |
+| **判定エンジン** | ルールエンジン | AI/LLM |
+| **統合方法** | アプリ改修必要 | MCPプロキシ (透明) |
+| **設定管理** | 技術者専用 | 誰でも編集可能 |
+| **柔軟性** | 事前定義ルールのみ | 動的推論 |
+| **導入コスト** | 高 (大規模改修) | 低 (プロキシ設置のみ) |
 
 ## まとめ
 

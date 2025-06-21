@@ -19,7 +19,8 @@ import {
   TimeBasedEnricher,
   AgentInfoEnricher,
   ResourceClassifierEnricher,
-  SecurityInfoEnricher
+  SecurityInfoEnricher,
+  DataLineageEnricher
 } from '../context/index.js';
 import { PolicyAdministrator } from '../policies/administrator.js';
 import { PolicyConflictResolver, PolicyApplicabilityFilter } from '../policies/policy-resolver.js';
@@ -90,6 +91,9 @@ export class AEGISController {
 
     // セキュリティ情報エンリッチャー
     this.contextCollector.registerEnricher(new SecurityInfoEnricher());
+
+    // データ系譜エンリッチャー
+    this.contextCollector.registerEnricher(new DataLineageEnricher());
 
     this.logger.info('Context enrichers registered successfully');
   }

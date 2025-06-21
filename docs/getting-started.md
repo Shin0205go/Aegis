@@ -64,23 +64,22 @@ npm run build
 
 AEGISには複数の起動方法があります：
 
-### 1. Web UI による管理 (`npm run start:api`)
+### 1. Web UI による管理 (`npm run start:mcp:http`)
 
 AEGISには視覚的にポリシーを管理できるWeb UIが含まれています：
 
 ```bash
-# 本番モード
-npm run start:api
+# HTTPトランスポートでMCPサーバー起動（Web UI含む）
+npm run start:mcp:http
 
 # 開発モード（ホットリロード付き）
-npm run dev:api
+npm run dev:mcp:http
 
 # React UI（オプション、より高度なUI）
 cd web && npm install && npm run dev
 ```
 
-APIサーバーが起動したら、React UIを別ターミナルで起動してください。
-ブラウザで http://localhost:3001 (React UI) または http://localhost:3000 (API直接アクセス) にアクセスすると、以下の機能が利用できます：
+MCPサーバーが起動したら、ブラウザで http://localhost:3000 にアクセスすると、以下の機能が利用できます：
 - ポリシーの作成・編集・削除
 - リアルタイムポリシー解析
 - アクセス制御のテストシミュレーション
@@ -99,12 +98,27 @@ npm run start:mcp:http
 ```
 
 **Claude Desktop統合**:
+
+方法1: 直接起動
 ```json
 {
   "mcpServers": {
     "aegis-proxy": {
       "command": "node",
       "args": ["/path/to/Aegis/dist/src/mcp-server.js"],
+      "cwd": "/path/to/Aegis"
+    }
+  }
+}
+```
+
+方法2: ランチャースクリプト使用（推奨）
+```json
+{
+  "mcpServers": {
+    "aegis-proxy": {
+      "command": "node",
+      "args": ["/path/to/Aegis/mcp-launcher.js"],
       "cwd": "/path/to/Aegis"
     }
   }
@@ -152,42 +166,14 @@ npm run start:mcp:http
 
 ### 3. ライブラリとしての統合
 
-カスタムWebSocketトランスポートで起動します（非MCP公式）。
-
-```bash
-# 基本的な起動
-npm run start:server
-
-# ビルドと起動を同時に実行
-npm run build && npm run start:server
-
-# カスタムポートで起動
-PORT=8080 npm run start:server
-
-# デバッグモードで起動
-LOG_LEVEL=debug npm run start:server
-```
-
-**起動後の確認:**
-```bash
-# ヘルスチェック
-curl http://localhost:3000/health
-
-# ポリシー一覧
-curl http://localhost:3000/policies
-```
-
-**用途:**
-- AIエージェントのMCP通信を制御したい場合
-- WebSocketベースのプロキシサーバーが必要な場合
-- 独立したサービスとして運用する場合
+**注意**: WebSocketトランスポートは廃止されました。MCPプロキシサーバーの統合をご利用ください。
 
 他のNode.jsアプリケーションに組み込んで使用できます：
 
 ```typescript
 // your-app.ts
-import { AEGISController } from 'aegis-policy-engine/dist/src/core/controller';
-import { AnthropicLLM } from 'aegis-policy-engine/dist/src/ai/anthropic-llm';
+import { AEGISController } from '@aegis/core/controller';
+import { AnthropicLLM } from '@aegis/ai/anthropic-llm';
 
 async function main() {
   // LLMインスタンス初期化
@@ -222,12 +208,12 @@ async function main() {
 
 ### 使い分けガイド
 
-| 項目 | APIサーバー | MCPプロキシ | ライブラリ |
-|------|------------|------------|------------|
-| **起動方法** | `npm run start:api` | `npm run start:mcp` | コード内 |
-| **用途** | REST API提供 | Claude Desktop統合 | 組み込み制御 |
-| **対象ユーザー** | フロントエンド/管理者 | AIユーザー | 開発者 |
-| **設定方法** | API呼び出し | 設定ファイル | プログラム |
+| 項目 | MCPプロキシ (HTTP) | MCPプロキシ (stdio) | ライブラリ |
+|------|-------------------|-------------------|------------|
+| **起動方法** | `npm run start:mcp:http` | `npm run start:mcp` | コード内 |
+| **用途** | Web UI + API提供 | Claude Desktop統合 | 組み込み制御 |
+| **対象ユーザー** | 管理者/開発者 | AIユーザー | 開発者 |
+| **設定方法** | Web UI/API | 設定ファイル | プログラム |
 
 ## 基本的な使い方
 
@@ -268,9 +254,9 @@ curl -X POST http://localhost:3000/api/policies \
 ### ライブラリとしての場合
 
 ```typescript
-import { AEGISController } from 'aegis-policy-engine/dist/src/core/controller';
-import { PolicyAdministrator } from 'aegis-policy-engine/dist/src/policies/policy-administrator';
-import { AnthropicLLM } from 'aegis-policy-engine/dist/src/ai/anthropic-llm';
+import { AEGISController } from './dist/src/core/controller.js';
+import { PolicyAdministrator } from './dist/src/policies/administrator.js';
+import { AnthropicLLM } from './dist/src/ai/anthropic-llm.js';
 
 // 初期化
 const llm = new AnthropicLLM({
@@ -322,6 +308,10 @@ NODE_ENV=production        # 環境
 # キャッシュ設定
 CACHE_ENABLED=true         # キャッシュ有効化
 CACHE_TTL=3600            # キャッシュ期間（秒）
+
+# MCP設定
+AEGIS_CONFIG_PATH=./aegis-mcp-config.json  # MCP設定ファイルパス
+CLAUDE_DESKTOP_CONFIG_PATH=auto            # Claude Desktop設定（自動検出）
 
 # Web UI設定
 POLICY_UI_PORT=3000        # Web UIポート
