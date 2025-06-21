@@ -15,8 +15,8 @@
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/youraccount/aegis-policy-engine.git
-cd aegis-policy-engine
+git clone https://github.com/Shin0205go/Aegis.git
+cd Aegis
 ```
 
 ### 2. 依存関係のインストール
