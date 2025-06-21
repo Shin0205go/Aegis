@@ -515,15 +515,15 @@ export class MCPHttpPolicyProxy {
       
       const result = await this.enforcementSystem.applyConstraints(constraints, data, context);
       
-      // 制約適用の結果をログ
-      this.logger.info('制約適用完了', {
+      // Log constraint application results
+      this.logger.info('Constraints applied successfully', {
         constraintCount: constraints.length,
         appliedConstraints: constraints
       });
       
       return result;
     } catch (error) {
-      this.logger.error('制約適用エラー', error);
+      this.logger.error('Error applying constraints', error);
       // エラー時はデータをそのまま返す（フェイルオープン）
       return data;
     }
@@ -559,12 +559,12 @@ export class MCPHttpPolicyProxy {
       
       await this.enforcementSystem.executeObligations(obligations, context, decision);
       
-      this.logger.info('義務実行完了', {
+      this.logger.info('Obligations executed successfully', {
         obligationCount: obligations.length,
         executedObligations: obligations
       });
     } catch (error) {
-      this.logger.error('義務実行エラー', error);
+      this.logger.error('Error executing obligations', error);
       // 義務実行の失敗はリクエスト自体には影響させない
     }
   }
@@ -574,6 +574,8 @@ export class MCPHttpPolicyProxy {
   // パブリックメソッド
   addPolicy(name: string, policy: string): void {
     this.policies.set(name, policy);
+    // Clear cache when natural language policies are added
+    this.hybridPolicyEngine.clearCache();
     this.logger.info(`Policy added: ${name}`);
   }
 
@@ -582,6 +584,8 @@ export class MCPHttpPolicyProxy {
       throw new Error(`Policy ${name} not found`);
     }
     this.policies.set(name, policy);
+    // Clear cache when natural language policies are updated
+    this.hybridPolicyEngine.clearCache();
     this.logger.info(`Policy updated: ${name}`);
   }
 
@@ -628,9 +632,9 @@ export class MCPHttpPolicyProxy {
   async start(): Promise<void> {
     const port = this.config.mcpProxy.port || 8080;
     
-    // 制約・義務システムを初期化
+    // Initialize constraint and obligation system
     await this.enforcementSystem.initialize();
-    this.logger.info('制約・義務実施システムを初期化しました');
+    this.logger.info('Constraint and obligation enforcement system initialized');
     
     // ブリッジモードの場合はstdioサーバーを起動
     if (this.bridgeMode && this.stdioRouter) {
