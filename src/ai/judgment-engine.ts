@@ -10,6 +10,34 @@ import type {
 import { OpenAILLM } from './openai-llm.js';
 import { AnthropicLLM } from './anthropic-llm.js';
 
+// Configuration constants
+const AI_LEARNING_CONFIG = {
+  // Cache settings
+  DECISION_CACHE_CAPACITY: 1000,
+  PROMPT_TEMPLATE_CACHE_CAPACITY: 500,
+  
+  // Learning thresholds
+  LOW_CONFIDENCE_THRESHOLD: 0.7,
+  LEARNING_DATA_THRESHOLD: 1000,
+  PATTERN_SIMILARITY_MIN_COUNT: 10,
+  
+  // Fine-tuning settings
+  FINETUNING_DAYS_TO_PROCESS: 30,
+  FINETUNING_FILES_TO_KEEP: 30,
+  
+  // Pattern cache settings
+  INITIAL_PATTERN_CONFIDENCE: 0.7,
+  PATTERN_CONFIDENCE_INCREMENT: 0.02,
+  PATTERN_CONFIDENCE_DECREMENT: 0.01,
+  
+  // File paths
+  LEARNING_DATA_DIR: 'data/learning',
+  
+  // Business hours (JST)
+  BUSINESS_HOURS_START: 9,
+  BUSINESS_HOURS_END: 18
+};
+
 interface LRUCache<K, V> {
   get(key: K): V | undefined;
   set(key: K, value: V): void;
@@ -49,7 +77,7 @@ class SimpleLRUCache<K, V> implements LRUCache<K, V> {
 export class AIJudgmentEngine {
   private llm: OpenAILLM | AnthropicLLM;
   private decisionCache: LRUCache<string, PolicyDecision>;
-  private promptTemplateCache = new Map<string, string>();
+  private promptTemplateCache: LRUCache<string, string>;
   private cacheCapacity: number;
 
   constructor(llmConfig: LLMConfig) {
@@ -66,8 +94,9 @@ export class AIJudgmentEngine {
         break;
     }
     
-    this.cacheCapacity = 1000;
+    this.cacheCapacity = AI_LEARNING_CONFIG.DECISION_CACHE_CAPACITY;
     this.decisionCache = new SimpleLRUCache<string, PolicyDecision>(this.cacheCapacity);
+    this.promptTemplateCache = new SimpleLRUCache<string, string>(AI_LEARNING_CONFIG.PROMPT_TEMPLATE_CACHE_CAPACITY);
   }
 
   // メイン判定メソッド
@@ -195,7 +224,7 @@ ${JSON.stringify(context.environment, null, 2)}
     const hour = time.getHours();
     const day = time.getDay();
     const isWeekend = day === 0 || day === 6;
-    const isBusinessHours = !isWeekend && hour >= 9 && hour < 18;
+    const isBusinessHours = !isWeekend && hour >= AI_LEARNING_CONFIG.BUSINESS_HOURS_START && hour < AI_LEARNING_CONFIG.BUSINESS_HOURS_END;
     
     if (isBusinessHours) return "営業時間内";
     if (isWeekend) return "週末";
@@ -437,6 +466,23 @@ ${policy}
 
   // 学習メソッド（決定結果からパターンを学習）
   async learn(decision: PolicyDecision, context: DecisionContext, policy: string): Promise<void> {
+    // Input validation
+    if (!decision || !context || !policy) {
+      throw new Error('Missing required parameters for learning');
+    }
+    
+    if (!decision.decision || !['PERMIT', 'DENY', 'INDETERMINATE'].includes(decision.decision)) {
+      throw new Error('Invalid decision value');
+    }
+    
+    if (typeof decision.confidence !== 'number' || decision.confidence < 0 || decision.confidence > 1) {
+      throw new Error('Invalid confidence value - must be between 0 and 1');
+    }
+    
+    if (!context.agent || !context.action || !context.resource) {
+      throw new Error('Missing required context fields');
+    }
+    
     try {
       console.error('[AI Learn] Starting learning process...');
       
@@ -488,7 +534,7 @@ ${policy}
   private extractPatterns(context: DecisionContext, decision: PolicyDecision): any {
     const timeObj = context.time instanceof Date ? context.time : new Date(context.time);
     const hour = timeObj.getHours();
-    const isBusinessHours = hour >= 9 && hour < 18;
+    const isBusinessHours = hour >= AI_LEARNING_CONFIG.BUSINESS_HOURS_START && hour < AI_LEARNING_CONFIG.BUSINESS_HOURS_END;
     
     return {
       timePattern: {
@@ -535,18 +581,51 @@ ${policy}
     return 'low';
   }
   
-  // 学習データの保存
+  // 学習データの保存 (アトミックな書き込み)
   private async saveLearningData(entry: any): Promise<void> {
     const fs = await import('fs/promises');
     const path = await import('path');
+    const crypto = await import('crypto');
+    
+    // データディレクトリの確保
+    const dirPath = path.resolve(AI_LEARNING_CONFIG.LEARNING_DATA_DIR);
+    await fs.mkdir(dirPath, { recursive: true });
     
     // 日付ベースのファイル名
     const date = new Date();
     const filename = `learning-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.jsonl`;
-    const filepath = path.join('data', 'learning', filename);
+    const filepath = path.join(dirPath, filename);
     
-    // ファイルに追記（JSON Lines形式）
-    await fs.appendFile(filepath, JSON.stringify(entry) + '\n', 'utf8');
+    // アトミックな書き込みのための一時ファイル
+    const tempFilename = `.${filename}.${crypto.randomBytes(8).toString('hex')}.tmp`;
+    const tempFilepath = path.join(dirPath, tempFilename);
+    
+    try {
+      // まず既存のファイル内容を読み込む（存在する場合）
+      let existingContent = '';
+      try {
+        existingContent = await fs.readFile(filepath, 'utf8');
+      } catch (error) {
+        // ファイルが存在しない場合は空文字列のまま
+      }
+      
+      // 新しいエントリを追加
+      const newContent = existingContent + JSON.stringify(entry) + '\n';
+      
+      // 一時ファイルに書き込み
+      await fs.writeFile(tempFilepath, newContent, 'utf8');
+      
+      // アトミックにリネーム
+      await fs.rename(tempFilepath, filepath);
+    } catch (error) {
+      // エラー時は一時ファイルをクリーンアップ
+      try {
+        await fs.unlink(tempFilepath);
+      } catch (cleanupError) {
+        // クリーンアップエラーは無視
+      }
+      throw error;
+    }
   }
   
   // パターンキャッシュの更新
@@ -593,7 +672,7 @@ ${policy}
     const similarPatterns: any[] = [];
     const date = new Date();
     const filename = `learning-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.jsonl`;
-    const filepath = path.join('data', 'learning', filename);
+    const filepath = path.join(AI_LEARNING_CONFIG.LEARNING_DATA_DIR, filename);
     
     try {
       // ファイルが存在するか確認
@@ -629,7 +708,7 @@ ${policy}
     const path = await import('path');
     
     try {
-      const learningDir = path.join('data', 'learning');
+      const learningDir = path.join(AI_LEARNING_CONFIG.LEARNING_DATA_DIR);
       const files = await fs.readdir(learningDir);
       const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
       
@@ -648,7 +727,7 @@ ${policy}
     const path = await import('path');
     
     try {
-      const learningDir = path.join('data', 'learning');
+      const learningDir = path.join(AI_LEARNING_CONFIG.LEARNING_DATA_DIR);
       const files = await fs.readdir(learningDir);
       const jsonlFiles = files.filter(f => f.endsWith('.jsonl')).sort();
       
@@ -684,7 +763,7 @@ ${policy}
       }
       
       // ファインチューニング用データセットを保存
-      const outputPath = path.join('data', 'learning', 'finetuning-dataset.jsonl');
+      const outputPath = path.join(AI_LEARNING_CONFIG.LEARNING_DATA_DIR, 'finetuning-dataset.jsonl');
       await fs.writeFile(
         outputPath,
         finetuningData.map(d => JSON.stringify(d)).join('\n'),
