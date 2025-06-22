@@ -401,10 +401,7 @@ ${policy}
   // 汎用分析メソッド
   async analyze(prompt: string, options: any = {}): Promise<any> {
     try {
-      const response = await this.llm.complete(prompt, {
-        temperature: options.temperature || 0.3,
-        maxTokens: options.maxTokens || 1000
-      });
+      const response = await this.llm.complete(prompt);
       
       if (options.responseFormat === 'json') {
         return this.parseJSONResponse(response);
@@ -420,10 +417,7 @@ ${policy}
   // 汎用生成メソッド
   async generate(prompt: string, options: any = {}): Promise<any> {
     try {
-      const response = await this.llm.complete(prompt, {
-        temperature: options.temperature || 0.2,
-        maxTokens: options.maxTokens || 2000
-      });
+      const response = await this.llm.complete(prompt);
       
       if (options.responseFormat === 'json') {
         return this.parseJSONResponse(response);

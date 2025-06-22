@@ -3,7 +3,7 @@
  * These demonstrate common policy patterns
  */
 
-import { AEGISPolicy } from './types';
+import { AEGISPolicy, Operator, LeftOperand } from './types';
 
 /**
  * Business hours access policy
@@ -30,15 +30,21 @@ export const businessHoursPolicy: AEGISPolicy = {
       '@type': 'LogicalConstraint',
       'or': [
         {
-          '@type': 'Constraint',
-          'leftOperand': 'timeOfDay',
-          'operator': 'gteq',
-          'rightOperand': '09:00:00',
-          'and': {
-            'leftOperand': 'timeOfDay',
-            'operator': 'lteq',
-            'rightOperand': '18:00:00'
-          }
+          '@type': 'LogicalConstraint',
+          'and': [
+            {
+              '@type': 'Constraint',
+              'leftOperand': 'timeOfDay',
+              'operator': 'gteq',
+              'rightOperand': '09:00:00'
+            },
+            {
+              '@type': 'Constraint',
+              'leftOperand': 'timeOfDay',
+              'operator': 'lteq',
+              'rightOperand': '18:00:00'
+            }
+          ]
         },
         {
           '@type': 'Constraint',
@@ -168,18 +174,32 @@ export const mcpToolPolicy: AEGISPolicy = {
       }]
     }
   ],
-  'prohibition': [{
-    '@type': 'Prohibition',
-    'action': {
-      'value': 'tool:execution-server__*'
+  'prohibition': [
+    {
+      '@type': 'Prohibition',
+      'action': {
+        'value': 'tool:execution-server__*'
+      },
+      'constraint': [{
+        '@type': 'Constraint',
+        'leftOperand': 'aegis:agentType',
+        'operator': 'isNoneOf',
+        'rightOperand': ['admin', 'system']
+      }]
     },
-    'constraint': [{
-      '@type': 'Constraint',
-      'leftOperand': 'aegis:agentType',
-      'operator': 'isNoneOf',
-      'rightOperand': ['admin', 'system']
-    }]
-  }]
+    {
+      '@type': 'Prohibition',
+      'action': {
+        'value': 'tool:filesystem__write_*'
+      },
+      'constraint': [{
+        '@type': 'Constraint',
+        'leftOperand': 'aegis:agentType',
+        'operator': 'eq',
+        'rightOperand': 'research'
+      }]
+    }
+  ]
 };
 
 /**
@@ -259,7 +279,7 @@ export const defaultPolicySet: AEGISPolicy[] = [
  */
 export function createSimplePermission(
   action: string,
-  condition?: { operand: string; operator: string; value: any }
+  condition?: { operand: string; operator: Operator; value: any }
 ): AEGISPolicy {
   const policy: AEGISPolicy = {
     '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
@@ -275,9 +295,9 @@ export function createSimplePermission(
   if (condition) {
     policy.permission![0].constraint = [{
       '@type': 'Constraint',
-      'leftOperand': condition.operand,
-      'operator': condition.operator,
-      'rightOperand': condition.value
+      leftOperand: condition.operand as LeftOperand,
+      operator: condition.operator,
+      rightOperand: condition.value
     }];
   }
   
@@ -289,7 +309,7 @@ export function createSimplePermission(
  */
 export function createSimpleProhibition(
   action: string,
-  condition?: { operand: string; operator: string; value: any }
+  condition?: { operand: string; operator: Operator; value: any }
 ): AEGISPolicy {
   const policy: AEGISPolicy = {
     '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
@@ -305,9 +325,9 @@ export function createSimpleProhibition(
   if (condition) {
     policy.prohibition![0].constraint = [{
       '@type': 'Constraint',
-      'leftOperand': condition.operand,
-      'operator': condition.operator,
-      'rightOperand': condition.value
+      leftOperand: condition.operand as LeftOperand,
+      operator: condition.operator,
+      rightOperand: condition.value
     }];
   }
   
