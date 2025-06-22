@@ -96,7 +96,10 @@ ${JSON.stringify(odrlPolicy, null, 2)}
 今後の変換精度向上のため、このパターンを記憶してください。
 `;
 
-    await this.aiEngine.learn(learningPrompt);
+    // 学習プロンプトは現在のlearn()メソッドでは直接使用されないため、
+    // 将来的な実装のためにコメントアウト
+    // TODO: 学習プロンプトを使用する新しいメソッドの実装を検討
+    // await this.aiEngine.learn(learningPrompt);
   }
 
   private buildAnalysisPrompt(nlPolicy: string): string {
@@ -341,5 +344,7 @@ export interface EnhancedAIJudgmentEngine extends AIJudgmentEngine {
   analyzePolicy(nlPolicy: string, context: any): Promise<AIAnalysisResult>;
   analyze(prompt: string, options: any): Promise<any>;
   generate(prompt: string, options: any): Promise<any>;
-  learn(prompt: string): Promise<void>;
+  // learn method is inherited from AIJudgmentEngine with the correct signature
+  // Additional method for learning from prompts (different from base learn method)
+  learnFromPrompt?(prompt: string): Promise<void>;
 }

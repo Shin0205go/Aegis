@@ -102,6 +102,11 @@ export class AIJudgmentEngine {
       // 6. ログ記録
       this.logDecision(context, decision, naturalLanguagePolicy);
       
+      // 7. 学習プロセス（非ブロッキング）
+      this.learn(decision, context, naturalLanguagePolicy).catch(err => {
+        console.error('[AI Judgment] Learning process failed:', err);
+      });
+      
       return decision;
     } catch (error) {
       console.error('[AI Judgment] Decision error:', error);
@@ -430,16 +435,271 @@ ${policy}
     }
   }
 
-  // 学習メソッド（現在は記録のみ）
-  async learn(prompt: string): Promise<void> {
-    // TODO: 実際の学習実装
-    // 現在は学習データを記録するのみ
-    console.error('[AI Learn] Learning from:', prompt.substring(0, 100) + '...');
+  // 学習メソッド（決定結果からパターンを学習）
+  async learn(decision: PolicyDecision, context: DecisionContext, policy: string): Promise<void> {
+    try {
+      console.error('[AI Learn] Starting learning process...');
+      
+      // 1. 学習データの構築
+      const learningEntry = {
+        timestamp: new Date().toISOString(),
+        policyHash: this.hashString(policy),
+        context: {
+          agent: context.agent,
+          agentType: context.agentType,
+          action: context.action,
+          resource: context.resource,
+          purpose: context.purpose,
+          time: context.time,
+          clearanceLevel: context.clearanceLevel
+        },
+        decision: {
+          decision: decision.decision,
+          confidence: decision.confidence,
+          riskLevel: decision.riskLevel,
+          reason: decision.reason
+        },
+        patterns: this.extractPatterns(context, decision)
+      };
+      
+      // 2. 学習データの永続化
+      await this.saveLearningData(learningEntry);
+      
+      // 3. パターンマッチングキャッシュの更新
+      await this.updatePatternCache(learningEntry.patterns);
+      
+      // 4. しきい値調整の検討
+      if (decision.confidence < 0.5 && decision.decision === "INDETERMINATE") {
+        await this.adjustDecisionThresholds(learningEntry);
+      }
+      
+      // 5. 将来的なファインチューニング用データの準備
+      if (await this.shouldPrepareFinetuning()) {
+        await this.prepareFinetuningData();
+      }
+      
+      console.error('[AI Learn] Learning process completed');
+    } catch (error) {
+      console.error('[AI Learn] Learning failed:', error);
+    }
+  }
+  
+  // パターン抽出
+  private extractPatterns(context: DecisionContext, decision: PolicyDecision): any {
+    const timeObj = context.time instanceof Date ? context.time : new Date(context.time);
+    const hour = timeObj.getHours();
+    const isBusinessHours = hour >= 9 && hour < 18;
     
-    // 将来的には:
-    // - ファインチューニングAPIの呼び出し
-    // - 学習データの保存
-    // - パターンの抽出と記録
+    return {
+      timePattern: {
+        hour,
+        isBusinessHours,
+        dayOfWeek: timeObj.getDay()
+      },
+      agentPattern: {
+        type: context.agentType || 'unknown',
+        hasHighClearance: typeof context.clearanceLevel === 'number' ? context.clearanceLevel >= 3 : false
+      },
+      resourcePattern: {
+        type: this.classifyResource(context.resource),
+        sensitivity: this.estimateSensitivity(context.resource)
+      },
+      decisionPattern: {
+        wasPermitted: decision.decision === "PERMIT",
+        confidence: decision.confidence,
+        hadConstraints: decision.constraints && decision.constraints.length > 0
+      }
+    };
+  }
+  
+  // リソース分類
+  private classifyResource(resource: string): string {
+    if (resource.includes('customer') || resource.includes('顧客')) return 'customer-data';
+    if (resource.includes('financial') || resource.includes('財務')) return 'financial-data';
+    if (resource.includes('employee') || resource.includes('従業員')) return 'employee-data';
+    if (resource.includes('system') || resource.includes('システム')) return 'system-config';
+    return 'general-data';
+  }
+  
+  // 機密度推定
+  private estimateSensitivity(resource: string): 'high' | 'medium' | 'low' {
+    const highSensitivityKeywords = ['password', 'secret', 'key', 'token', '個人情報', '機密'];
+    const mediumSensitivityKeywords = ['customer', 'financial', '顧客', '財務'];
+    
+    if (highSensitivityKeywords.some(kw => resource.toLowerCase().includes(kw))) {
+      return 'high';
+    }
+    if (mediumSensitivityKeywords.some(kw => resource.toLowerCase().includes(kw))) {
+      return 'medium';
+    }
+    return 'low';
+  }
+  
+  // 学習データの保存
+  private async saveLearningData(entry: any): Promise<void> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    // 日付ベースのファイル名
+    const date = new Date();
+    const filename = `learning-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.jsonl`;
+    const filepath = path.join('data', 'learning', filename);
+    
+    // ファイルに追記（JSON Lines形式）
+    await fs.appendFile(filepath, JSON.stringify(entry) + '\n', 'utf8');
+  }
+  
+  // パターンキャッシュの更新
+  private async updatePatternCache(patterns: any): Promise<void> {
+    const cacheKey = `pattern-${patterns.timePattern.isBusinessHours}-${patterns.resourcePattern.type}`;
+    
+    // 既存のパターン統計を取得（簡易実装）
+    const existingStats = this.promptTemplateCache.get(cacheKey);
+    const stats = existingStats ? JSON.parse(existingStats) : { permitCount: 0, denyCount: 0, total: 0 };
+    
+    // 統計を更新
+    stats.total++;
+    if (patterns.decisionPattern.wasPermitted) {
+      stats.permitCount++;
+    } else {
+      stats.denyCount++;
+    }
+    
+    // キャッシュに保存
+    this.promptTemplateCache.set(cacheKey, JSON.stringify(stats));
+  }
+  
+  // 決定しきい値の調整
+  private async adjustDecisionThresholds(learningEntry: any): Promise<void> {
+    console.error('[AI Learn] Low confidence detected, considering threshold adjustment');
+    
+    // 学習データから類似パターンを集計
+    const similarPatterns = await this.findSimilarPatterns(learningEntry);
+    
+    if (similarPatterns.length > 10) {
+      // 十分なデータがある場合、しきい値調整を検討
+      const avgConfidence = similarPatterns.reduce((sum, p) => sum + p.decision.confidence, 0) / similarPatterns.length;
+      console.error(`[AI Learn] Average confidence for similar patterns: ${avgConfidence}`);
+    }
+  }
+  
+  // 類似パターンの検索
+  private async findSimilarPatterns(entry: any): Promise<any[]> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const readline = await import('readline');
+    const { createReadStream } = await import('fs');
+    
+    const similarPatterns: any[] = [];
+    const date = new Date();
+    const filename = `learning-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.jsonl`;
+    const filepath = path.join('data', 'learning', filename);
+    
+    try {
+      // ファイルが存在するか確認
+      await fs.access(filepath);
+      
+      const fileStream = createReadStream(filepath);
+      const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+      });
+      
+      for await (const line of rl) {
+        if (line) {
+          const data = JSON.parse(line);
+          // 類似性チェック（簡易版）
+          if (data.patterns.resourcePattern.type === entry.patterns.resourcePattern.type &&
+              data.patterns.timePattern.isBusinessHours === entry.patterns.timePattern.isBusinessHours) {
+            similarPatterns.push(data);
+          }
+        }
+      }
+    } catch (error) {
+      // ファイルが存在しない場合は空配列を返す
+      console.error('[AI Learn] No learning data file found for today');
+    }
+    
+    return similarPatterns;
+  }
+  
+  // ファインチューニングの準備が必要かチェック
+  private async shouldPrepareFinetuning(): Promise<boolean> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    try {
+      const learningDir = path.join('data', 'learning');
+      const files = await fs.readdir(learningDir);
+      const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
+      
+      // 30日分以上のデータがある場合、ファインチューニングを検討
+      return jsonlFiles.length > 30;
+    } catch {
+      return false;
+    }
+  }
+  
+  // ファインチューニング用データの準備
+  private async prepareFinetuningData(): Promise<void> {
+    console.error('[AI Learn] Preparing fine-tuning dataset...');
+    
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    try {
+      const learningDir = path.join('data', 'learning');
+      const files = await fs.readdir(learningDir);
+      const jsonlFiles = files.filter(f => f.endsWith('.jsonl')).sort();
+      
+      const finetuningData: any[] = [];
+      
+      // 最新30ファイルからデータを収集
+      for (const file of jsonlFiles.slice(-30)) {
+        const content = await fs.readFile(path.join(learningDir, file), 'utf8');
+        const lines = content.trim().split('\n');
+        
+        for (const line of lines) {
+          if (line) {
+            const entry = JSON.parse(line);
+            // ファインチューニング用フォーマットに変換
+            finetuningData.push({
+              messages: [
+                {
+                  role: "system",
+                  content: "あなたは企業のAIエージェント利用制御システムです。"
+                },
+                {
+                  role: "user",
+                  content: this.createFinetuningPrompt(entry)
+                },
+                {
+                  role: "assistant",
+                  content: JSON.stringify(entry.decision)
+                }
+              ]
+            });
+          }
+        }
+      }
+      
+      // ファインチューニング用データセットを保存
+      const outputPath = path.join('data', 'learning', 'finetuning-dataset.jsonl');
+      await fs.writeFile(
+        outputPath,
+        finetuningData.map(d => JSON.stringify(d)).join('\n'),
+        'utf8'
+      );
+      
+      console.error(`[AI Learn] Fine-tuning dataset prepared with ${finetuningData.length} examples`);
+    } catch (error) {
+      console.error('[AI Learn] Failed to prepare fine-tuning data:', error);
+    }
+  }
+  
+  // ファインチューニング用プロンプトの作成
+  private createFinetuningPrompt(entry: any): string {
+    return `エージェント ${entry.context.agent} が ${entry.context.resource} に対して ${entry.context.action} を実行しようとしています。時刻: ${entry.context.time}、目的: ${entry.context.purpose || '未指定'}`;
   }
 
   // パブリックメソッド：AI判定の実行

@@ -15,21 +15,41 @@
 
 ## 🚀 クイックスタート
 
+### 前提条件
+- Node.js 18.0.0 以上
+- npm 8.0.0 以上
+
+### セットアップ手順
+
 ```bash
-# インストール
-npm install && npm run build
+# 1. 依存関係のインストール
+npm install
 
-# 環境設定
+# 2. プロジェクトのビルド
+npm run build
+
+# 3. 環境設定
 cp .env.example .env
-# ANTHROPIC_API_KEY または OPENAI_API_KEY を設定
+# .envファイルを編集して必要な設定を行います:
+# - ANTHROPIC_API_KEY または OPENAI_API_KEY を設定（必須）
+# - その他の設定はデフォルト値で動作します
 
-# AEGIS起動（統合サーバー: MCP機能 + Web UI）
+# 4. AEGIS起動（統合サーバー: MCP機能 + Web UI）
 node mcp-launcher.js
 
-# ODRLハイブリッドエンジンのテスト
+# 5. 動作確認（別ターミナルで実行）
 npm run test:odrl:demo  # デモ実行
 npm run test:odrl:quick # クイックテスト
 ```
+
+### 環境変数の設定
+主要な環境変数:
+- `LLM_PROVIDER`: 使用するLLMプロバイダー（`openai` または `anthropic`）
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`: APIキー（選択したプロバイダーに応じて設定）
+- `AEGIS_PORT`: サーバーポート（デフォルト: 3000）
+- `MCP_PROXY_PORT`: MCPプロキシポート（デフォルト: 8080）
+
+詳細な設定は `.env.example` を参照してください。
 
 詳細な手順は [導入ガイド](./docs/user-guide/getting-started.md) を参照してください。
 ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST_GUIDE.md) を参照してください。

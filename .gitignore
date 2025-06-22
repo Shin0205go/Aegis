@@ -67,3 +67,6 @@ policies/*.js
 policies/*.js.map
 policies/*.d.ts
 policies/*.d.ts.map
+
+# Learning data
+data/learning/
