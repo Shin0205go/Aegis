@@ -12,7 +12,7 @@ import {
   PolicyDecision as ODRLDecision 
 } from '../odrl/types';
 import { defaultPolicySet } from '../odrl/sample-policies';
-import { PolicyDecision, DecisionContext } from '../types/policy';
+import { PolicyDecision, DecisionContext } from '../types';
 import { logger } from '../utils/logger';
 import { AIJudgmentEngine } from '../ai/judgment-engine';
 
@@ -135,7 +135,7 @@ export class HybridPolicyEngine {
    */
   private convertToODRLContext(context: DecisionContext): EvaluationContext {
     return {
-      dateTime: new Date().toISOString(),
+      dateTime: context.time.toISOString(),
       
       agent: {
         id: context.agent,

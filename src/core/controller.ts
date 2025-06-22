@@ -553,7 +553,9 @@ export class AEGISController {
     // Ensure cache invalidation
     this.hybridPolicyEngine.clearCache();
     
-    this.hybridPolicyEngine.addODRLPolicy(policyId, policy);
+    // Ensure policy has an ID
+    policy.uid = policyId;
+    this.hybridPolicyEngine.addPolicy(policy);
     this.logger.info(`ODRL policy added: ${policyId}`);
   }
 
@@ -562,7 +564,7 @@ export class AEGISController {
       throw new Error('Policy ID must be a non-empty string');
     }
     
-    const removed = this.hybridPolicyEngine.removeODRLPolicy(policyId);
+    const removed = this.hybridPolicyEngine.removePolicy(policyId);
     if (removed) {
       // Ensure cache invalidation
       this.hybridPolicyEngine.clearCache();
@@ -574,12 +576,21 @@ export class AEGISController {
   }
 
   listODRLPolicies(): Array<{ id: string; name: string }> {
-    return this.hybridPolicyEngine.listODRLPolicies();
+    const policies = this.hybridPolicyEngine.getPolicies();
+    return policies.map(p => ({ id: p.uid, name: p.profile || p.uid }));
   }
 
   // Engine statistics
   getEngineStats(): any {
-    return this.hybridPolicyEngine.getStats();
+    // Stats not implemented in HybridPolicyEngine yet
+    return {
+      totalDecisions: 0,
+      permitRate: 0,
+      denyRate: 0,
+      indeterminateRate: 0,
+      averageConfidence: 0,
+      averageProcessingTime: 0
+    };
   }
 
   // システム停止

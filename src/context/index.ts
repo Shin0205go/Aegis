@@ -4,5 +4,6 @@ export {
   TimeBasedEnricher,
   AgentInfoEnricher,
   ResourceClassifierEnricher,
-  SecurityInfoEnricher
+  SecurityInfoEnricher,
+  DataLineageEnricher
 } from './enrichers';

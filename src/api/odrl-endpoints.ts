@@ -12,7 +12,8 @@ import { logger } from '../utils/logger';
 export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
   const router = Router();
   // Initialize converter with AI engine if available
-  const aiEngine = hybridEngine.getAIEngine ? hybridEngine.getAIEngine() : null;
+  const aiEngineResult = hybridEngine.getAIEngine ? hybridEngine.getAIEngine() : undefined;
+  const aiEngine = aiEngineResult === null ? undefined : aiEngineResult;
   const nlConverter = new NLToODRLConverter(aiEngine);
 
   /**
@@ -484,7 +485,13 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
         return res.status(400).json({ error: 'Patterns array is required' });
       }
       
-      nlConverter.importLearnedPatterns(patterns);
+      // Convert patterns array to JSON string format expected by importLearnedPatterns
+      const importData = JSON.stringify({
+        version: '1.0',
+        exportDate: new Date().toISOString(),
+        patterns: patterns
+      });
+      nlConverter.importLearnedPatterns(importData);
       
       res.json({
         success: true,

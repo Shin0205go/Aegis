@@ -12,7 +12,8 @@ import {
   mcpToolPolicy,
   claudeDesktopPolicy
 } from '../sample-policies';
-import { DecisionContext } from '../../types/policy';
+import { DecisionContext } from '../../types';
+import { AEGISPolicy } from '../types';
 
 // Mock AI engine for testing
 class MockAIEngine implements Pick<AIJudgmentEngine, 'judge'> {
@@ -244,14 +245,14 @@ describe('Hybrid Policy Engine Tests', () => {
 
   describe('Policy Management', () => {
     test('should add new policies dynamically', () => {
-      const newPolicy = {
+      const newPolicy: AEGISPolicy = {
         '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-        '@type': 'Policy' as const,
-        'uid': 'test:policy',
-        'profile': 'https://aegis.example.com/odrl/profile',
-        'permission': [{
-          '@type': 'Permission' as const,
-          'action': { 'value': 'test:action' }
+        '@type': 'Policy',
+        uid: 'test:policy',
+        profile: 'https://aegis.example.com/odrl/profile',
+        permission: [{
+          '@type': 'Permission',
+          action: { value: 'test:action' }
         }]
       };
 

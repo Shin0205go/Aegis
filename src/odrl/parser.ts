@@ -40,7 +40,7 @@ const ConstraintSchema: z.ZodType<Constraint> = z.object({
   '@type': z.enum(['Constraint', 'LogicalConstraint']).optional(),
   uid: URISchema.optional(),
   leftOperand: z.string().optional(),
-  operator: z.string().optional(),
+  operator: z.enum(['eq', 'neq', 'gt', 'gteq', 'lt', 'lteq', 'in', 'hasPart', 'isA', 'isAllOf', 'isAnyOf', 'isNoneOf', 'isPartOf']).optional(),
   rightOperand: z.any().optional(),
   rightOperandReference: URISchema.optional(),
   unit: z.string().optional(),

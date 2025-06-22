@@ -21,7 +21,7 @@ export interface ODRLPolicy {
 }
 
 export interface Rule {
-  '@type'?: 'Permission' | 'Prohibition' | 'Obligation';
+  '@type'?: 'Permission' | 'Prohibition' | 'Obligation' | 'Duty';
   uid?: URI;
   action: Action | Action[];
   target?: Asset | Asset[];

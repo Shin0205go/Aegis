@@ -16,12 +16,28 @@ export interface DecisionContext {
   
   // PIPで拡張される追加フィールド
   agentType?: string;
+  agentRole?: string;
   clearanceLevel?: string;
   violationHistory?: number;
   trustScore?: number;
   isBusinessHours?: boolean;
   securityScore?: number;
   resourceSensitivity?: string;
+  resourceClassification?: string;
+  resourceId?: string;
+  
+  // MCPプロキシ関連
+  mcpMethod?: string;
+  mcpTool?: string;
+  
+  // ネットワーク・セッション情報
+  ipAddress?: string;
+  sessionId?: string;
+  
+  // その他
+  emergency?: boolean;
+  delegationChain?: string[];
+  metadata?: Record<string, any>;
 }
 
 // ============================================================================
