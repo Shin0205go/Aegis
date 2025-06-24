@@ -7,7 +7,6 @@ import {
   StreamableHTTPServerTransport,
   StreamableHTTPServerTransportOptions 
 } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { 
   CallToolRequestSchema, 
   ListResourcesRequestSchema,
@@ -22,41 +21,24 @@ import type {
 } from '../types/index.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
+import { createAuditEndpoints } from '../api/audit-endpoints.js';
+import { createODRLEndpoints } from '../api/odrl-endpoints.js';
+import { StdioRouter, MCPServerConfig } from './stdio-router.js';
+import { MCPPolicyProxyBase } from './base-proxy.js';
 import { 
-  ContextCollector,
   TimeBasedEnricher,
   AgentInfoEnricher,
   ResourceClassifierEnricher,
   SecurityInfoEnricher
 } from '../context/index.js';
-import { EnforcementSystem } from '../core/enforcement.js';
-import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
-import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
-import { createAuditEndpoints } from '../api/audit-endpoints.js';
-import { createODRLEndpoints } from '../api/odrl-endpoints.js';
-import { StdioRouter, MCPServerConfig } from './stdio-router.js';
-import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
+import * as path from 'path';
 // Use Node.js built-in fetch (Node 18+)
 
-export class MCPHttpPolicyProxy {
-  private server: Server;
+export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
   private app: express.Application;
-  private config: AEGISConfig;
-  private logger: Logger;
-  private judgmentEngine: AIJudgmentEngine;
-  private hybridPolicyEngine: HybridPolicyEngine;
-  private contextCollector: ContextCollector;
-  private enforcementSystem: EnforcementSystem;
   
   // 上流サーバー管理
   private upstreamServers = new Map<string, { name: string; url: string }>();
-  
-  // ポリシー管理
-  private policies = new Map<string, string>();
-  
-  // Phase 3: 高度な監査システム
-  private advancedAuditSystem: AdvancedAuditSystem;
-  private auditDashboardProvider: AuditDashboardDataProvider;
   
   // リクエストコンテキスト管理
   private requestContext = new Map<string, any>();
@@ -65,49 +47,14 @@ export class MCPHttpPolicyProxy {
   private stdioRouter?: StdioRouter;
   private bridgeMode: boolean = false;
   
-  constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine) {
-    this.config = config;
-    this.logger = logger;
-    this.judgmentEngine = judgmentEngine;
-    
-    // ハイブリッドポリシーエンジン初期化
-    this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
-      useODRL: true,
-      useAI: true,
-      aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'), // Lower AI confidence threshold to address overly strict decisions
-      cacheEnabled: true,
-      cacheTTL: 300000 // 5分
-    });
-    
-    // コンテキストコレクター初期化
-    this.contextCollector = new ContextCollector();
-    this.setupContextEnrichers();
-    
-    // 制約・義務実施システム初期化
-    this.enforcementSystem = new EnforcementSystem();
-    
-    // Phase 3: 高度な監査システム初期化
-    this.advancedAuditSystem = new AdvancedAuditSystem();
-    this.auditDashboardProvider = new AuditDashboardDataProvider(this.advancedAuditSystem);
+  constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
+    super(config, logger, judgmentEngine);
     
     // Express アプリ作成
     this.app = express();
     this.setupMiddleware();
     
-    // MCPサーバー作成
-    this.server = new Server(
-      {
-        name: 'aegis-policy-proxy-http',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          resources: {},
-          tools: {},
-        },
-      }
-    );
-    
+    // MCPハンドラーのセットアップ
     this.setupHandlers();
   }
 
@@ -142,7 +89,7 @@ export class MCPHttpPolicyProxy {
     });
   }
 
-  private setupContextEnrichers(): void {
+  protected setupContextEnrichers(): void {
     // 時間ベース情報エンリッチャー
     this.contextCollector.registerEnricher(new TimeBasedEnricher({
       start: 9,
@@ -162,7 +109,7 @@ export class MCPHttpPolicyProxy {
     this.logger.info('Context enrichers registered successfully');
   }
 
-  private setupHandlers(): void {
+  protected setupHandlers(): void {
     // リソース読み取りハンドラー
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request: any, extra: any) => {
       const sessionId = extra?.sessionId || 'http-client';
@@ -196,7 +143,7 @@ export class MCPHttpPolicyProxy {
         }
         
         // 制約適用
-        const constrainedResult = await this.applyConstraints(contents, decision.constraints || []);
+        const constrainedResult = await this.applyDataConstraints(contents, decision.constraints || []);
         
         return {
           contents: constrainedResult
@@ -283,7 +230,7 @@ export class MCPHttpPolicyProxy {
         
         // 義務実行
         if (decision.obligations) {
-          await this.executeObligations(decision.obligations, request);
+          await this.executeRequestObligations(decision.obligations, request);
         }
         
         // ブリッジモードの場合、resultはすでに正しい形式
@@ -367,8 +314,8 @@ export class MCPHttpPolicyProxy {
     const enrichedContext = await this.contextCollector.enrichContext(baseContext);
     
     // 適用ポリシー選択
-    const policyName = this.selectApplicablePolicy(resource);
-    const policy = this.policies.get(policyName);
+    const policyName = await this.selectApplicablePolicy(enrichedContext);
+    const policy = this.policies.get(policyName || 'default-policy');
     
     if (!policy) {
       this.logger.warn(`No policy found for resource: ${resource}`);
@@ -388,7 +335,7 @@ export class MCPHttpPolicyProxy {
     const result = {
       ...decision,
       processingTime: Date.now() - startTime,
-      policyUsed: policyName,
+      policyUsed: policyName || 'default-policy',
       context: enrichedContext
     };
     
@@ -400,7 +347,7 @@ export class MCPHttpPolicyProxy {
       await this.advancedAuditSystem.recordAuditEntry(
         enrichedContext,
         decision,
-        policyName,
+        policyName || 'default-policy',
         result.processingTime,
         outcome,
         {
@@ -416,23 +363,6 @@ export class MCPHttpPolicyProxy {
     return result;
   }
 
-  private selectApplicablePolicy(resource: string): string {
-    if (resource.includes('customer') || resource.includes('personal')) {
-      return 'customer-data-policy';
-    } else if (resource.includes('email') || resource.includes('gmail')) {
-      return 'email-access-policy';
-    } else if (resource.includes('file') || resource.includes('document')) {
-      return 'file-system-policy';
-    } else if (resource.startsWith('tool:')) {
-      const toolName = resource.substring(5);
-      if (toolName.includes('delete') || toolName.includes('modify')) {
-        return 'high-risk-operations-policy';
-      }
-      return 'tool-usage-policy';
-    }
-    
-    return 'default-policy';
-  }
 
   private async forwardToUpstream(method: string, params: any): Promise<any> {
     // ブリッジモードの場合はstdioルーターを使用
@@ -494,7 +424,7 @@ export class MCPHttpPolicyProxy {
     }
   }
 
-  private async applyConstraints(data: any, constraints: string[]): Promise<any> {
+  private async applyDataConstraints(data: any, constraints: string[]): Promise<any> {
     if (!constraints || constraints.length === 0) {
       return data;
     }
@@ -529,7 +459,7 @@ export class MCPHttpPolicyProxy {
     }
   }
 
-  private async executeObligations(obligations: string[], request: any): Promise<void> {
+  private async executeRequestObligations(obligations: string[], request: any): Promise<void> {
     if (!obligations || obligations.length === 0) {
       return;
     }
@@ -572,12 +502,6 @@ export class MCPHttpPolicyProxy {
   // レガシーメソッドは削除（新システムで完全に処理）
 
   // パブリックメソッド
-  addPolicy(name: string, policy: string): void {
-    this.policies.set(name, policy);
-    // Clear cache when natural language policies are added
-    this.hybridPolicyEngine.clearCache();
-    this.logger.info(`Policy added: ${name}`);
-  }
 
   updatePolicy(name: string, policy: string): void {
     if (!this.policies.has(name)) {
@@ -651,7 +575,9 @@ export class MCPHttpPolicyProxy {
     }
     
     // 静的ファイルの提供（監査ダッシュボード用）
-    this.app.use('/public', express.static('public'));
+    const publicPath = path.join(process.cwd(), 'web', 'public');
+    this.app.use('/public', express.static(publicPath));
+    this.app.use(express.static(publicPath));
     
     // ヘルスチェックエンドポイント
     this.app.get('/health', (req, res) => {
@@ -671,8 +597,9 @@ export class MCPHttpPolicyProxy {
 
     // ポリシー管理API
     this.app.get('/policies', (req, res) => {
+      const policies = this.hybridPolicyEngine.getPolicies();
       res.json({
-        policies: Array.from(this.policies.keys())
+        policies: policies
       });
     });
 
@@ -680,7 +607,7 @@ export class MCPHttpPolicyProxy {
       const { name } = req.params;
       const { policy } = req.body;
       
-      this.policies.set(name, policy);
+      this.addPolicy(name, policy);
       this.logger.info(`Policy updated: ${name}`);
       
       res.json({ success: true, message: `Policy ${name} updated` });

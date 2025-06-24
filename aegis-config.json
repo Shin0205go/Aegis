@@ -1,0 +1,38 @@
+{
+  "mode": "http",
+  "http": {
+    "port": 8080,
+    "host": "0.0.0.0",
+    "cors": {
+      "enabled": true,
+      "origins": ["*"]
+    },
+    "auth": {
+      "enabled": false,
+      "type": "bearer",
+      "tokens": []
+    },
+    "ssl": {
+      "enabled": false,
+      "cert": "",
+      "key": ""
+    }
+  },
+  "stdio": {
+    "logLevel": "error"
+  },
+  "upstream": {
+    "configFile": "./aegis-mcp-config.json",
+    "timeout": 30000
+  },
+  "policies": {
+    "defaultDecision": "DENY",
+    "cacheEnabled": true,
+    "cacheTTL": 300
+  },
+  "audit": {
+    "enabled": true,
+    "retention": 90,
+    "encryption": true
+  }
+}

@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  aegis-proxy:
+    build: .
+    container_name: aegis-proxy
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - LOG_LEVEL=info
+      # Add your API keys via environment or .env file
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./logs:/app/logs
+      - ./policies:/app/policies
+      - aegis-data:/app/data
+    restart: unless-stopped
+    networks:
+      - aegis-network
+
+  # Optional: Add a reverse proxy for HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: aegis-nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - aegis-proxy
+    networks:
+      - aegis-network
+
+volumes:
+  aegis-data:
+
+networks:
+  aegis-network:
+    driver: bridge

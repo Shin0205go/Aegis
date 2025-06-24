@@ -33,22 +33,27 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     const config = new Config();
 
     // APIキーチェック
+    let judgmentEngine: AIJudgmentEngine | null = null;
+    let useAI = true;
+    
     if (!config.llm.apiKey) {
-      throw new Error(
-        'APIキーが設定されていません。環境変数 OPENAI_API_KEY または ANTHROPIC_API_KEY を設定してください。'
-      );
+      logger.warn('⚠️  AIのAPIキーが設定されていません。ODRLポリシーのみで動作します。');
+      logger.warn('   AI判定を有効にするには、環境変数 OPENAI_API_KEY または ANTHROPIC_API_KEY を設定してください。');
+      useAI = false;
+    } else {
+      // AI判定エンジン初期化
+      logger.info('Initializing AI Judgment Engine...');
+      judgmentEngine = new AIJudgmentEngine(config.llm);
     }
-
-    // AI判定エンジン初期化
-    logger.info('Initializing AI Judgment Engine...');
-    const judgmentEngine = new AIJudgmentEngine(config.llm);
 
     // トランスポートに応じてプロキシを初期化
     let mcpProxy: MCPStdioPolicyProxy | MCPHttpPolicyProxy;
     
     if (transport === 'stdio') {
       logger.info('Using stdio transport (MCP standard)');
+      // @ts-ignore - judgmentEngineがnullの場合も許可
       mcpProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine);
+      
       
       // 上流サーバー設定
       // 1. aegis-mcp-config.jsonから読み込み（優先）
@@ -110,6 +115,7 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       }
     } else {
       logger.info('Using HTTP transport (MCP standard)');
+      // @ts-ignore - judgmentEngineがnullの場合も許可
       mcpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine);
       
       // 1. aegis-mcp-config.jsonから読み込み（ブリッジモード）
@@ -168,6 +174,8 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     if (transport === 'stdio') {
       logger.info('✅ AEGIS MCP Proxy Server is running (stdio mode)');
       logger.info('📝 Reading from stdin, writing to stdout');
+      
+      
       logger.info('');
       logger.info('Connect via MCP client with stdio transport');
     } else {
@@ -243,7 +251,7 @@ Usage: node mcp-server.js [options]
 
 Options:
   --help                Show this help message
-  --transport <type>    Transport type: stdio or http (default: stdio)
+  --transport <type>    Transport type: stdio or http (default: http)
   --port <port>         Server port for HTTP transport (default: 8080)
   --provider <provider> LLM provider: openai or anthropic (default: openai)
   --model <model>       LLM model name (default: gpt-4)
@@ -270,11 +278,15 @@ Claude Desktop Integration (stdio):
   All configured MCP servers (except aegis-proxy itself) will be available.
 
 Examples:
-  # Start with stdio transport (default)
+  # Start with HTTP transport (default) - Web UI included
   node mcp-server.js
 
-  # Start with HTTP transport
-  node mcp-server.js --transport http --port 8080
+  # Start with HTTP transport on custom port
+  node mcp-server.js --port 9000
+
+  # Start with stdio transport
+  node mcp-server.js --transport stdio
+  
 
   # Start with Anthropic Claude
   node mcp-server.js --provider anthropic --model claude-3-opus-20240229
@@ -285,6 +297,7 @@ Examples:
   # Configure upstream servers via environment
   UPSTREAM_SERVERS_STDIO="gmail:node gmail-mcp.js" node mcp-server.js
   UPSTREAM_SERVERS_HTTP="gmail:http://localhost:8081" node mcp-server.js --transport http
+  
 `);
 }
 
@@ -304,7 +317,7 @@ async function main() {
   if (options.debug) process.env.LOG_LEVEL = 'debug';
 
   // トランスポートタイプを決定
-  const transport = (options.transport as 'stdio' | 'http') || 'stdio';
+  const transport = (options.transport as 'stdio' | 'http') || 'http';
   if (transport !== 'stdio' && transport !== 'http') {
     console.error('Invalid transport type. Use "stdio" or "http".');
     process.exit(1);

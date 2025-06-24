@@ -196,7 +196,7 @@ export class StdioRouter extends EventEmitter {
               if (!initialized) {
                 waitReject(new Error(`Server ${name} initialization timeout`));
               }
-            }, 5000);
+            }, 30000); // Increased timeout to 30 seconds for slower-starting servers
             
             // 初期化完了を検知
             const checkInit = () => {

@@ -2,7 +2,7 @@
 
 /**
  * MCP Launcher - Claude Desktop用ラッパー
- * 統合MCPサーバー（MCP機能 + Web UI）を起動
+ * 統合MCPサーバー（stdio/HTTPモード自動判定）を起動
  */
 
 const { spawn } = require('child_process');
@@ -21,22 +21,28 @@ function log(message) {
   logStream.write(`[${timestamp}] ${message}\n`);
 }
 
-log('🚀 Starting AEGIS MCP Server (統合版)...');
+// 起動モードを判定（環境変数またはコマンドライン引数から）
+const transport = process.env.MCP_TRANSPORT || process.argv[2] || 'http';
 
-// MCPサーバーを起動（stdioで通信）
-const mcpServer = spawn('node', [
-  path.join(__dirname, 'dist/src/mcp-server.js')
-], {
+log(`🚀 Starting AEGIS MCP Server (${transport} mode)...`);
+
+// MCPサーバーを起動
+const args = [path.join(__dirname, 'dist/src/mcp-server.js')];
+if (transport === 'stdio') {
+  args.push('--transport', 'stdio');
+}
+
+const mcpServer = spawn('node', args, {
   stdio: 'inherit',
   env: process.env
 });
 
-log('🛡️ AEGIS MCP Server started (統合版)');
-log('  🌐 Web UI: http://localhost:8080/');
-log('  📝 Policy Management: http://localhost:8080/api/policies');
-log('  📊 Audit Dashboard: http://localhost:8080/audit-dashboard.html');
-log('  🔍 Request Dashboard: http://localhost:8080/request-dashboard.html');
-log('  📡 MCP Endpoint: http://localhost:8080/mcp/messages');
+log(`🛡️ AEGIS MCP Server started (${transport} mode)`);
+log(`  📡 MCP communication via ${transport}`);
+log('  🔒 Policy enforcement enabled');
+if (transport === 'http') {
+  log('  🌐 Web UI available at http://localhost:3000/');
+}
 
 // プロセス終了時の処理
 process.on('SIGINT', () => {

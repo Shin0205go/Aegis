@@ -1,0 +1,33 @@
+[Unit]
+Description=AEGIS MCP Policy Enforcement Proxy
+Documentation=https://github.com/yourusername/aegis-policy-engine
+After=network.target
+
+[Service]
+Type=simple
+User=aegis
+Group=aegis
+WorkingDirectory=/opt/aegis-policy-engine
+ExecStart=/usr/bin/node /opt/aegis-policy-engine/dist/src/mcp-server.js
+Restart=always
+RestartSec=10
+
+# Environment variables
+Environment="NODE_ENV=production"
+Environment="PORT=8080"
+Environment="LOG_LEVEL=info"
+EnvironmentFile=-/etc/aegis/aegis.env
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/aegis /var/lib/aegis
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

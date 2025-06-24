@@ -36,7 +36,12 @@
       "mcp__aegis-proxy__github__search_repositories",
       "mcp__aegis-proxy__github__get_file_contents",
       "mcp__aegis-proxy__github__create_issue",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(curl:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

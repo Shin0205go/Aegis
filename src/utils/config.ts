@@ -37,7 +37,7 @@ export class Config {
 
       // MCPプロキシ設定
       mcpProxy: {
-        port: parseInt(process.env.MCP_PROXY_PORT || '8080'),
+        port: parseInt(process.env.MCP_PROXY_PORT || '3000'),
         upstreamServers: this.parseUpstreamServers(process.env.MCP_UPSTREAM_SERVERS || ''),
         corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000']
       },
