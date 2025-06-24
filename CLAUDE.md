@@ -22,7 +22,7 @@
 │  │EnforcementSystem (Phase 3): 高度な制約・義務処理         │ │
 │  │- ConstraintProcessorManager                              │ │
 │  │- ObligationExecutorManager                               │ │
-│  │※ レガシーシステムと併存中、段階的移行中                 │ │
+│  │✅ MCPプロキシへの統合完了                               │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────┬───────────────────┬───────────────────────────────┘
           │                   │
@@ -377,7 +377,7 @@ const unusualRequest = {
 - ✅ 制約・義務の基本実装
 - ✅ stdio/HTTPトランスポート対応
 
-### 🚧 Phase 3: 本格運用 (部分完了)
+### ✅ Phase 3: 本格運用 (完了)
 - ✅ 高度な制約・義務処理
   - ✅ ConstraintProcessorManager: 制約プロセッサ統合管理
   - ✅ DataAnonymizerProcessor: 高度な匿名化（マスク、トークン化、ハッシュ化）
@@ -387,7 +387,7 @@ const unusualRequest = {
   - ✅ AuditLoggerExecutor: 監査ログ（暗号化、複数フォーマット対応）
   - ✅ NotifierExecutor: 通知システム（マルチチャンネル、エスカレーション）
   - ✅ DataLifecycleExecutor: データライフサイクル管理
-  - ⚠️ MCPプロキシへの完全統合（部分的に実装、レガシーシステムと併存）
+  - ✅ MCPプロキシへの完全統合（EnforcementSystemが完全に統合済み）
 - ⏳ 監査・レポート機能（基本的な監査ログは実装済み、高度なレポート機能は未実装）
 - ⏳ 性能最適化・スケーラビリティ
 
@@ -405,9 +405,61 @@ const unusualRequest = {
 - **内蔵ツール** (artifacts, repl, web_search, web_fetch)
 - **リアルタイムポリシー制御**が全ツールに適用済み
 
-### 🔄 移行状況
-- **レガシーシステム**: 基本的な制約・義務処理（Phase 2実装）
-- **新システム（EnforcementSystem）**: 高度な制約・義務処理（Phase 3実装）
-- 現在は両システムが併存し、段階的に新システムへ移行中
+### 🔄 実装状況
+- **新システム（EnforcementSystem）**: 高度な制約・義務処理が完全統合済み
+- **追加されたコンポーネント**:
+  - `PolicyEnforcer`: ポリシー判定処理の責務分離
+  - `ConstraintStrategy`: 制約処理のストラテジーパターン
+  - `ErrorHandler`: 統一エラーハンドリング
+  - `PromptTemplateEngine`: AIプロンプトテンプレート管理
 
 この設計により、従来のIDSの複雑さを大幅に軽減しながら、自然言語の表現力とAIの推論能力を活用した、次世代のポリシー制御システムを実現できています。
+
+## 🔧 設定と環境変数
+
+### 環境変数一覧
+
+| 環境変数 | 説明 | デフォルト値 |
+|---------|------|------------|
+| `ANTHROPIC_API_KEY` | Anthropic Claude APIキー | - |
+| `OPENAI_API_KEY` | OpenAI APIキー | - |
+| `AEGIS_AI_THRESHOLD` | AI判定の信頼度閾値 | 0.7 |
+| `MCP_PROXY_PORT` | MCPプロキシのポート番号 | 3000 |
+| `MCP_TRANSPORT` | トランスポートモード（stdio/http） | http |
+| `AEGIS_LOG_LEVEL` | ログレベル（debug/info/warn/error） | info |
+| `CORS_ORIGINS` | CORS許可オリジン（カンマ区切り） | http://localhost:3000 |
+
+### APIエンドポイント（HTTPモード）
+
+| エンドポイント | メソッド | 説明 |
+|---------------|---------|------|
+| `/mcp/messages` | POST | MCPメッセージ処理 |
+| `/health` | GET | ヘルスチェック |
+| `/policies` | GET | ポリシー一覧取得 |
+| `/policies` | POST | ポリシー作成 |
+| `/policies/:id` | PUT | ポリシー更新 |
+| `/policies/:id` | DELETE | ポリシー削除 |
+| `/api/audit/metrics` | GET | 監査メトリクス取得 |
+| `/odrl/policies` | GET | ODRLポリシー一覧 |
+| `/odrl/evaluate` | POST | ODRL評価実行 |
+
+### 自動ポリシー選択ロジック
+
+システムは以下の優先順位でポリシーを自動選択します：
+
+1. **時間ベース選択**
+   - 営業時間外: `after-hours-policy`
+   - 営業時間内: 通常ポリシー
+
+2. **エージェントベース選択**
+   - Claude Desktop: `claude-desktop-policy`
+   - その他: リソースベース選択
+
+3. **リソースタイプベース選択**
+   - 顧客データ: `customer-data-policy`
+   - メール: `email-access-policy`
+   - ファイル: `file-system-policy`
+   - ツール実行（高リスク）: `high-risk-operations-policy`
+   - ツール実行（通常）: `tool-usage-policy`
+
+4. **デフォルト**: `default-policy`
