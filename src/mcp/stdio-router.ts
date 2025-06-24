@@ -6,6 +6,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { Logger } from '../utils/logger.js';
+import { TIMEOUTS } from '../constants/index.js';
 
 export interface MCPServerConfig {
   command: string;
@@ -176,7 +177,7 @@ export class StdioRouter extends EventEmitter {
                 this.logger.error(`Failed to restart ${name}:`, err);
               });
             }
-          }, 5000);
+          }, TIMEOUTS.CONTEXT_ENRICHMENT);
         });
 
         proc.on('error', (error) => {
@@ -196,7 +197,7 @@ export class StdioRouter extends EventEmitter {
               if (!initialized) {
                 waitReject(new Error(`Server ${name} initialization timeout`));
               }
-            }, 30000); // Increased timeout to 30 seconds for slower-starting servers
+            }, TIMEOUTS.UPSTREAM_SERVER_INIT);
             
             // 初期化完了を検知
             const checkInit = () => {

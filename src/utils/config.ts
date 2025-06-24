@@ -4,6 +4,7 @@
 
 import dotenv from 'dotenv';
 import type { AEGISConfig, LLMConfig, CacheConfig, MCPProxyConfig, MonitoringConfig } from '../types/index.js';
+import { SERVER } from '../constants/index.js';
 
 // 環境変数読み込み（システム環境変数を優先）
 dotenv.config({ override: false });
@@ -15,7 +16,7 @@ export class Config {
     this.config = {
       // 基本設定
       nodeEnv: (process.env.AEGIS_NODE_ENV as any) || 'development',
-      port: parseInt(process.env.AEGIS_PORT || '3000'),
+      port: parseInt(process.env.AEGIS_PORT || String(SERVER.DEFAULT_PORT.HTTP)),
       logLevel: (process.env.AEGIS_LOG_LEVEL as any) || 'info',
 
       // LLM設定
@@ -37,9 +38,9 @@ export class Config {
 
       // MCPプロキシ設定
       mcpProxy: {
-        port: parseInt(process.env.MCP_PROXY_PORT || '3000'),
+        port: parseInt(process.env.MCP_PROXY_PORT || String(SERVER.DEFAULT_PORT.HTTP)),
         upstreamServers: this.parseUpstreamServers(process.env.MCP_UPSTREAM_SERVERS || ''),
-        corsOrigins: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000']
+        corsOrigins: process.env.CORS_ORIGINS?.split(',') || [`http://localhost:${SERVER.DEFAULT_PORT.HTTP}`]
       },
 
       // モニタリング設定

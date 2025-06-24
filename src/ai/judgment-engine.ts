@@ -9,6 +9,7 @@ import type {
 } from '../types/index.js';
 import { OpenAILLM } from './openai-llm.js';
 import { AnthropicLLM } from './anthropic-llm.js';
+import { PromptTemplateEngine } from './prompt-templates.js';
 
 interface LRUCache<K, V> {
   get(key: K): V | undefined;
@@ -49,7 +50,7 @@ class SimpleLRUCache<K, V> implements LRUCache<K, V> {
 export class AIJudgmentEngine {
   private llm: OpenAILLM | AnthropicLLM;
   private decisionCache: LRUCache<string, PolicyDecision>;
-  private promptTemplateCache = new Map<string, string>();
+  private promptTemplateEngine: PromptTemplateEngine;
   private cacheCapacity: number;
 
   constructor(llmConfig: LLMConfig) {
@@ -68,6 +69,7 @@ export class AIJudgmentEngine {
     
     this.cacheCapacity = 1000;
     this.decisionCache = new SimpleLRUCache<string, PolicyDecision>(this.cacheCapacity);
+    this.promptTemplateEngine = new PromptTemplateEngine();
   }
 
   // メイン判定メソッド
@@ -123,17 +125,21 @@ export class AIJudgmentEngine {
     // timeをDateオブジェクトに変換
     const timeObj = context.time instanceof Date ? context.time : new Date(context.time);
     
+    const templateContext = {
+      context: this.formatContextInfo(context, timeObj),
+      policy: policy,
+      agent: context.agent,
+      action: context.action,
+      resource: context.resource,
+      purpose: context.purpose || '未指定'
+    };
+    
+    return this.promptTemplateEngine.render('POLICY_ANALYSIS', templateContext);
+  }
+  
+  // コンテキスト情報のフォーマット
+  private formatContextInfo(context: DecisionContext, timeObj: Date): string {
     return `
-# AI利用制御判定システム
-
-あなたは企業のAIエージェント利用制御システムです。以下のポリシーに基づいて、アクセス要求を厳密に判定してください。
-
-## 適用ポリシー
-\`\`\`
-${policy}
-\`\`\`
-
-## 判定対象の要求
 - **エージェント**: ${context.agent} (タイプ: ${context.agentType || '不明'})
 - **要求アクション**: ${context.action}
 - **対象リソース**: ${context.resource}
@@ -146,43 +152,7 @@ ${policy}
 ## 環境情報
 \`\`\`json
 ${JSON.stringify(context.environment, null, 2)}
-\`\`\`
-
-## 判定要件
-1. ポリシーを詳細に分析し、要求が適合するかを判定
-2. セキュリティリスクを評価
-3. 必要な制約や義務を特定
-4. 信頼度スコアを算出（0.0-1.0）
-
-## 応答形式
-以下のJSON形式で厳密に回答してください：
-
-\`\`\`json
-{
-  "decision": "PERMIT" | "DENY" | "INDETERMINATE",
-  "reason": "判定理由の詳細説明（ポリシーの該当部分を引用）",
-  "confidence": 0.85,
-  "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "constraints": [
-    "適用すべき制約条件があれば配列で列挙"
-  ],
-  "obligations": [
-    "実行すべき義務があれば配列で列挙"
-  ],
-  "monitoringRequirements": [
-    "監視要件があれば配列で列挙"
-  ],
-  "validityPeriod": "判定の有効期間（ISO8601形式）",
-  "metadata": {
-    "policySection": "該当するポリシー箇所",
-    "alternatives": "代替案があれば記載",
-    "escalationRequired": true/false
-  }
-}
-\`\`\`
-
-判定を開始してください：
-`;
+\`\`\``;
   }
 
   // 時間的コンテキスト取得

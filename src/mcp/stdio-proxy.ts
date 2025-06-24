@@ -24,6 +24,7 @@ import { RealTimeAnomalyDetector } from '../audit/real-time-anomaly-detector.js'
 import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.js';
 import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
 import { MCPPolicyProxyBase } from './base-proxy.js';
+import { CIRCUIT_BREAKER, CACHE, BATCH, TIMEOUTS } from '../constants/index.js';
 
 export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   private httpProxy?: any; // Web UI用HTTPサーバー
@@ -45,8 +46,6 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   // Phase 3: サーキットブレーカー状態管理
   private circuitBreakerState: Map<string, { failures: number, lastFailure: Date, isOpen: boolean }> = new Map();
-  private readonly CIRCUIT_BREAKER_THRESHOLD = 5; // 5回連続失敗でオープン
-  private readonly CIRCUIT_BREAKER_TIMEOUT = 60000; // 1分間クールダウン
   
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
@@ -79,9 +78,9 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
     // Phase 3: インテリジェントキャッシュシステム初期化
     this.intelligentCacheSystem = new IntelligentCacheSystem({
-      maxEntries: 500, // 適度なサイズ
-      defaultTtl: 300, // 5分
-      confidenceThreshold: 0.8, // 高信頼度のみキャッシュ
+      maxEntries: CACHE.INTELLIGENT_CACHE.MAX_ENTRIES,
+      defaultTtl: CACHE.INTELLIGENT_CACHE.DEFAULT_TTL,
+      confidenceThreshold: CACHE.INTELLIGENT_CACHE.CONFIDENCE_THRESHOLD,
       enableLRUEviction: true,
       enableIntelligentTtl: true,
       contextSensitivity: 0.7,
@@ -95,8 +94,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
     // Phase 3: バッチ判定システム初期化
     this.batchJudgmentSystem = new BatchJudgmentSystem(this.judgmentEngine as AIJudgmentEngine, {
-      maxBatchSize: 5, // stdioでは小さなバッチサイズ
-      batchTimeout: 2000, // 2秒
+      maxBatchSize: BATCH.MAX_SIZE.STDIO,
+      batchTimeout: BATCH.TIMEOUT,
       enableParallelProcessing: true,
       priorityQueuing: true
     });
@@ -674,7 +673,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     if (!state || !state.isOpen) return false;
     
     // クールダウン期間が終了したかチェック
-    if (Date.now() - state.lastFailure.getTime() > this.CIRCUIT_BREAKER_TIMEOUT) {
+    if (Date.now() - state.lastFailure.getTime() > CIRCUIT_BREAKER.COOLDOWN_MS) {
       state.isOpen = false;
       state.failures = 0;
       this.logger.info(`Circuit breaker reset for ${method}`);
@@ -690,7 +689,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     state.failures++;
     state.lastFailure = new Date();
     
-    if (state.failures >= this.CIRCUIT_BREAKER_THRESHOLD) {
+    if (state.failures >= CIRCUIT_BREAKER.FAILURE_THRESHOLD) {
       state.isOpen = true;
       this.logger.warn(`Circuit breaker opened for ${method} after ${state.failures} failures`);
     }
@@ -716,7 +715,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         isOpen: state.isOpen,
         lastFailure: state.lastFailure,
         timeUntilReset: state.isOpen ? 
-          Math.max(0, this.CIRCUIT_BREAKER_TIMEOUT - (Date.now() - state.lastFailure.getTime())) : 0
+          Math.max(0, CIRCUIT_BREAKER.COOLDOWN_MS - (Date.now() - state.lastFailure.getTime())) : 0
       };
     });
     

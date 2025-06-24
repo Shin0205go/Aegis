@@ -31,6 +31,7 @@ import {
   ResourceClassifierEnricher,
   SecurityInfoEnricher
 } from '../context/index.js';
+import { BUSINESS_HOURS, TIMEOUTS, SERVER } from '../constants/index.js';
 import * as path from 'path';
 // Use Node.js built-in fetch (Node 18+)
 
@@ -92,9 +93,9 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
   protected setupContextEnrichers(): void {
     // 時間ベース情報エンリッチャー
     this.contextCollector.registerEnricher(new TimeBasedEnricher({
-      start: 9,
-      end: 18,
-      timezone: 'Asia/Tokyo'
+      start: BUSINESS_HOURS.START,
+      end: BUSINESS_HOURS.END,
+      timezone: BUSINESS_HOURS.TIMEZONE
     }));
 
     // エージェント情報エンリッチャー
