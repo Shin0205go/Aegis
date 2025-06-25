@@ -149,6 +149,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
 
   protected setupHandlers(): void {
+    console.error('[AEGIS] Setting up MCP handlers...');
+    
     // リソース読み取りハンドラー
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
       this.logger.info('Resource read request', { uri: request.params.uri });
@@ -256,12 +258,17 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       try {
         // 上流サーバーの起動を待つ
         if (this.upstreamStartPromise) {
+          console.error('[AEGIS] Waiting for upstream servers to be ready...');
           this.logger.info('Waiting for upstream servers to be ready...');
           await this.upstreamStartPromise;
         }
         
         // 上流サーバーの状態を確認
         const availableServers = this.stdioRouter.getAvailableServers();
+        console.error(`[AEGIS] Available upstream servers: ${availableServers.length}`);
+        availableServers.forEach(server => {
+          console.error(`[AEGIS]   - ${server}`);
+        });
         this.logger.info(`Available upstream servers: ${availableServers.length}`);
         
         // ツール一覧取得はポリシー判定をスキップ（ツール実行時に判定）
@@ -981,20 +988,24 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       this.judgmentEngine
     );
     
-    // 同じポリシーエンジンとシステムを共有
-    (httpProxy as any).hybridPolicyEngine = this.hybridPolicyEngine;
-    (httpProxy as any).contextCollector = this.contextCollector;
-    (httpProxy as any).enforcementSystem = this.enforcementSystem;
-    (httpProxy as any).advancedAuditSystem = this.advancedAuditSystem;
-    (httpProxy as any).auditDashboardProvider = this.auditDashboardProvider;
+    // HTTPプロキシにポリシーを追加
+    this.policies.forEach((policy, name) => {
+      httpProxy.addPolicy(name, policy);
+    });
     
-    // HTTPサーバーを起動
+    // HTTPサーバーを起動（管理UI用）
     await httpProxy.start();
     this.httpProxy = httpProxy;
-    this.logger.info(`Web UI is available at http://localhost:${this.config.mcpProxy.port || 3000}/`);
+    this.logger.info('📊 Management web UI started on port', this.config.mcpProxy.port || 3000);
     
     // 上流サーバーはloadDesktopConfigまたはaddUpstreamServerで事前に登録されている前提
     // ここでは起動のみ行う
+    const availableServers = this.stdioRouter.getAvailableServers();
+    this.logger.info(`Available upstream servers before start: ${availableServers.length}`);
+    availableServers.forEach(server => {
+      this.logger.info(`  - ${server}`);
+    });
+    
     if (this.upstreamStartPromise) {
       // 既に起動プロセスが開始されている場合は待機
       await this.upstreamStartPromise;
@@ -1002,6 +1013,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       // まだ起動していない場合は起動
       await this.stdioRouter.startServers();
     }
+    
+    // 起動後の状態を確認
+    const availableServersAfter = this.stdioRouter.getAvailableServers();
+    this.logger.info(`Available upstream servers after start: ${availableServersAfter.length}`);
     
     
     // MCPサーバーを作成

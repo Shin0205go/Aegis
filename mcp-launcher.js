@@ -32,10 +32,24 @@ if (transport === 'stdio') {
   args.push('--transport', 'stdio');
 }
 
+// stdioモードの場合は標準入出力を継承、httpモードの場合はログ出力を許可
 const mcpServer = spawn('node', args, {
-  stdio: 'inherit',
-  env: process.env
+  stdio: transport === 'stdio' ? ['inherit', 'inherit', 'pipe'] : 'inherit',
+  cwd: __dirname, // 作業ディレクトリをプロジェクトルートに設定
+  env: {
+    ...process.env,
+    MCP_TRANSPORT: transport,
+    // stdioモードではログを無効化
+    LOG_SILENT: transport === 'stdio' ? 'true' : 'false'
+  }
 });
+
+// stdioモードでは標準エラー出力をログファイルにリダイレクト
+if (transport === 'stdio' && mcpServer.stderr) {
+  mcpServer.stderr.on('data', (data) => {
+    log(`[STDERR] ${data.toString().trim()}`);
+  });
+}
 
 log(`🛡️ AEGIS MCP Server started (${transport} mode)`);
 log(`  📡 MCP communication via ${transport}`);

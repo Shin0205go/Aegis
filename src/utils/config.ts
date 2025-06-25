@@ -98,7 +98,9 @@ export class Config {
     // LLM設定検証
     if (!this.config.llm?.apiKey) {
       if (!isStdioMode) {
-        console.error('[Config] Warning: OpenAI API key not set. Set OPENAI_API_KEY environment variable.');
+        if (process.env.LOG_SILENT !== 'true') {
+          console.error('[Config] Warning: OpenAI API key not set. Set OPENAI_API_KEY environment variable.');
+        }
       }
     }
 
@@ -108,10 +110,12 @@ export class Config {
     }
 
     if (!isStdioMode) {
-      console.error('[Config] Configuration loaded successfully');
-      console.error(`[Config] Environment: ${this.config.nodeEnv}`);
-      console.error(`[Config] LLM Provider: ${this.config.llm?.provider}`);
-      console.error(`[Config] LLM Model: ${this.config.llm?.model}`);
+      if (process.env.LOG_SILENT !== 'true') {
+        console.error('[Config] Configuration loaded successfully');
+        console.error(`[Config] Environment: ${this.config.nodeEnv}`);
+        console.error(`[Config] LLM Provider: ${this.config.llm?.provider}`);
+        console.error(`[Config] LLM Model: ${this.config.llm?.model}`);
+      }
     }
   }
 

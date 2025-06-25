@@ -10,6 +10,7 @@ export class Logger {
   constructor(level: string = 'info') {
     // In MCP stdio mode, all logs must go to stderr
     const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    const isSilent = process.env.LOG_SILENT === 'true';
     
     this.logger = winston.createLogger({
       level: level,
@@ -22,8 +23,9 @@ export class Logger {
       ),
       defaultMeta: { service: 'aegis' },
       transports: [
-        // コンソール出力
+        // コンソール出力（サイレントモードでは完全に無効化）
         new winston.transports.Console({
+          silent: isSilent,
           stderrLevels: isStdioMode ? ['error', 'warn', 'info', 'debug'] : ['error'],
           format: winston.format.combine(
             winston.format.colorize(),
@@ -48,19 +50,27 @@ export class Logger {
   }
 
   info(message: string, metadata?: any) {
-    this.logger.info(message, metadata);
+    if (process.env.LOG_SILENT !== 'true') {
+      this.logger.info(message, metadata);
+    }
   }
 
   warn(message: string, metadata?: any) {
-    this.logger.warn(message, metadata);
+    if (process.env.LOG_SILENT !== 'true') {
+      this.logger.warn(message, metadata);
+    }
   }
 
   error(message: string, metadata?: any) {
-    this.logger.error(message, metadata);
+    if (process.env.LOG_SILENT !== 'true') {
+      this.logger.error(message, metadata);
+    }
   }
 
   debug(message: string, metadata?: any) {
-    this.logger.debug(message, metadata);
+    if (process.env.LOG_SILENT !== 'true') {
+      this.logger.debug(message, metadata);
+    }
   }
 
   // AEGIS専用ログメソッド
