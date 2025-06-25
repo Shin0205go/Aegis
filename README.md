@@ -34,6 +34,32 @@ npm run test:odrl:demo  # デモ実行
 npm run test:odrl:quick # クイックテスト
 ```
 
+## 🔌 トランスポートモード
+
+AEGISは2つのトランスポートモードをサポートしています：
+
+### stdioモード（Claude Desktop統合用）
+- **用途**: Claude Desktopとの統合
+- **通信**: 標準入出力（stdio）経由のJSON-RPC
+- **管理UI**: http://localhost:3000 で別途提供
+- **起動方法**: `node mcp-launcher.js stdio`
+
+### HTTPモード（Webアプリケーション統合用）
+- **用途**: Claude.ai、Webアプリケーション、リモートアクセス
+- **通信**: Streamable HTTP（単一エンドポイントでPOST/GET/DELETEに対応）
+- **MCPエンドポイント**: `http://localhost:3000/mcp/messages`
+  - POST: JSON-RPCリクエスト送信
+  - GET: SSEストリーム確立（Server-Sent Events）
+  - DELETE: セッション終了
+- **管理UI**: 同じポートで提供
+- **起動方法**: `node mcp-launcher.js` または `node mcp-launcher.js http`
+
+### ポート設定
+デフォルトポートは3000ですが、以下の環境変数で変更可能：
+- `AEGIS_MANAGEMENT_PORT`: 最優先（管理UIとMCPエンドポイント）
+- `MCP_PROXY_PORT`: 次優先
+- デフォルト: 3000
+
 詳細な手順は [導入ガイド](./docs/user-guide/getting-started.md) を参照してください。
 ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST_GUIDE.md) を参照してください。
 

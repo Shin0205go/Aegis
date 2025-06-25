@@ -183,8 +183,7 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       logger.critical('');
       logger.critical('🌐 Management Web UI available at:');
       logger.critical(`  📝 Policy Management: http://localhost:${port}/`);
-      logger.critical(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
-      logger.critical(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
+      logger.critical(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard-enhanced.html`);
       logger.critical(`  📋 Policies API: http://localhost:${port}/policies`);
       logger.critical(`  🔧 Health Check: http://localhost:${port}/health`);
       logger.critical('');
@@ -195,8 +194,7 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       logger.info('');
       logger.info('🌐 Management Web UI available at:');
       logger.info(`  📝 Policy Management: http://localhost:${port}/`);
-      logger.info(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
-      logger.info(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
+      logger.info(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard-enhanced.html`);
       logger.info(`  📋 Policies API: http://localhost:${port}/policies`);
       logger.info(`  🔧 Health Check: http://localhost:${port}/health`);
     }
