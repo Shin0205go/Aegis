@@ -21,6 +21,7 @@ export const TIMEOUTS = {
   CONTEXT_ENRICHMENT: 5000,      // 5秒
   CACHE_OPERATION: 1000,         // 1秒
   AUDIT_WRITE: 5000,            // 5秒
+  STARTUP_DELAY: 2000,          // 2秒（起動時の待機）
 } as const;
 
 // サーキットブレーカー設定
@@ -80,6 +81,11 @@ export const AUDIT = {
     MAX_FILES: 10,
     DATE_PATTERN: 'YYYY-MM-DD',
   },
+} as const;
+
+// モニタリング設定
+export const MONITORING = {
+  HEALTH_CHECK_INTERVAL: 300000,  // 5分
 } as const;
 
 // ポリシー設定

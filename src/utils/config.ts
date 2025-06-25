@@ -38,7 +38,7 @@ export class Config {
 
       // MCPプロキシ設定
       mcpProxy: {
-        port: parseInt(process.env.MCP_PROXY_PORT || String(SERVER.DEFAULT_PORT.HTTP)),
+        port: parseInt(process.env.AEGIS_MANAGEMENT_PORT || process.env.MCP_PROXY_PORT || String(SERVER.DEFAULT_PORT.HTTP)),
         upstreamServers: this.parseUpstreamServers(process.env.MCP_UPSTREAM_SERVERS || ''),
         corsOrigins: process.env.CORS_ORIGINS?.split(',') || [`http://localhost:${SERVER.DEFAULT_PORT.HTTP}`]
       },

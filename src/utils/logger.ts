@@ -49,27 +49,41 @@ export class Logger {
     }
   }
 
+  private shouldLog(): boolean {
+    return process.env.LOG_SILENT !== 'true';
+  }
+
   info(message: string, metadata?: any) {
-    if (process.env.LOG_SILENT !== 'true') {
+    if (this.shouldLog()) {
       this.logger.info(message, metadata);
     }
   }
 
   warn(message: string, metadata?: any) {
-    if (process.env.LOG_SILENT !== 'true') {
+    if (this.shouldLog()) {
       this.logger.warn(message, metadata);
     }
   }
 
   error(message: string, metadata?: any) {
-    if (process.env.LOG_SILENT !== 'true') {
+    if (this.shouldLog()) {
       this.logger.error(message, metadata);
     }
   }
 
   debug(message: string, metadata?: any) {
-    if (process.env.LOG_SILENT !== 'true') {
+    if (this.shouldLog()) {
       this.logger.debug(message, metadata);
+    }
+  }
+  
+  // Critical messages that should be visible even in stdio mode
+  critical(message: string, metadata?: any) {
+    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    if (isStdioMode) {
+      console.error(`[AEGIS CRITICAL] ${message}`, metadata ? JSON.stringify(metadata) : '');
+    } else {
+      this.error(message, metadata);
     }
   }
 

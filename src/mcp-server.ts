@@ -58,30 +58,22 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       // 上流サーバー設定
       // 1. aegis-mcp-config.jsonから読み込み（優先）
       const aegisConfigPath = path.join(process.cwd(), 'aegis-mcp-config.json');
-      console.error(`[AEGIS] Looking for config at: ${aegisConfigPath}`);
-      console.error(`[AEGIS] Current directory: ${process.cwd()}`);
+      logger.critical(`Looking for config at: ${aegisConfigPath}`);
+      logger.critical(`Current directory: ${process.cwd()}`);
       
       if (fs.existsSync(aegisConfigPath)) {
-        console.error('[AEGIS] Config file found!');
+        logger.critical('Config file found!');
         try {
           const configContent = fs.readFileSync(aegisConfigPath, 'utf-8');
           const aegisConfig = JSON.parse(configContent);
           
           if (aegisConfig.mcpServers) {
-            if (transport === 'stdio') {
-              console.error('Loading upstream servers from aegis-mcp-config.json...');
-            } else {
-              logger.info('Loading upstream servers from aegis-mcp-config.json...');
-            }
+            logger.critical('Loading upstream servers from aegis-mcp-config.json...');
             mcpProxy.loadDesktopConfig(aegisConfig);
             
             const serverNames = Object.keys(aegisConfig.mcpServers)
               .filter(name => name !== 'aegis-proxy' && name !== 'aegis');
-            if (transport === 'stdio') {
-              console.error(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`);
-            } else {
-              logger.info(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`);
-            }
+            logger.critical(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`)
           }
         } catch (error) {
           logger.warn('Failed to load aegis-mcp-config.json:', error);
@@ -186,17 +178,17 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     
     if (transport === 'stdio') {
       // stdioモードでは、起動メッセージをstderrに直接出力（LOG_SILENTの影響を受けない）
-      console.error('✅ AEGIS MCP Proxy Server is running (stdio mode)');
-      console.error('📝 Reading from stdin, writing to stdout');
-      console.error('');
-      console.error('🌐 Management Web UI available at:');
-      console.error(`  📝 Policy Management: http://localhost:${port}/`);
-      console.error(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
-      console.error(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
-      console.error(`  📋 Policies API: http://localhost:${port}/policies`);
-      console.error(`  🔧 Health Check: http://localhost:${port}/health`);
-      console.error('');
-      console.error('Connect via MCP client with stdio transport');
+      logger.critical('✅ AEGIS MCP Proxy Server is running (stdio mode)');
+      logger.critical('📝 Reading from stdin, writing to stdout');
+      logger.critical('');
+      logger.critical('🌐 Management Web UI available at:');
+      logger.critical(`  📝 Policy Management: http://localhost:${port}/`);
+      logger.critical(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
+      logger.critical(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
+      logger.critical(`  📋 Policies API: http://localhost:${port}/policies`);
+      logger.critical(`  🔧 Health Check: http://localhost:${port}/health`);
+      logger.critical('');
+      logger.critical('Connect via MCP client with stdio transport');
     } else {
       logger.info('✅ AEGIS MCP Proxy Server is running (HTTP mode)');
       logger.info(`📍 MCP endpoint: http://localhost:${port}/mcp/messages`);

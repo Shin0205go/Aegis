@@ -55,10 +55,17 @@ import { RealTimeAnomalyDetector } from '../audit/real-time-anomaly-detector.js'
 import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.js';
 import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
 import { MCPPolicyProxyBase } from './base-proxy.js';
-import { CIRCUIT_BREAKER, CACHE, BATCH, TIMEOUTS } from '../constants/index.js';
+import { CIRCUIT_BREAKER, CACHE, BATCH, TIMEOUTS, AUDIT, MONITORING } from '../constants/index.js';
+
+// Interface for HTTP proxy to avoid circular dependency
+interface IHttpProxy {
+  addPolicy(name: string, policy: string): void;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+}
 
 export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
-  private httpProxy?: any; // Web UI用HTTPサーバー - using any to avoid circular dependency
+  private httpProxy?: IHttpProxy; // Web UI用HTTPサーバー
   
   // stdioルーター
   private stdioRouter: StdioRouter;
@@ -393,7 +400,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     const decision = await Promise.race([
       this.hybridPolicyEngine.decide(enrichedContext, policy),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), 30000); // 30秒タイムアウト
+        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), TIMEOUTS.POLICY_DECISION);
       })
     ]);
     
@@ -483,7 +490,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       const response = await Promise.race([
         this.stdioRouter.routeRequest(request),
         new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Upstream request timeout')), 15000); // 15秒タイムアウト
+          setTimeout(() => reject(new Error('Upstream request timeout')), TIMEOUTS.UPSTREAM_REQUEST);
         })
       ]);
       
@@ -930,7 +937,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     
     try {
       // stdioルーターが起動していることを確認
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, TIMEOUTS.STARTUP_DELAY));
       
       // ポリシー判定なしでツール一覧を取得
       const result = await this.forwardToUpstream('tools/list', {});
@@ -982,7 +989,15 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     this.logger.info('Constraint and obligation enforcement system initialized');
     
     // HTTPサーバー（Web UI付き）を同時に起動
-    const httpProxy = new (await import('./http-proxy.js')).MCPHttpPolicyProxy(
+    let HttpProxyClass;
+    try {
+      HttpProxyClass = (await import('./http-proxy.js')).MCPHttpPolicyProxy;
+    } catch (error) {
+      this.logger.error('Failed to import HTTP proxy module:', error);
+      throw new Error(`Failed to load HTTP proxy module: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    
+    const httpProxy = new HttpProxyClass(
       this.config, 
       this.logger, 
       this.judgmentEngine
@@ -1051,7 +1066,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       } catch (error) {
         this.logger.warn('Health monitoring failed', error);
       }
-    }, 5 * 60 * 1000); // 5分毎
+    }, MONITORING.HEALTH_CHECK_INTERVAL);
   }
   
   async stop(): Promise<void> {
