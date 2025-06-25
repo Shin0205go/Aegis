@@ -58,19 +58,22 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       // 上流サーバー設定
       // 1. aegis-mcp-config.jsonから読み込み（優先）
       const aegisConfigPath = path.join(process.cwd(), 'aegis-mcp-config.json');
+      logger.critical(`Looking for config at: ${aegisConfigPath}`);
+      logger.critical(`Current directory: ${process.cwd()}`);
       
       if (fs.existsSync(aegisConfigPath)) {
+        logger.critical('Config file found!');
         try {
           const configContent = fs.readFileSync(aegisConfigPath, 'utf-8');
           const aegisConfig = JSON.parse(configContent);
           
           if (aegisConfig.mcpServers) {
-            logger.info('Loading upstream servers from aegis-mcp-config.json...');
+            logger.critical('Loading upstream servers from aegis-mcp-config.json...');
             mcpProxy.loadDesktopConfig(aegisConfig);
             
             const serverNames = Object.keys(aegisConfig.mcpServers)
               .filter(name => name !== 'aegis-proxy' && name !== 'aegis');
-            logger.info(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`);
+            logger.critical(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`)
           }
         } catch (error) {
           logger.warn('Failed to load aegis-mcp-config.json:', error);
@@ -171,19 +174,31 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     // サーバー起動
     await mcpProxy.start();
 
+    const port = config.mcpProxy.port || 3000;
+    
     if (transport === 'stdio') {
-      logger.info('✅ AEGIS MCP Proxy Server is running (stdio mode)');
-      logger.info('📝 Reading from stdin, writing to stdout');
-      
-      
-      logger.info('');
-      logger.info('Connect via MCP client with stdio transport');
+      // stdioモードでは、起動メッセージをstderrに直接出力（LOG_SILENTの影響を受けない）
+      logger.critical('✅ AEGIS MCP Proxy Server is running (stdio mode)');
+      logger.critical('📝 Reading from stdin, writing to stdout');
+      logger.critical('');
+      logger.critical('🌐 Management Web UI available at:');
+      logger.critical(`  📝 Policy Management: http://localhost:${port}/`);
+      logger.critical(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
+      logger.critical(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
+      logger.critical(`  📋 Policies API: http://localhost:${port}/policies`);
+      logger.critical(`  🔧 Health Check: http://localhost:${port}/health`);
+      logger.critical('');
+      logger.critical('Connect via MCP client with stdio transport');
     } else {
-      const port = config.mcpProxy.port || 8080;
       logger.info('✅ AEGIS MCP Proxy Server is running (HTTP mode)');
       logger.info(`📍 MCP endpoint: http://localhost:${port}/mcp/messages`);
-      logger.info(`📊 Health check: http://localhost:${port}/health`);
-      logger.info(`🔧 Policies API: http://localhost:${port}/policies`);
+      logger.info('');
+      logger.info('🌐 Management Web UI available at:');
+      logger.info(`  📝 Policy Management: http://localhost:${port}/`);
+      logger.info(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard.html`);
+      logger.info(`  🔍 Request Dashboard: http://localhost:${port}/request-dashboard.html`);
+      logger.info(`  📋 Policies API: http://localhost:${port}/policies`);
+      logger.info(`  🔧 Health Check: http://localhost:${port}/health`);
     }
     
     logger.info('');
@@ -191,16 +206,32 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
 
     // グレースフルシャットダウン
     process.on('SIGINT', async () => {
-      logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      if (transport === 'stdio') {
+        console.error('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      } else {
+        logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      }
       await mcpProxy.stop();
-      logger.info('✅ Server stopped gracefully');
+      if (transport === 'stdio') {
+        console.error('✅ Server stopped gracefully');
+      } else {
+        logger.info('✅ Server stopped gracefully');
+      }
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
-      logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      if (transport === 'stdio') {
+        console.error('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      } else {
+        logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      }
       await mcpProxy.stop();
-      logger.info('✅ Server stopped gracefully');
+      if (transport === 'stdio') {
+        console.error('✅ Server stopped gracefully');
+      } else {
+        logger.info('✅ Server stopped gracefully');
+      }
       process.exit(0);
     });
 
