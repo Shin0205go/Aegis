@@ -32,12 +32,15 @@
             background-color: var(--dark-bg);
             color: var(--text-light);
             line-height: 1.6;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
 
         .container {
             max-width: 1600px;
             margin: 0 auto;
             padding: 20px;
+            padding-bottom: 100px;
         }
 
         .header {
@@ -182,6 +185,14 @@
             border: 1px solid var(--dark-border);
             border-radius: 8px;
             padding: 20px;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chart-card canvas {
+            flex: 1;
+            max-height: 320px;
         }
 
         .chart-header {
@@ -609,7 +620,7 @@
             <table class="decisions-table">
                 <thead>
                     <tr>
-                        <th>Time</th>
+                        <th>DateTime</th>
                         <th>Agent</th>
                         <th>Resource</th>
                         <th>Engine</th>
@@ -820,6 +831,14 @@
 
             } catch (error) {
                 console.error('Failed to refresh dashboard:', error);
+                // Show error message
+                document.getElementById('error-message')?.remove();
+                const errorDiv = document.createElement('div');
+                errorDiv.id = 'error-message';
+                errorDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #e74c3c; color: white; padding: 15px; border-radius: 5px; z-index: 1000;';
+                errorDiv.textContent = 'データの取得に失敗しました: ' + error.message;
+                document.body.appendChild(errorDiv);
+                setTimeout(() => errorDiv.remove(), 5000);
             }
         }
 
@@ -909,13 +928,21 @@
             }
 
             tbody.innerHTML = decisions.map(decision => {
-                const time = new Date(decision.timestamp).toLocaleTimeString();
+                const datetime = new Date(decision.timestamp).toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    timeZoneName: 'short'
+                });
                 const engineBadgeClass = `engine-badge ${decision.engine.toLowerCase()}`;
                 const decisionBadgeClass = `decision-badge ${decision.decision.toLowerCase()}`;
                 
                 return `
                     <tr>
-                        <td>${time}</td>
+                        <td>${datetime}</td>
                         <td>${decision.agent}</td>
                         <td>${decision.resource}</td>
                         <td><span class="${engineBadgeClass}">${decision.engine}</span></td>
@@ -928,12 +955,12 @@
         }
 
         function updateConversionStats(stats) {
-            document.getElementById('totalConversions').textContent = stats.total.toLocaleString();
-            document.getElementById('patternConversions').textContent = stats.pattern.toLocaleString();
-            document.getElementById('aiConversions').textContent = stats.ai.toLocaleString();
-            document.getElementById('hybridConversions').textContent = stats.hybrid.toLocaleString();
-            document.getElementById('learnedPatterns').textContent = stats.learnedPatterns.toLocaleString();
-            document.getElementById('avgConfidence').textContent = `${Math.round(stats.avgConfidence * 100)}%`;
+            document.getElementById('totalConversions').textContent = (stats.total || 0).toLocaleString();
+            document.getElementById('patternConversions').textContent = (stats.pattern || 0).toLocaleString();
+            document.getElementById('aiConversions').textContent = (stats.ai || 0).toLocaleString();
+            document.getElementById('hybridConversions').textContent = (stats.hybrid || 0).toLocaleString();
+            document.getElementById('learnedPatterns').textContent = (stats.learnedPatterns || 0).toLocaleString();
+            document.getElementById('avgConfidence').textContent = stats.avgConfidence ? `${Math.round(stats.avgConfidence * 100)}%` : '0%';
 
             // Update progress bars
             const total = stats.total || 1;
