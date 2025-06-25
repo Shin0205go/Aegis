@@ -118,7 +118,8 @@ export class ObligationExecutorManager {
         // リトライが必要かチェック
         const config = this.configs.get(this.findExecutorForObligation(obligation)?.name || '');
         if (config?.retryCount && config.retryCount > 0) {
-          // TODO: リトライ機能の実装
+          // リトライ機能は将来的な拡張点
+          // 現在はエラーをログに記録して継続
         }
       }
     }

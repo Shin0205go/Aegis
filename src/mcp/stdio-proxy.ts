@@ -16,6 +16,24 @@ import type {
   AccessControlResult,
   AEGISConfig 
 } from '../types/index.js';
+import type {
+  PolicyEnforcementContext,
+  AuditStats,
+  DashboardMetrics,
+  CircuitBreakerState,
+  CacheStats,
+  BatchJudgmentStats,
+  SystemStats
+} from '../types/mcp-context.js';
+import { UpstreamResponse } from '../types/mcp-context.js';
+import type {
+  CallToolRequest,
+  ListResourcesRequest,
+  ListToolsRequest,
+  ReadResourceRequest,
+  Resource,
+  Tool
+} from '@modelcontextprotocol/sdk/types.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
@@ -25,9 +43,14 @@ import { IntelligentCacheSystem } from '../performance/intelligent-cache-system.
 import { BatchJudgmentSystem } from '../performance/batch-judgment-system.js';
 import { MCPPolicyProxyBase } from './base-proxy.js';
 import { CIRCUIT_BREAKER, CACHE, BATCH, TIMEOUTS } from '../constants/index.js';
+import type { 
+  ComplianceReport,
+  AnomalyReport,
+  PatternAnalysis 
+} from '../audit/advanced-audit-system.js';
 
 export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
-  private httpProxy?: any; // Web UI用HTTPサーバー
+  private httpProxy?: MCPPolicyProxyBase; // Web UI用HTTPサーバー
   
   // stdioルーター
   private stdioRouter: StdioRouter;
@@ -45,7 +68,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   private upstreamStartPromise: Promise<void> | null = null;
   
   // Phase 3: サーキットブレーカー状態管理
-  private circuitBreakerState: Map<string, { failures: number, lastFailure: Date, isOpen: boolean }> = new Map();
+  private circuitBreakerState: Map<string, CircuitBreakerState> = new Map();
   
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
@@ -119,12 +142,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
   protected setupHandlers(): void {
     // リソース読み取りハンドラー
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       this.logger.info('Resource read request', { uri: request.params.uri });
       
       try {
         // ポリシー判定実行
-        const decision = await this.enforcePolicy('read', request.params.uri, { request });
+        const decision = await this.enforcePolicy('read', request.params.uri, { 
+          request,
+          clientId: 'stdio-client',
+          headers: {}
+        });
         
         if (decision.decision === 'DENY') {
           throw new Error(`Access denied: ${decision.reason}`);
@@ -141,7 +168,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         // 制約適用
         const constrainedResult = await this.applyDataConstraints(result, decision.constraints || []);
         
-        return constrainedResult;
+        return { contents: [{ text: JSON.stringify(constrainedResult) }] };
       } catch (error) {
         this.logger.error('Resource read error', error);
         throw error;
@@ -149,7 +176,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
 
     // リソース一覧ハンドラー
-    this.server.setRequestHandler(ListResourcesRequestSchema, async (request: any) => {
+    this.server.setRequestHandler(ListResourcesRequestSchema, async (request) => {
       this.logger.info('List resources request');
       
       try {
@@ -158,8 +185,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const result = await this.forwardToUpstream('resources/list', {});
         
         // MCPプロトコルに準拠した形式で返す
-        if (result && result.result) {
-          return result.result;
+        if (result && typeof result === 'object' && 'result' in result) {
+          return (result as UpstreamResponse).result as { resources: Resource[] };
         }
         
         // フォールバック（空の配列を返す）
@@ -171,7 +198,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
 
     // ツール実行ハンドラー
-    this.server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       this.logger.info('Tool call request', { name: request.params.name });
       
       try {
@@ -181,7 +208,11 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         if (request.params.name === 'filesystem__read_file' && request.params.arguments?.path) {
           resourceString = `file:${request.params.arguments.path}`;
         }
-        const decision = await this.enforcePolicy('execute', resourceString, { request });
+        const decision = await this.enforcePolicy('execute', resourceString, { 
+          request,
+          clientId: 'stdio-client',
+          headers: {}
+        });
         
         if (decision.decision === 'DENY') {
           throw new Error(`Access denied: ${decision.reason}`);
@@ -211,7 +242,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
         
         // result.resultを返す
-        return result.result;
+        if (result && typeof result === 'object' && 'result' in result) {
+          return (result as { result: Record<string, unknown> }).result;
+        }
+        return result as Record<string, unknown>;
       } catch (error) {
         this.logger.error('Tool call error', error);
         throw error;
@@ -219,7 +253,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
 
     // ツール一覧ハンドラー
-    this.server.setRequestHandler(ListToolsRequestSchema, async (request: any) => {
+    this.server.setRequestHandler(ListToolsRequestSchema, async (request) => {
       this.logger.info('List tools request received');
       
       try {
@@ -241,13 +275,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         this.logger.debug('Upstream response received:', JSON.stringify(result).substring(0, 200));
         
         // MCPプロトコルに準拠した形式で返す
-        if (result && result.result) {
-          this.logger.info(`Returning ${result.result.tools?.length || 0} tools to client`);
-          return result.result;
-        } else if (result && result.tools) {
+        if (result && typeof result === 'object' && 'result' in result) {
+          const typedResult = result as UpstreamResponse;
+          const toolsResult = typedResult.result as { tools: Tool[] };
+          this.logger.info(`Returning ${toolsResult.tools?.length || 0} tools to client`);
+          return toolsResult;
+        } else if (result && typeof result === 'object' && 'tools' in result) {
           // 直接toolsが含まれている場合
-          this.logger.info(`Returning ${result.tools?.length || 0} tools to client (direct format)`);
-          return { tools: result.tools };
+          const toolsResult = result as { tools: Tool[] };
+          this.logger.info(`Returning ${toolsResult.tools?.length || 0} tools to client (direct format)`);
+          return { tools: toolsResult.tools };
         }
         
         // フォールバック（空の配列を返す）
@@ -261,7 +298,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
   }
 
-  private async enforcePolicy(action: string, resource: string, context: any): Promise<AccessControlResult> {
+  private async enforcePolicy(action: string, resource: string, context: PolicyEnforcementContext): Promise<AccessControlResult> {
     const startTime = Date.now();
     
     // 基本コンテキスト構築
@@ -269,11 +306,13 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       agent: 'mcp-client', // stdioでは識別子が限定的
       action,
       resource,
-      purpose: context.request?.params?.purpose || 'general-operation',
+      purpose: (context.request?.params?.purpose as string | undefined) || 'general-operation',
       time: new Date(),
       environment: {
         transport: 'stdio',
-        ...context
+        request: context.request,
+        clientId: context.clientId,
+        headers: context.headers
       }
     };
     
@@ -355,7 +394,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     const decision = await Promise.race([
       this.hybridPolicyEngine.decide(enrichedContext, policy),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), 30000); // 30秒タイムアウト
+        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), TIMEOUTS.POLICY_DECISION); // 30秒タイムアウト
       })
     ]);
     
@@ -426,7 +465,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
 
-  private async forwardToUpstream(method: string, params: any): Promise<any> {
+  private async forwardToUpstream(method: string, params: Record<string, unknown>): Promise<unknown> {
     // Phase 3: サーキットブレーカーチェック
     if (this.isCircuitBreakerOpen(method)) {
       throw new Error(`Circuit breaker is open for ${method}`);
@@ -471,7 +510,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
 
-  private async applyDataConstraints(data: any, constraints: string[]): Promise<any> {
+  private async applyDataConstraints(data: unknown, constraints: string[]): Promise<unknown> {
     if (!constraints || constraints.length === 0) {
       return data;
     }
@@ -521,7 +560,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
 
-  private async executeRequestObligations(obligations: string[], request: any): Promise<void> {
+  private async executeRequestObligations(obligations: string[], request: CallToolRequest | ReadResourceRequest): Promise<void> {
     if (!obligations || obligations.length === 0) {
       return;
     }
@@ -531,8 +570,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
         agent: 'mcp-client',
-        action: request.params?.name || 'unknown',
-        resource: `tool:${request.params?.name || 'unknown'}`,
+        action: ('name' in request.params ? (request.params.name as string) : undefined) || 'unknown',
+        resource: `tool:${('name' in request.params ? request.params.name : undefined) || 'unknown'}`,
         purpose: 'obligation-execution',
         time: new Date(),
         environment: {
@@ -754,13 +793,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   
 
-  getSystemPerformanceStats(): {
-    audit: any;
-    cache: any;
-    batchJudgment: any;
-    queueStatus: any;
-    anomalyStats: any;
-    circuitBreaker: any;
+  getSystemPerformanceStats(): SystemStats & {
     systemHealth: {
       upstreamServices: number;
       openCircuits: number;
@@ -780,7 +813,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       cache: this.getCacheStats(),
       batchJudgment: this.getBatchJudgmentStats(),
       queueStatus: this.getBatchQueueStatus(),
-      anomalyStats: this.realTimeAnomalyDetector.getAnomalyStats(),
+      anomalyStats: {
+        detected: this.realTimeAnomalyDetector.getStats().anomaliesDetected,
+        threshold: 0.8
+      },
       circuitBreaker: circuitStats,
       systemHealth: {
         upstreamServices: totalServices,
@@ -824,14 +860,17 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       
       this.logger.debug('Preload result:', JSON.stringify(result, null, 2));
       
-      if (result && result.result && result.result.tools) {
-        const toolCount = result.result.tools.length;
-        this.logger.info(`Preloaded ${toolCount} tools from upstream servers`);
-        
-        // ツール名をログ出力
-        result.result.tools.forEach((tool: any) => {
-          this.logger.info(`  - ${tool.name}: ${tool.description || 'No description'}`);
-        });
+      if (result && typeof result === 'object' && 'result' in result) {
+        const res = result as { result: { tools?: Array<{ name: string; description?: string }> } };
+        if (res.result && res.result.tools) {
+          const toolCount = res.result.tools.length;
+          this.logger.info(`Preloaded ${toolCount} tools from upstream servers`);
+          
+          // ツール名をログ出力
+          res.result.tools.forEach((tool) => {
+            this.logger.info(`  - ${tool.name}: ${tool.description || 'No description'}`);
+          });
+        }
       } else {
         this.logger.warn('No tools found from upstream servers');
         this.logger.debug('Result structure:', result);
@@ -876,11 +915,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     );
     
     // 同じポリシーエンジンとシステムを共有
-    (httpProxy as any).hybridPolicyEngine = this.hybridPolicyEngine;
-    (httpProxy as any).contextCollector = this.contextCollector;
-    (httpProxy as any).enforcementSystem = this.enforcementSystem;
-    (httpProxy as any).advancedAuditSystem = this.advancedAuditSystem;
-    (httpProxy as any).auditDashboardProvider = this.auditDashboardProvider;
+    // HTTPプロキシに必要なコンポーネントを共有
+    if (httpProxy instanceof MCPPolicyProxyBase) {
+      Object.assign(httpProxy, {
+        hybridPolicyEngine: this.hybridPolicyEngine,
+        contextCollector: this.contextCollector,
+        enforcementSystem: this.enforcementSystem,
+        advancedAuditSystem: this.advancedAuditSystem,
+        auditDashboardProvider: this.auditDashboardProvider
+      });
+    }
     
     // HTTPサーバーを起動
     await httpProxy.start();

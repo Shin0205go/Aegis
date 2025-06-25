@@ -33,7 +33,7 @@ export class HybridPolicyEngine {
   private decisionCache: Map<string, { decision: PolicyDecision; timestamp: number }>;
 
   constructor(
-    aiEngine: AIJudgmentEngine,
+    aiEngine: AIJudgmentEngine | null,
     config: HybridPolicyConfig = {
       useODRL: true,
       useAI: true,
@@ -43,7 +43,7 @@ export class HybridPolicyEngine {
     }
   ) {
     this.odrlEvaluator = new ODRLEvaluator();
-    this.aiEngine = aiEngine;
+    this.aiEngine = aiEngine!; // Will check before use
     this.config = config;
     this.odrlPolicies = config.odrlPolicies || defaultPolicySet;
     this.decisionCache = new Map();

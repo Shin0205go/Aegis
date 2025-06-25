@@ -87,6 +87,7 @@ export const AEGISOperands = {
   DATETIME: 'dateTime',
   TIME_OF_DAY: 'timeOfDay',
   DAY_OF_WEEK: 'dayOfWeek',
+  IS_BUSINESS_HOURS: 'aegis:isBusinessHours',
   
   // Agent properties
   AGENT_ID: 'aegis:agentId',

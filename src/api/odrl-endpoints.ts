@@ -4,7 +4,7 @@
 
 import { Router, Request, Response } from 'express';
 import { HybridPolicyEngine } from '../policy/hybrid-policy-engine';
-import { NLToODRLConverter } from '../odrl/nl-to-odrl-converter';
+import { NLToODRLConverter } from '../odrl/nl-to-odrl-converter-refactored';
 import { ODRLParser } from '../odrl/parser';
 import { AEGISPolicy } from '../odrl/types';
 import { logger } from '../utils/logger';
@@ -201,9 +201,7 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
       }
       
       const result = await nlConverter.convert(text, {
-        useAI,
-        saveHistory,
-        learnFromSuccess
+        useAI
       });
       
       if (!result.success) {

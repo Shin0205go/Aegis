@@ -9,6 +9,11 @@ import { AIJudgmentEngine } from '../../ai/judgment-engine';
 import { Logger } from '../../utils/logger';
 import { EnforcementSystem } from '../../core/enforcement';
 import type { AEGISConfig } from '../../types';
+import type { 
+  TestableMCPStdioPolicyProxy, 
+  TestableMCPHttpPolicyProxy,
+  MockExpressListen
+} from '../types/test-helpers';
 
 describe('MCP + EnforcementSystem Integration', () => {
   let logger: Logger;
@@ -42,12 +47,12 @@ describe('MCP + EnforcementSystem Integration', () => {
   });
 
   describe('Stdio Proxy Integration', () => {
-    let stdioProxy: MCPStdioPolicyProxy;
+    let stdioProxy: TestableMCPStdioPolicyProxy;
 
     beforeEach(async () => {
-      stdioProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine);
+      stdioProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine) as TestableMCPStdioPolicyProxy;
       // EnforcementSystemを初期化
-      await (stdioProxy as any).enforcementSystem.initialize();
+      await stdioProxy.enforcementSystem.initialize();
     });
 
     it('should use EnforcementSystem for constraints', async () => {
@@ -71,10 +76,10 @@ describe('MCP + EnforcementSystem Integration', () => {
       };
 
       // 制約適用のテスト
-      const result = await (stdioProxy as any).applyConstraints(
+      const result = await stdioProxy.applyConstraints(
         testData,
         ['個人情報を匿名化']
-      );
+      ) as typeof testData;
 
       // 匿名化が適用されていることを確認
       const parsedContent = JSON.parse(result.contents[0].text);
@@ -88,13 +93,13 @@ describe('MCP + EnforcementSystem Integration', () => {
       const executedObligations: string[] = [];
       
       // EnforcementSystemのモック
-      jest.spyOn((stdioProxy as any).enforcementSystem, 'executeObligations')
+      jest.spyOn(stdioProxy.enforcementSystem, 'executeObligations')
         .mockImplementation(async (obligations: string[]) => {
           executedObligations.push(...obligations);
         });
 
       // 義務実行のテスト
-      await (stdioProxy as any).executeObligations(
+      await stdioProxy.executeObligations(
         ['アクセスログ記録', '30日後削除スケジュール設定'],
         { params: { name: 'test-tool' } }
       );
@@ -106,13 +111,13 @@ describe('MCP + EnforcementSystem Integration', () => {
 
     it('should handle constraint errors gracefully', async () => {
       // エラーを発生させる
-      jest.spyOn((stdioProxy as any).enforcementSystem, 'applyConstraints')
+      jest.spyOn(stdioProxy.enforcementSystem, 'applyConstraints')
         .mockRejectedValue(new Error('Constraint error'));
 
       const testData = { test: 'data' };
       
       // エラーが発生してもデータがそのまま返されることを確認
-      const result = await (stdioProxy as any).applyConstraints(
+      const result = await stdioProxy.applyConstraints(
         testData,
         ['エラーを起こす制約']
       );
@@ -122,12 +127,12 @@ describe('MCP + EnforcementSystem Integration', () => {
   });
 
   describe('HTTP Proxy Integration', () => {
-    let httpProxy: MCPHttpPolicyProxy;
+    let httpProxy: TestableMCPHttpPolicyProxy;
 
     beforeEach(async () => {
-      httpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine);
+      httpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine) as TestableMCPHttpPolicyProxy;
       // EnforcementSystemを初期化
-      await (httpProxy as any).enforcementSystem.initialize();
+      await httpProxy.enforcementSystem.initialize();
     });
 
     it('should use EnforcementSystem for constraints', async () => {
@@ -143,10 +148,10 @@ describe('MCP + EnforcementSystem Integration', () => {
       };
 
       // 制約適用のテスト
-      const result = await (httpProxy as any).applyConstraints(
+      const result = await httpProxy.applyConstraints(
         testData,
         ['個人情報を匿名化']
-      );
+      ) as typeof testData;
 
       // 匿名化が適用されていることを確認
       const parsedContent = JSON.parse(result.contents[0].text);
@@ -159,13 +164,13 @@ describe('MCP + EnforcementSystem Integration', () => {
       const executedObligations: string[] = [];
       
       // EnforcementSystemのモック
-      jest.spyOn((httpProxy as any).enforcementSystem, 'executeObligations')
+      jest.spyOn(httpProxy.enforcementSystem, 'executeObligations')
         .mockImplementation(async (obligations: string[]) => {
           executedObligations.push(...obligations);
         });
 
       // 義務実行のテスト
-      await (httpProxy as any).executeObligations(
+      await httpProxy.executeObligations(
         ['監査ログ記録', 'アクセス通知送信'],
         { params: { name: 'sensitive-tool' } }
       );
@@ -176,18 +181,19 @@ describe('MCP + EnforcementSystem Integration', () => {
     });
 
     it('should initialize EnforcementSystem on start', async () => {
-      const initSpy = jest.spyOn((httpProxy as any).enforcementSystem, 'initialize')
+      const initSpy = jest.spyOn(httpProxy.enforcementSystem, 'initialize')
         .mockResolvedValue(undefined);
 
       // Express serverのモック
-      jest.spyOn((httpProxy as any).app, 'listen').mockImplementation((port: number, callback: () => void) => {
+      const mockListen: MockExpressListen = (port: number, callback: () => void) => {
         callback();
-        return { on: jest.fn() } as any;
-      });
+        return { on: jest.fn() };
+      };
+      jest.spyOn(httpProxy.app, 'listen').mockImplementation(mockListen as any);
 
       // MCPサーバーのconnectをモック
-      jest.spyOn((httpProxy as any).server, 'connect').mockResolvedValue(undefined);
-      jest.spyOn((httpProxy as any).server, 'close').mockResolvedValue(undefined);
+      jest.spyOn(httpProxy.server, 'connect').mockResolvedValue(undefined);
+      jest.spyOn(httpProxy.server, 'close').mockResolvedValue(undefined);
 
       await httpProxy.start();
 
@@ -196,26 +202,26 @@ describe('MCP + EnforcementSystem Integration', () => {
   });
 
   describe('Legacy to New System Migration', () => {
-    it('should not have any legacy anonymization code in stdio proxy', async () => {
-      const stdioProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine);
-      await (stdioProxy as any).enforcementSystem.initialize();
+    it('should not have legacy anonymization code in stdio proxy', async () => {
+      const stdioProxy = new MCPStdioPolicyProxy(config, logger, judgmentEngine) as TestableMCPStdioPolicyProxy;
+      await stdioProxy.enforcementSystem.initialize();
       
       // レガシーメソッドが存在しないことを確認
-      expect((stdioProxy as any).anonymizeData).toBeUndefined();
-      expect((stdioProxy as any).sendNotification).toBeUndefined();
-      expect((stdioProxy as any).scheduleDataDeletion).toBeUndefined();
-      expect((stdioProxy as any).generateAccessReport).toBeUndefined();
+      expect(stdioProxy.anonymizeData).toBeUndefined();
+      expect(stdioProxy.sendNotification).toBeUndefined();
+      expect(stdioProxy.scheduleDataDeletion).toBeUndefined();
+      expect(stdioProxy.generateAccessReport).toBeUndefined();
     });
 
-    it('should not have any legacy anonymization code in http proxy', async () => {
-      const httpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine);
-      await (httpProxy as any).enforcementSystem.initialize();
+    it('should not have legacy anonymization code in http proxy', async () => {
+      const httpProxy = new MCPHttpPolicyProxy(config, logger, judgmentEngine) as TestableMCPHttpPolicyProxy;
+      await httpProxy.enforcementSystem.initialize();
       
       // レガシーメソッドが存在しないことを確認
-      expect((httpProxy as any).anonymizeData).toBeUndefined();
-      expect((httpProxy as any).sendNotification).toBeUndefined();
-      expect((httpProxy as any).scheduleDataDeletion).toBeUndefined();
-      expect((httpProxy as any).generateAccessReport).toBeUndefined();
+      expect(httpProxy.anonymizeData).toBeUndefined();
+      expect(httpProxy.sendNotification).toBeUndefined();
+      expect(httpProxy.scheduleDataDeletion).toBeUndefined();
+      expect(httpProxy.generateAccessReport).toBeUndefined();
     });
   });
 });

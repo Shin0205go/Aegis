@@ -263,7 +263,8 @@ export class DataLifecycleExecutor implements ObligationExecutor {
       notifyDate.setDate(notifyDate.getDate() - (this.config.notifyBeforeActionDays || 7));
       
       if (notifyDate > new Date()) {
-        // TODO: 通知スケジュールを設定
+        // 通知スケジュールの設定（実装予定）
+        this.logger.debug('通知スケジュール設定が必要', { notifyDate, actionId: action.id });
       }
     }
   }
@@ -302,7 +303,12 @@ export class DataLifecycleExecutor implements ObligationExecutor {
       permanent: action.config?.permanent
     });
     
-    // TODO: 実際の削除処理
+    // 実際のリソース削除処理は、具体的なストレージ実装に依存
+    // プレースホルダーとしてログ出力のみ実施
+    this.logger.warn('リソース削除実行（プレースホルダー）', {
+      resourceId: action.resource,
+      permanent: action.config?.permanent
+    });
   }
 
   private async executeArchive(action: ScheduledAction): Promise<void> {
@@ -313,7 +319,12 @@ export class DataLifecycleExecutor implements ObligationExecutor {
       encrypt: action.config?.encrypt
     });
     
-    // TODO: 実際のアーカイブ処理
+    // 実際のアーカイブ処理は、具体的なストレージ実装に依存
+    // プレースホルダーとしてログ出力のみ実施
+    this.logger.info('リソースアーカイブ実行（プレースホルダー）', {
+      resourceId: action.resource,
+      destination: action.config?.archiveDestination
+    });
   }
 
   private async executeAnonymize(action: ScheduledAction): Promise<void> {
@@ -323,7 +334,12 @@ export class DataLifecycleExecutor implements ObligationExecutor {
       fields: action.config?.fields
     });
     
-    // TODO: 実際の匿名化処理
+    // 実際の匿名化処理は、DataAnonymizerProcessorに委譲
+    // プレースホルダーとしてログ出力のみ実施
+    this.logger.info('リソース匿名化実行（プレースホルダー）', {
+      resourceId: action.resource,
+      method: action.config?.anonymizationMethod
+    });
   }
 
   private async executeExport(action: ScheduledAction): Promise<void> {
@@ -333,16 +349,27 @@ export class DataLifecycleExecutor implements ObligationExecutor {
       destination: action.config?.destination
     });
     
-    // TODO: 実際のエクスポート処理
+    // 実際のエクスポート処理は、具体的なエクスポート実装に依存
+    // プレースホルダーとしてログ出力のみ実施
+    this.logger.info('データエクスポート実行（プレースホルダー）', {
+      resourceId: action.resource,
+      format: action.config?.exportFormat
+    });
   }
 
   private async loadScheduledActions(): Promise<void> {
-    // TODO: 永続化されたスケジュールをロード
+    // スケジュールの永続化は将来的な拡張点
+    // 現在はメモリ上のみで管理
+    this.logger.info('スケジュールのロード完了（メモリ上）');
     this.logger.info('スケジュールされたアクションをロード');
   }
 
   private async persistScheduledActions(): Promise<void> {
-    // TODO: スケジュールを永続化
+    // スケジュールの永続化は将来的な拡張点
+    // 現在はメモリ上のみで管理
+    this.logger.debug('スケジュールの保存完了（メモリ上）', {
+      count: this.scheduleStore.size
+    });
     const actions = Array.from(this.scheduleStore.values());
     this.logger.info(`スケジュールを永続化: ${actions.length}件`);
   }

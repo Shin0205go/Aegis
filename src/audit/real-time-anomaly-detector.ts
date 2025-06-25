@@ -273,7 +273,9 @@ export class RealTimeAnomalyDetector {
             agent: alert.triggeringContext.agent,
             resource: alert.triggeringContext.resource
           });
-          // TODO: 実際のブロック機能実装
+          // エージェントのブロック機能は将来的な拡張点
+          // 現在はログ記録のみ実施
+          logger.error('エージェントのブロックが必要（未実装）', { agentId: alert.triggeringContext.agent });
           return true;
         
         default:
@@ -371,5 +373,24 @@ export class RealTimeAnomalyDetector {
    */
   async runManualAnomalyDetection(): Promise<AnomalyReport[]> {
     return await this.auditSystem.detectAnomalousAccess(0.1);
+  }
+
+  /**
+   * 統計情報を取得
+   */
+  getStats(): {
+    anomaliesDetected: number;
+    totalActivities: number;
+    recentActivityCount: number;
+  } {
+    const anomaliesDetected = this.recentActivity.filter(activity => 
+      activity.outcome === 'ERROR'
+    ).length;
+    
+    return {
+      anomaliesDetected,
+      totalActivities: this.recentActivity.length,
+      recentActivityCount: this.recentActivity.length
+    };
   }
 }

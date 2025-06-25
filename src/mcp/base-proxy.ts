@@ -12,6 +12,7 @@ import type {
 } from '../types/index.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
+import { CACHE } from '../constants/index.js';
 import { 
   ContextCollector,
   TimeBasedEnricher,
@@ -46,13 +47,12 @@ export abstract class MCPPolicyProxyBase {
     this.judgmentEngine = judgmentEngine;
     
     // ハイブリッドポリシーエンジン初期化
-    // @ts-ignore - judgmentEngineがnullの場合も許可
     this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
       useODRL: true,
       useAI: judgmentEngine !== null,
       aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'),
       cacheEnabled: true,
-      cacheTTL: 300000 // 5分
+      cacheTTL: CACHE.DECISION_CACHE.DEFAULT_TTL // 5分
     });
     
     // コンテキストコレクター初期化

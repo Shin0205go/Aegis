@@ -547,7 +547,7 @@ export class AdvancedAuditSystem {
         successRate,
         preferredResources,
         riskScore: this.calculateAgentRiskScore(agentEntries),
-        behaviorChanges: [] // TODO: 実装時系列分析
+        behaviorChanges: this.detectBehaviorChanges(agentId, agentEntries)
       };
     });
   }
@@ -557,6 +557,40 @@ export class AdvancedAuditSystem {
     const errorRate = entries.filter(e => e.outcome === 'ERROR').length / entries.length;
     
     return Math.min(denialRate * 0.7 + errorRate * 0.3, 1.0);
+  }
+
+  private detectBehaviorChanges(agentId: string, entries: AuditEntry[]): string[] {
+    // 簡易的な行動変化検出
+    const changes: string[] = [];
+    
+    if (entries.length < 10) {
+      return changes;
+    }
+    
+    // 最近のエントリと過去のエントリを比較
+    const recentEntries = entries.slice(-5);
+    const olderEntries = entries.slice(0, -5);
+    
+    // アクセスパターンの変化を検出
+    const recentResources = new Set(recentEntries.map(e => e.context.resource));
+    const olderResources = new Set(olderEntries.map(e => e.context.resource));
+    
+    // 新しいリソースへのアクセス
+    const newResources = [...recentResources].filter(r => !olderResources.has(r));
+    if (newResources.length > 0) {
+      changes.push(`新しいリソースへのアクセス開始: ${newResources.join(', ')}`);
+    }
+    
+    // アクセス頻度の変化
+    const recentFrequency = recentEntries.length / 5;
+    const olderFrequency = olderEntries.length / olderEntries.length;
+    if (recentFrequency > olderFrequency * 2) {
+      changes.push('アクセス頻度が増加');
+    } else if (recentFrequency < olderFrequency * 0.5) {
+      changes.push('アクセス頻度が減少');
+    }
+    
+    return changes;
   }
 
   private analyzeResourceUsage(entries: AuditEntry[]): ResourceUsage[] {

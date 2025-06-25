@@ -7,7 +7,7 @@
 
 import { HybridPolicyEngine } from '../src/policy/hybrid-policy-engine';
 import { AIJudgmentEngine } from '../src/ai/judgment-engine';
-import { NLToODRLConverter } from '../src/odrl/nl-to-odrl-converter';
+import { NLToODRLConverter } from '../src/odrl/nl-to-odrl-converter-refactored';
 import { DecisionContext } from '../src/types/policy';
 import { Logger } from '../src/utils/logger';
 

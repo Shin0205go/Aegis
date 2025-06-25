@@ -3,6 +3,8 @@
 // ストラテジーパターンによる制約処理の実装
 // ============================================================================
 
+import type { ConstraintData, ObjectData } from '../../types/mcp-context.js';
+
 export interface ConstraintStrategy {
   /**
    * この制約を処理できるかチェック
@@ -12,7 +14,7 @@ export interface ConstraintStrategy {
   /**
    * 制約を適用
    */
-  apply(data: any, constraint: string): any;
+  apply(data: ConstraintData, constraint: string): ConstraintData;
   
   /**
    * 制約の説明を取得
@@ -30,7 +32,7 @@ export class AnonymizeStrategy implements ConstraintStrategy {
            constraint.includes('個人情報の匿名化');
   }
   
-  apply(data: any, constraint: string): any {
+  apply(data: ConstraintData, constraint: string): ConstraintData {
     if (typeof data === 'string') {
       return this.anonymizeString(data);
     }
@@ -54,8 +56,11 @@ export class AnonymizeStrategy implements ConstraintStrategy {
     );
   }
   
-  private anonymizeObject(obj: any): any {
-    const result = { ...obj };
+  private anonymizeObject(obj: ConstraintData): ConstraintData {
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) {
+      return obj;
+    }
+    const result = { ...obj as ObjectData };
     const sensitiveFields = ['email', 'phone', 'address', 'name', 'ip', 'ipAddress'];
     
     sensitiveFields.forEach(field => {
@@ -81,7 +86,7 @@ export class FieldRestrictionStrategy implements ConstraintStrategy {
            constraint.startsWith('restrict-fields:');
   }
   
-  apply(data: any, constraint: string): any {
+  apply(data: ConstraintData, constraint: string): ConstraintData {
     if (!this.isValidObject(data)) {
       return data;
     }
@@ -90,12 +95,15 @@ export class FieldRestrictionStrategy implements ConstraintStrategy {
     return this.filterData(data, fields);
   }
   
-  private isValidObject(data: any): boolean {
-    return typeof data === 'object' && data !== null;
+  private isValidObject(data: ConstraintData): data is ObjectData {
+    return typeof data === 'object' && data !== null && !Array.isArray(data);
   }
   
-  private filterData(data: any, fields: string[]): any {
-    const result: any = {};
+  private filterData(data: ConstraintData, fields: string[]): ConstraintData {
+    if (!this.isValidObject(data)) {
+      return data;
+    }
+    const result: ObjectData = {};
     
     Object.entries(data).forEach(([key, value]) => {
       if (Array.isArray(value)) {
@@ -108,7 +116,7 @@ export class FieldRestrictionStrategy implements ConstraintStrategy {
     return result;
   }
   
-  private filterArray(items: any[], fields: string[]): any[] {
+  private filterArray(items: ConstraintData[], fields: string[]): ConstraintData[] {
     return items.map(item => 
       this.isValidObject(item) ? this.filterFields(item, fields) : item
     );
@@ -120,8 +128,8 @@ export class FieldRestrictionStrategy implements ConstraintStrategy {
     return match[1].trim().split(/[,、]/);
   }
   
-  private filterFields(obj: any, fields: string[]): any {
-    const filtered: any = {};
+  private filterFields(obj: ObjectData, fields: string[]): ObjectData {
+    const filtered: ObjectData = {};
     for (const field of fields) {
       if (field in obj) {
         filtered[field] = obj[field];
@@ -144,7 +152,7 @@ export class RecordLimitStrategy implements ConstraintStrategy {
            constraint.startsWith('limit-records:');
   }
   
-  apply(data: any, constraint: string): any {
+  apply(data: ConstraintData, constraint: string): ConstraintData {
     const limit = this.extractLimit(constraint);
     
     if (!this.canApplyLimit(data, limit)) {
@@ -154,21 +162,24 @@ export class RecordLimitStrategy implements ConstraintStrategy {
     return this.limitArrayFields(data, limit);
   }
   
-  private canApplyLimit(data: any, limit: number): boolean {
-    return limit > 0 && typeof data === 'object' && data !== null;
+  private canApplyLimit(data: ConstraintData, limit: number): boolean {
+    return limit > 0 && typeof data === 'object' && data !== null && !Array.isArray(data);
   }
   
-  private limitArrayFields(data: any, limit: number): any {
-    const result = { ...data };
+  private limitArrayFields(data: ConstraintData, limit: number): ConstraintData {
+    if (!this.isValidObjectData(data)) {
+      return data;
+    }
+    const result = { ...data as ObjectData };
     let truncated = false;
     let originalCount = 0;
     
-    Object.entries(data)
+    Object.entries(data as ObjectData)
       .filter(([_, value]) => Array.isArray(value))
       .forEach(([key, value]) => {
-        const array = value as any[];
+        const array = value as unknown[];
         if (array.length > limit) {
-          result[key] = array.slice(0, limit);
+          result[key] = array.slice(0, limit) as ConstraintData;
           truncated = true;
           originalCount = Math.max(originalCount, array.length);
         }
@@ -187,6 +198,10 @@ export class RecordLimitStrategy implements ConstraintStrategy {
     return match ? parseInt(match[1]) : 0;
   }
   
+  private isValidObjectData(data: ConstraintData): data is ObjectData {
+    return typeof data === 'object' && data !== null && !Array.isArray(data);
+  }
+  
   getDescription(): string {
     return '配列内のレコード数を制限';
   }
@@ -201,7 +216,7 @@ export class DataSizeLimitStrategy implements ConstraintStrategy {
            constraint.startsWith('limit-size:');
   }
   
-  apply(data: any, constraint: string): any {
+  apply(data: ConstraintData, constraint: string): ConstraintData {
     const limitBytes = this.parseSize(constraint);
     
     if (this.isWithinLimit(data, limitBytes)) {
@@ -211,11 +226,11 @@ export class DataSizeLimitStrategy implements ConstraintStrategy {
     return this.truncateData(data, limitBytes);
   }
   
-  private isWithinLimit(data: any, limitBytes: number): boolean {
+  private isWithinLimit(data: ConstraintData, limitBytes: number): boolean {
     return JSON.stringify(data).length <= limitBytes;
   }
   
-  private truncateData(data: any, limitBytes: number): any {
+  private truncateData(data: ConstraintData, limitBytes: number): ConstraintData {
     const truncateMarker = '[TRUNCATED]';
     const safeLimit = limitBytes - truncateMarker.length;
     
@@ -224,17 +239,18 @@ export class DataSizeLimitStrategy implements ConstraintStrategy {
     }
     
     if (this.hasStringContent(data)) {
-      return this.truncateContent(data, safeLimit, truncateMarker);
+      return this.truncateContent(data as ObjectData & { content: string }, safeLimit, truncateMarker);
     }
     
     return data;
   }
   
-  private hasStringContent(data: any): boolean {
-    return data?.content && typeof data.content === 'string';
+  private hasStringContent(data: ConstraintData): data is ObjectData & { content: string } {
+    return typeof data === 'object' && data !== null && !Array.isArray(data) && 
+           'content' in data && typeof (data as ObjectData).content === 'string';
   }
   
-  private truncateContent(data: any, limit: number, marker: string): any {
+  private truncateContent(data: ObjectData & { content: string }, limit: number, marker: string): ConstraintData {
     return {
       ...data,
       content: data.content.substring(0, limit) + marker,
@@ -274,13 +290,16 @@ export class TimeLimitStrategy implements ConstraintStrategy {
            constraint.startsWith('time-limit:');
   }
   
-  apply(data: any, constraint: string): any {
+  apply(data: ConstraintData, constraint: string): ConstraintData {
     // このストラテジーは実際には非同期処理のラッパーで使用される
     // ここでは制限値の抽出のみ行う
-    return {
-      ...data,
-      _timeLimit: this.parseTime(constraint)
-    };
+    if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+      return {
+        ...(data as ObjectData),
+        _timeLimit: this.parseTime(constraint)
+      };
+    }
+    return data;
   }
   
   private parseTime(constraint: string): number {
@@ -331,7 +350,7 @@ export class ConstraintStrategyManager {
   /**
    * 制約を適用
    */
-  applyConstraint(constraint: string, data: any): any {
+  applyConstraint(constraint: string, data: ConstraintData): ConstraintData {
     const strategy = this.strategies.find(s => s.canHandle(constraint));
     
     if (!strategy) {
@@ -345,7 +364,7 @@ export class ConstraintStrategyManager {
   /**
    * 複数の制約を順番に適用
    */
-  applyConstraints(constraints: string[], data: any): any {
+  applyConstraints(constraints: string[], data: ConstraintData): ConstraintData {
     return constraints.reduce((result, constraint) => {
       return this.applyConstraint(constraint, result);
     }, data);

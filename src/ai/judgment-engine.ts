@@ -402,20 +402,65 @@ ${policy}
 
   // 学習メソッド（現在は記録のみ）
   async learn(prompt: string): Promise<void> {
-    // TODO: 実際の学習実装
-    // 現在は学習データを記録するのみ
-    console.error('[AI Learn] Learning from:', prompt.substring(0, 100) + '...');
+    // 学習データを記録（console.errorでログ出力）
+    console.error('[AI Learn] Recording learning data:', {
+      prompt: prompt.substring(0, 100) + '...',
+      timestamp: new Date().toISOString()
+    });
     
-    // 将来的には:
+    // 将来的な実装計画:
     // - ファインチューニングAPIの呼び出し
-    // - 学習データの保存
+    // - 学習データのストレージへの保存
     // - パターンの抽出と記録
+    // - 学習済みモデルの更新とデプロイ
   }
 
   // パブリックメソッド：AI判定の実行
   async judge(context: DecisionContext, policyText?: string): Promise<PolicyDecision> {
     const policy = policyText || 'すべてのアクセスを適切に判定してください';
     return this.makeDecision(policy, context);
+  }
+
+  /**
+   * 自然言語ポリシーをODRL形式に変換
+   */
+  async convertToODRL(nlPolicy: string): Promise<any> {
+    const prompt = `
+自然言語のポリシーをODRL形式に変換してください。
+
+入力ポリシー: "${nlPolicy}"
+
+以下の要素を抽出してJSON形式で返してください：
+1. ルールタイプ（Permission/Prohibition）
+2. アクション（read, write, execute, delete等）
+3. 制約条件（時間、エージェント、リソース等）
+4. 義務（ログ記録、通知、削除等）
+
+応答形式:
+{
+  "rules": [
+    {
+      "type": "Permission|Prohibition",
+      "action": "action_name",
+      "constraints": [
+        {
+          "type": "time|agent|resource|...",
+          "description": "制約の説明"
+        }
+      ],
+      "obligations": ["義務1", "義務2"]
+    }
+  ],
+  "confidence": 0.0-1.0
+}`;
+
+    try {
+      const response = await this.llm.complete(prompt);
+      return this.parseJSONResponse(response);
+    } catch (error) {
+      console.error('[AI convertToODRL] Failed:', error);
+      throw error;
+    }
   }
 
   private parseJSONResponse(response: string): any {

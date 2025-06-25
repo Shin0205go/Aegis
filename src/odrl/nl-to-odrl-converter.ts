@@ -938,22 +938,22 @@ if (require.main === module) {
       'タスクの委譲は最大3レベルまで'
     ];
     
-    console.log('🧪 Testing Natural Language to ODRL Conversion\n');
+    logger.info('🧪 Testing Natural Language to ODRL Conversion\n');
     
     for (const nl of testPolicies) {
-      console.log(`Input: "${nl}"`);
+      logger.info(`Input: "${nl}"`);
       const result = await converter.convert(nl);
       
       if (result.success) {
-        console.log(`✅ Success (confidence: ${result.confidence})`);
-        console.log(`   Patterns: ${result.patterns.join(', ')}`);
-        console.log(`   Rules: ${result.policy!.permission!.length} permissions, ${result.policy!.prohibition!.length} prohibitions`);
+        logger.info(`✅ Success (confidence: ${result.confidence})`);
+        logger.info(`   Patterns: ${result.patterns.join(', ')}`);
+        logger.info(`   Rules: ${result.policy!.permission!.length} permissions, ${result.policy!.prohibition!.length} prohibitions`);
       } else {
-        console.log(`❌ Failed: ${result.error}`);
+        logger.error(`❌ Failed: ${result.error}`);
       }
-      console.log();
+      logger.info('');
     }
   };
   
-  test().catch(console.error);
+  test().catch(err => logger.error('Test failed', err));
 }
