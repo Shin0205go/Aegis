@@ -169,7 +169,7 @@ export class NotifierExecutor implements ObligationExecutor {
     if (obligation.includes('データ所有者')) {
       const ownerEmail = context.environment?.dataOwnerEmail;
       if (ownerEmail) {
-        recipients.push(ownerEmail);
+        recipients.push(ownerEmail as string);
       }
     }
     if (obligation.includes('セキュリティチーム')) {

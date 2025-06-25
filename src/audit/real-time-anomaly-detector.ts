@@ -6,6 +6,7 @@
 import { Logger } from '../utils/logger.js';
 import { DecisionContext, PolicyDecision } from '../types/index.js';
 import { AdvancedAuditSystem, AnomalyReport } from './advanced-audit-system.js';
+import { AnomalyAlert as EnforcementAnomalyAlert } from '../types/enforcement-types.js';
 
 const logger = new Logger('real-time-anomaly');
 
@@ -26,12 +27,8 @@ export interface AnomalyContext {
   outcome: 'SUCCESS' | 'FAILURE' | 'ERROR';
 }
 
-export interface AnomalyAlert {
-  alertId: string;
+export interface AnomalyAlert extends EnforcementAnomalyAlert {
   detectedAt: Date;
-  pattern: AnomalyPattern;
-  triggeringContext: DecisionContext;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   description: string;
   suggestedActions: string[];
   autoMitigated: boolean;
@@ -206,13 +203,19 @@ export class RealTimeAnomalyDetector {
     const alert: AnomalyAlert = {
       alertId,
       detectedAt: new Date(),
-      pattern,
+      timestamp: new Date(),
+      pattern: {
+        name: pattern.name,
+        description: pattern.description
+      },
       triggeringContext: context,
       severity: pattern.severity,
       description: `${pattern.description}: ${context.agent} -> ${context.resource}`,
       suggestedActions: this.generateSuggestedActions(pattern, context),
-      autoMitigated: false
-    };
+      autoMitigated: false,
+      // Add patternId for internal use
+      patternId: pattern.id
+    } as AnomalyAlert & { patternId: string };
 
     // 重要度に応じて自動緩和を実行
     if (pattern.severity === 'CRITICAL') {
@@ -266,7 +269,7 @@ export class RealTimeAnomalyDetector {
 
   private async attemptAutoMitigation(alert: AnomalyAlert): Promise<boolean> {
     try {
-      switch (alert.pattern.id) {
+      switch ((alert as any).patternId || alert.pattern.name) {
         case 'sensitive-resource-access':
           // 機密リソースアクセスの場合、一時的にエージェントをブロック
           logger.warn('Auto-mitigating critical anomaly: temporary agent block', {
@@ -301,7 +304,7 @@ export class RealTimeAnomalyDetector {
         'ERROR', // 異常検知はエラーカテゴリ
         {
           anomalyAlertId: alert.alertId,
-          patternId: alert.pattern.id,
+          patternId: (alert as any).patternId || alert.pattern.name,
           severity: alert.severity,
           autoMitigated: alert.autoMitigated
         }

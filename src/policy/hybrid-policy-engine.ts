@@ -221,8 +221,8 @@ export class HybridPolicyEngine {
       obligations: this.extractObligations(odrlDecision),
       metadata: {
         engine: 'ODRL',
-        policyId: odrlDecision.policy?.uid,
-        evaluationTime: odrlDecision.metadata?.evaluationTime,
+        policyId: odrlDecision.policy?.uid ?? '',
+        evaluationTime: odrlDecision.metadata?.evaluationTime ?? 0,
         matchedRules: odrlDecision.matchedRules?.length || 0
       }
     };
@@ -270,9 +270,9 @@ export class HybridPolicyEngine {
       ],
       metadata: {
         engine: 'Hybrid',
-        odrlDecision: odrlDecision?.decision,
+        odrlDecision: odrlDecision?.decision ?? 'INDETERMINATE',
         aiDecision: aiDecision.decision,
-        aiConfidence: aiDecision.confidence
+        aiConfidence: aiDecision.confidence ?? 0
       }
     };
   }

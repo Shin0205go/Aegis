@@ -5,6 +5,15 @@
 // ============================================================================
 // 基本的な決定コンテキスト
 // ============================================================================
+// Environment data structure
+export interface EnvironmentData {
+  transport?: 'stdio' | 'http' | 'websocket';
+  nodeEnv?: 'development' | 'production' | 'test';
+  hostname?: string;
+  platform?: string;
+  [key: string]: any; // Allow extensibility
+}
+
 export interface DecisionContext {
   agent: string;
   action: string;
@@ -12,7 +21,7 @@ export interface DecisionContext {
   purpose?: string;
   time: Date;
   location?: string;
-  environment: Record<string, any>;
+  environment: EnvironmentData;
   
   // PIPで拡張される追加フィールド
   agentType?: string;
@@ -37,7 +46,7 @@ export interface DecisionContext {
   // その他
   emergency?: boolean;
   delegationChain?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 // ============================================================================
@@ -52,7 +61,7 @@ export interface PolicyDecision {
   obligations?: string[];
   monitoringRequirements?: string[];
   validityPeriod?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, string | number | boolean | null>;
 }
 
 // ============================================================================
@@ -151,12 +160,22 @@ export interface ControllerStatistics {
 // ============================================================================
 // コンテキスト拡張ルール
 // ============================================================================
+// Enrichment data structure
+export interface EnrichmentData {
+  [key: string]: string | number | boolean | null | EnrichmentData | EnrichmentData[];
+}
+
 export interface ContextEnrichmentRule {
   name: string;
   priority: number;
   condition: (context: DecisionContext) => boolean;
-  enrich: (context: DecisionContext) => Promise<Record<string, any>>;
+  enrich: (context: DecisionContext) => Promise<EnrichmentData>;
 }
+
+// ============================================================================
+// Audit types (re-export from enforcement-types)
+// ============================================================================
+export type { AuditEntry, AnomalyAlert } from './enforcement-types.js';
 
 // ============================================================================
 // LLM設定
@@ -216,20 +235,33 @@ export interface MonitoringConfig {
 // 全体設定
 // ============================================================================
 export interface AEGISConfig {
-  nodeEnv: 'development' | 'production' | 'test';
-  port: number;
-  logLevel: 'debug' | 'info' | 'warn' | 'error';
+  nodeEnv?: 'development' | 'production' | 'test';
+  port?: number;
+  logLevel?: 'debug' | 'info' | 'warn' | 'error';
   
-  llm: LLMConfig;
-  cache: CacheConfig;
+  llm?: LLMConfig;
+  cache?: CacheConfig;
   mcpProxy: MCPProxyConfig;
-  monitoring: MonitoringConfig;
+  monitoring?: MonitoringConfig;
   
-  defaultPolicyStrictness: 'low' | 'medium' | 'high' | 'strict';
-  policyValidationEnabled: boolean;
+  defaultPolicyStrictness?: 'low' | 'medium' | 'high' | 'strict';
+  policyValidationEnabled?: boolean;
   
-  secretKey: string;
+  secretKey?: string;
   jwtSecret?: string;
+  
+  // Additional fields for compatibility
+  mcp?: {
+    upstreamServers: Array<{
+      name: string;
+      command: string;
+      args?: string[];
+    }>;
+  };
+  ai?: LLMConfig;
+  policies?: {
+    defaultPolicy?: string;
+  };
 }
 
 // ============================================================================
@@ -271,10 +303,15 @@ export type DeepPartial<T> = {
 // ============================================================================
 // イベント型
 // ============================================================================
+// Event data structures
+export interface EventData {
+  [key: string]: any;
+}
+
 export interface AEGISEvent {
   type: string;
   timestamp: Date;
-  data: any;
+  data: EventData;
 }
 
 export interface PolicyEvent extends AEGISEvent {

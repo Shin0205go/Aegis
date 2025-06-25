@@ -19,6 +19,9 @@ import type {
   AccessControlResult,
   AEGISConfig 
 } from '../types/index.js';
+import type {
+  RequestContext
+} from '../types/mcp-types.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
 import { createAuditEndpoints } from '../api/audit-endpoints.js';
@@ -42,7 +45,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
   private upstreamServers = new Map<string, { name: string; url: string }>();
   
   // リクエストコンテキスト管理
-  private requestContext = new Map<string, any>();
+  private requestContext = new Map<string, RequestContext>();
   
   // stdio上流サーバー管理（ブリッジモード）
   private stdioRouter?: StdioRouter;
@@ -119,7 +122,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       this.logger.info('Resource read request', { 
         uri: request.params.uri, 
         sessionId,
-        agentId: context.headers['x-agent-id'] || context.headers['X-Agent-ID'] 
+        agentId: (context.headers as any)['x-agent-id'] || (context.headers as any)['X-Agent-ID'] 
       });
       
       try {
@@ -162,7 +165,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       
       this.logger.info('List resources request', { 
         sessionId,
-        agentId: context.headers['x-agent-id'] || context.headers['X-Agent-ID'] 
+        agentId: (context.headers as any)['x-agent-id'] || (context.headers as any)['X-Agent-ID'] 
       });
       
       try {
@@ -200,7 +203,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       this.logger.info('Tool call request', { 
         name: request.params.name, 
         sessionId,
-        agentId: context.headers['x-agent-id'] || context.headers['X-Agent-ID'] 
+        agentId: (context.headers as any)['x-agent-id'] || (context.headers as any)['X-Agent-ID'] 
       });
       
       try {
@@ -253,7 +256,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       
       this.logger.info('List tools request', { 
         sessionId,
-        agentId: context.headers['x-agent-id'] || context.headers['X-Agent-ID'] 
+        agentId: (context.headers as any)['x-agent-id'] || (context.headers as any)['X-Agent-ID'] 
       });
       
       try {
@@ -292,7 +295,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
     
     // ヘッダーからエージェント情報を取得
     const agentId = context.headers?.['X-Agent-ID'] || context.headers?.['x-agent-id'] || context.clientId || 'http-client';
-    const agentType = context.headers?.['X-Agent-Type'] || context.headers?.['x-agent-type'] || 'unknown';
+    const agentType = context.headers?.['X-Agent-Type'] || context.headers?.['x-agent-type'] || 'http-client';
     const agentMetadata = context.headers?.['X-Agent-Metadata'] || context.headers?.['x-agent-metadata'];
     
     // 基本コンテキスト構築
@@ -470,8 +473,8 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
         agent: 'http-client',
-        action: request.params?.name || 'unknown',
-        resource: `tool:${request.params?.name || 'unknown'}`,
+        action: request.params?.name || 'unspecified-action',
+        resource: `tool:${request.params?.name || 'unspecified-tool'}`,
         purpose: 'obligation-execution',
         time: new Date(),
         environment: {

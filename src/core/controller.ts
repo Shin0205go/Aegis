@@ -48,6 +48,9 @@ export class AEGISController {
     this.logger = logger;
     
     // AI判定エンジン初期化
+    if (!config.llm) {
+      throw new Error('LLM configuration is required');
+    }
     this.judgmentEngine = new AIJudgmentEngine(config.llm);
     
     // ハイブリッドポリシーエンジン初期化
@@ -470,7 +473,7 @@ export class AEGISController {
       
       this.logger.info('🛡️ AEGIS Controller started successfully');
       this.logger.info(`📊 Loaded ${this.policies.size} policies`);
-      this.logger.info(`🤖 AI Engine: ${this.config.llm.provider} (${this.config.llm.model})`);
+      this.logger.info(`🤖 AI Engine: ${this.config.llm?.provider} (${this.config.llm?.model})`);
       
     } catch (error) {
       this.logger.error('Failed to start AEGIS Controller', error);

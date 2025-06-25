@@ -16,6 +16,37 @@ import type {
   AccessControlResult,
   AEGISConfig 
 } from '../types/index.js';
+import type {
+  MCPRequest,
+  MCPResponse,
+  TypedToolCallRequest,
+  TypedResourceReadRequest,
+  TypedResourceListRequest,
+  TypedToolListRequest,
+  ToolsListResult,
+  ResourcesListResult,
+  ResourceReadResult,
+  ToolCallResult,
+  UpstreamResponse,
+  CircuitBreakerState,
+  SystemPerformanceStats,
+  DesktopConfig,
+  RequestContext,
+  AuditSystemStats,
+  CacheStats,
+  BatchJudgmentStats,
+  QueueStatus,
+  AnomalyStats
+} from '../types/mcp-types.js';
+import type {
+  ConstrainableData,
+  ConstrainedData,
+  ObligationContext,
+  ComplianceReportParams,
+  AccessPatternAnalysis,
+  DashboardMetrics,
+  AnomalyAlert
+} from '../types/enforcement-types.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
@@ -27,7 +58,7 @@ import { MCPPolicyProxyBase } from './base-proxy.js';
 import { CIRCUIT_BREAKER, CACHE, BATCH, TIMEOUTS } from '../constants/index.js';
 
 export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
-  private httpProxy?: any; // Web UI用HTTPサーバー
+  private httpProxy?: any; // Web UI用HTTPサーバー - using any to avoid circular dependency
   
   // stdioルーター
   private stdioRouter: StdioRouter;
@@ -45,7 +76,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   private upstreamStartPromise: Promise<void> | null = null;
   
   // Phase 3: サーキットブレーカー状態管理
-  private circuitBreakerState: Map<string, { failures: number, lastFailure: Date, isOpen: boolean }> = new Map();
+  private circuitBreakerState: Map<string, CircuitBreakerState> = new Map();
   
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
@@ -60,7 +91,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     this.realTimeAnomalyDetector = new RealTimeAnomalyDetector(this.advancedAuditSystem);
     
     // 異常検知アラートのハンドリング設定
-    this.realTimeAnomalyDetector.onAnomalyAlert((alert) => {
+    this.realTimeAnomalyDetector.onAnomalyAlert((alert: AnomalyAlert) => {
       this.logger.warn('Real-time anomaly alert', {
         alertId: alert.alertId,
         severity: alert.severity,
@@ -139,7 +170,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const result = await this.forwardToUpstream('resources/read', request.params);
         
         // 制約適用
-        const constrainedResult = await this.applyDataConstraints(result, decision.constraints || []);
+        const constrainedResult = await this.applyDataConstraints(result as ConstrainableData, decision.constraints || []);
         
         return constrainedResult;
       } catch (error) {
@@ -211,7 +242,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
         
         // result.resultを返す
-        return result.result;
+        return result && result.result ? result.result : {};
       } catch (error) {
         this.logger.error('Tool call error', error);
         throw error;
@@ -242,12 +273,12 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         
         // MCPプロトコルに準拠した形式で返す
         if (result && result.result) {
-          this.logger.info(`Returning ${result.result.tools?.length || 0} tools to client`);
+          this.logger.info(`Returning ${(result.result as any).tools?.length || 0} tools to client`);
           return result.result;
-        } else if (result && result.tools) {
+        } else if (result && (result as any).tools) {
           // 直接toolsが含まれている場合
-          this.logger.info(`Returning ${result.tools?.length || 0} tools to client (direct format)`);
-          return { tools: result.tools };
+          this.logger.info(`Returning ${(result as any).tools?.length || 0} tools to client (direct format)`);
+          return { tools: (result as any).tools };
         }
         
         // フォールバック（空の配列を返す）
@@ -261,7 +292,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
   }
 
-  private async enforcePolicy(action: string, resource: string, context: any): Promise<AccessControlResult> {
+  private async enforcePolicy(action: string, resource: string, context: { request?: MCPRequest }): Promise<AccessControlResult> {
     const startTime = Date.now();
     
     // 基本コンテキスト構築
@@ -269,7 +300,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       agent: 'mcp-client', // stdioでは識別子が限定的
       action,
       resource,
-      purpose: context.request?.params?.purpose || 'general-operation',
+      purpose: (context.request?.params as any)?.purpose || 'general-operation',
       time: new Date(),
       environment: {
         transport: 'stdio',
@@ -426,7 +457,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
 
-  private async forwardToUpstream(method: string, params: any): Promise<any> {
+  private async forwardToUpstream(method: string, params: Record<string, any> | undefined): Promise<UpstreamResponse> {
     // Phase 3: サーキットブレーカーチェック
     if (this.isCircuitBreakerOpen(method)) {
       throw new Error(`Circuit breaker is open for ${method}`);
@@ -471,9 +502,9 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
 
-  private async applyDataConstraints(data: any, constraints: string[]): Promise<any> {
+  private async applyDataConstraints(data: ConstrainableData, constraints: string[]): Promise<ConstrainedData> {
     if (!constraints || constraints.length === 0) {
-      return data;
+      return data as ConstrainedData;
     }
 
     // Phase 3: 新システムを完全に使用
@@ -511,7 +542,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         } else if (error.message.includes('SOFT_CONSTRAINT_FAILURE')) {
           // 軽微な制約の失敗時は警告ログと共に通す
           this.logger.warn('Soft constraint failure, allowing access with warning', error);
-          return data;
+          return data as ConstrainedData;
         }
       }
       
@@ -521,7 +552,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
 
-  private async executeRequestObligations(obligations: string[], request: any): Promise<void> {
+  private async executeRequestObligations(obligations: string[], request: MCPRequest): Promise<void> {
     if (!obligations || obligations.length === 0) {
       return;
     }
@@ -531,8 +562,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
         agent: 'mcp-client',
-        action: request.params?.name || 'unknown',
-        resource: `tool:${request.params?.name || 'unknown'}`,
+        action: (request.params as any)?.name || 'unknown',
+        resource: `tool:${(request.params as any)?.name || 'unknown'}`,
         purpose: 'obligation-execution',
         time: new Date(),
         environment: {
@@ -619,7 +650,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   /**
    * Phase 3: 高度な監査・レポート機能
    */
-  async generateComplianceReport(hours: number = 24): Promise<any> {
+  async generateComplianceReport(hours: number = 24): Promise<Record<string, any>> {
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
     
@@ -629,18 +660,48 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
   }
 
-  async detectAnomalousAccess(threshold: number = 0.1): Promise<any[]> {
-    return await this.advancedAuditSystem.detectAnomalousAccess(threshold);
+  async detectAnomalousAccess(threshold: number = 0.1): Promise<AnomalyAlert[]> {
+    const anomalyReports = await this.advancedAuditSystem.detectAnomalousAccess(threshold);
+    // Convert AnomalyReport[] to AnomalyAlert[]
+    return anomalyReports.map(report => ({
+      alertId: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      severity: 'MEDIUM' as const,
+      pattern: {
+        name: 'anomalous-access',
+        description: 'Anomalous access pattern detected'
+      },
+      triggeringContext: {
+        agent: 'system',
+        action: 'access-analysis',
+        resource: 'audit-log',
+        time: new Date(),
+        environment: {}
+      },
+      timestamp: new Date(),
+      details: report as Record<string, any>
+    }));
   }
 
-  async createAccessPatternAnalysis(days: number = 7): Promise<any> {
+  async createAccessPatternAnalysis(days: number = 7): Promise<AccessPatternAnalysis> {
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - days * 24 * 60 * 60 * 1000);
     
-    return await this.advancedAuditSystem.createAccessPatternAnalysis({
+    const analysis = await this.advancedAuditSystem.createAccessPatternAnalysis({
       start: startTime,
       end: endTime
     });
+    
+    // Ensure the result matches AccessPatternAnalysis interface
+    const { timeRange, ...restAnalysis } = analysis as any;
+    return {
+      patterns: [],
+      anomalies: [],
+      ...restAnalysis,
+      timeRange: timeRange || {
+        start: startTime,
+        end: endTime
+      }
+    } as AccessPatternAnalysis;
   }
 
   async exportAuditLogs(format: 'JSON' | 'CSV' = 'JSON', hours: number = 24): Promise<Buffer> {
@@ -653,15 +714,36 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     });
   }
 
-  getAuditSystemStats(): any {
-    return this.advancedAuditSystem.getSystemStats();
+  getAuditSystemStats(): AuditSystemStats {
+    const stats = this.advancedAuditSystem.getSystemStats();
+    return {
+      totalEntries: stats.totalEntries,
+      recentEntries: 0, // Not provided by the underlying system
+      storageSize: 0, // Not provided by the underlying system
+      oldestEntry: stats.oldestEntry,
+      newestEntry: stats.newestEntry
+    };
   }
   
   /**
    * ダッシュボードメトリクスを取得
    */
-  async getDashboardMetrics(): Promise<any> {
-    return await this.auditDashboardProvider.getDashboardMetrics();
+  async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const metrics = await this.auditDashboardProvider.getDashboardMetrics();
+    
+    // Ensure all required fields are present
+    return {
+      totalRequests: 0,
+      permitRate: 0,
+      denyRate: 0,
+      activeAlerts: 0,
+      recentActivity: [],
+      systemHealth: {
+        status: 'HEALTHY' as const,
+        components: {}
+      },
+      ...metrics
+    } as DashboardMetrics;
   }
   
 
@@ -706,8 +788,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
   
-  getCircuitBreakerStats(): Record<string, any> {
-    const stats: Record<string, any> = {};
+  getCircuitBreakerStats(): Record<string, CircuitBreakerState & { timeUntilReset: number }> {
+    const stats: Record<string, CircuitBreakerState & { timeUntilReset: number }> = {};
     
     this.circuitBreakerState.forEach((state, method) => {
       stats[method] = {
@@ -725,8 +807,18 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   /**
    * Phase 3: パフォーマンス統計情報取得
    */
-  getCacheStats(): any {
-    return this.intelligentCacheSystem.getStats();
+  getCacheStats(): CacheStats {
+    const stats = this.intelligentCacheSystem.getStats();
+    return {
+      hitRate: stats.hitRate,
+      totalHits: stats.hitCount,
+      totalMisses: stats.missCount,
+      size: stats.totalEntries,
+      maxSize: CACHE.INTELLIGENT_CACHE.MAX_ENTRIES,
+      missRate: stats.missCount / (stats.hitCount + stats.missCount) || 0,
+      evictionRate: stats.evictionCount / (stats.totalEntries || 1),
+      compressionRatio: undefined // Not provided by the underlying system
+    };
   }
 
   async clearCache(): Promise<void> {
@@ -740,12 +832,33 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     return count;
   }
 
-  getBatchJudgmentStats(): any {
-    return this.batchJudgmentSystem.getStats();
+  getBatchJudgmentStats(): BatchJudgmentStats {
+    const stats = this.batchJudgmentSystem.getStats();
+    // Calculate derived metrics since they're not provided by the underlying system
+    const totalBatches = Math.ceil(stats.totalRequests / BATCH.MAX_SIZE.STDIO);
+    const averageBatchSize = totalBatches > 0 ? stats.totalRequests / totalBatches : 0;
+    
+    return {
+      totalBatches: totalBatches,
+      averageBatchSize: averageBatchSize,
+      processingTime: stats.avgProcessingTime,
+      totalRequests: stats.totalRequests,
+      batchedRequests: stats.successfulRequests,
+      averageResponseTime: stats.avgProcessingTime
+    };
   }
 
-  getBatchQueueStatus(): any {
-    return this.batchJudgmentSystem.getQueueStatus();
+  getBatchQueueStatus(): QueueStatus {
+    const status = this.batchJudgmentSystem.getQueueStatus();
+    return {
+      pending: status.waitingRequests,
+      processing: status.processingRequests,
+      completed: 0, // Not provided by the underlying system
+      waitingRequests: status.waitingRequests,
+      processingRequests: status.processingRequests,
+      isProcessing: status.isProcessing,
+      priorityDistribution: status.priorityDistribution
+    };
   }
 
   async forceProcessBatchQueue(): Promise<void> {
@@ -754,19 +867,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   
 
-  getSystemPerformanceStats(): {
-    audit: any;
-    cache: any;
-    batchJudgment: any;
-    queueStatus: any;
-    anomalyStats: any;
-    circuitBreaker: any;
-    systemHealth: {
-      upstreamServices: number;
-      openCircuits: number;
-      overallStatus: 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
-    };
-  } {
+  getSystemPerformanceStats(): SystemPerformanceStats {
     const circuitStats = this.getCircuitBreakerStats();
     const openCircuits = Object.values(circuitStats).filter((state: any) => state.isOpen).length;
     const totalServices = Object.keys(circuitStats).length;
@@ -780,7 +881,12 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       cache: this.getCacheStats(),
       batchJudgment: this.getBatchJudgmentStats(),
       queueStatus: this.getBatchQueueStatus(),
-      anomalyStats: this.realTimeAnomalyDetector.getAnomalyStats(),
+      anomalyStats: {
+        totalAnomalies: 0,
+        recentAnomalies: 0,
+        severity: {},
+        ...this.realTimeAnomalyDetector.getAnomalyStats()
+      } as AnomalyStats,
       circuitBreaker: circuitStats,
       systemHealth: {
         upstreamServices: totalServices,
@@ -824,12 +930,12 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       
       this.logger.debug('Preload result:', JSON.stringify(result, null, 2));
       
-      if (result && result.result && result.result.tools) {
-        const toolCount = result.result.tools.length;
+      if (result && (result as any).result && (result as any).result.tools) {
+        const toolCount = (result as any).result.tools.length;
         this.logger.info(`Preloaded ${toolCount} tools from upstream servers`);
         
         // ツール名をログ出力
-        result.result.tools.forEach((tool: any) => {
+        (result as any).result.tools.forEach((tool: any) => {
           this.logger.info(`  - ${tool.name}: ${tool.description || 'No description'}`);
         });
       } else {

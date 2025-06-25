@@ -239,7 +239,7 @@ describe('Hybrid Policy Engine Tests', () => {
       const time2 = decision2.metadata?.evaluationTime || 0;
 
       expect(decision1.decision).toBe(decision2.decision);
-      expect(time2).toBeLessThan(time1); // Cached response should be faster
+      expect(time2).toBeLessThan(time1 as number); // Cached response should be faster
     });
   });
 

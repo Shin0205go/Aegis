@@ -38,7 +38,7 @@ export class SecurityInfoEnricher implements ContextEnricher {
 
   async enrich(context: DecisionContext): Promise<Record<string, any>> {
     // 環境情報からIPアドレスを取得（実際のIPまたはデモ用）
-    const clientIP = context.environment.clientIP || '125.56.86.166'; // 実際のクライアントIP
+    const clientIP = (context.environment.clientIP as string) || '125.56.86.166'; // 実際のクライアントIP
     
     // IP情報の解析
     const ipInfo = this.analyzeIP(clientIP);
@@ -297,16 +297,16 @@ export class SecurityInfoEnricher implements ContextEnricher {
   private getAuthenticationInfo(context: DecisionContext): AuthInfo {
     // デモ用の認証情報
     return {
-      method: context.environment.authMethod || 'password',
-      strength: context.environment.authStrength || 'medium',
-      mfaEnabled: context.environment.mfaEnabled || false,
+      method: (context.environment.authMethod as string) || 'password',
+      strength: (context.environment.authStrength as string) || 'medium',
+      mfaEnabled: (context.environment.mfaEnabled as boolean) || false,
       sessionAge: Math.floor(Math.random() * 3600) // 秒単位
     };
   }
 
   private getDeviceTrust(context: DecisionContext): string {
     // デバイス信頼度の判定（デモ用）
-    if (context.environment.deviceId && context.environment.deviceId.includes('trusted')) {
+    if (context.environment.deviceId && typeof context.environment.deviceId === 'string' && context.environment.deviceId.includes('trusted')) {
       return 'trusted';
     }
     return 'untrusted';

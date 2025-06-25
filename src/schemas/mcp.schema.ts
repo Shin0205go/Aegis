@@ -11,7 +11,7 @@ export const mcpRequestBaseSchema = z.object({
   jsonrpc: z.literal('2.0'),
   id: z.union([z.string(), z.number()]),
   method: z.string(),
-  params: z.any().optional()
+  params: z.record(z.any()).optional()
 });
 
 /**
@@ -74,7 +74,8 @@ export const toolDefinitionSchema = z.object({
   inputSchema: z.object({
     type: z.literal('object'),
     properties: z.record(z.any()),
-    required: z.array(z.string()).optional()
+    required: z.array(z.string()).optional(),
+    additionalProperties: z.boolean().optional()
   })
 });
 
@@ -124,7 +125,7 @@ export const mcpProxyConfigSchema = z.object({
 /**
  * MCPリクエストのバリデーション関数
  */
-export function validateMCPRequest(data: unknown): z.infer<typeof mcpRequestBaseSchema> | null {
+export function validateMCPRequest(data: any): z.infer<typeof mcpRequestBaseSchema> | null {
   try {
     return mcpRequestBaseSchema.parse(data);
   } catch (error) {
@@ -135,7 +136,7 @@ export function validateMCPRequest(data: unknown): z.infer<typeof mcpRequestBase
 /**
  * 特定のMCPメソッドリクエストのバリデーション
  */
-export function validateMethodRequest(method: string, data: unknown) {
+export function validateMethodRequest(method: string, data: any) {
   switch (method) {
     case 'tools/call':
       return toolCallRequestSchema.parse(data);
