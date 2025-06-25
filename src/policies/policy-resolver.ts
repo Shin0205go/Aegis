@@ -296,7 +296,7 @@ export class PolicyApplicabilityFilter {
     
     // エージェントタイプの条件チェック
     if (policy.conditions?.agentTypes && 
-        !policy.conditions.agentTypes.includes(context.environment.agentType)) {
+        !policy.conditions.agentTypes.includes(context.environment.agentType as string)) {
       return false;
     }
     

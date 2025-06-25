@@ -65,7 +65,7 @@ export class GeoRestrictorProcessor implements ConstraintProcessor {
       return this.applyDefaultAction(data, constraint);
     }
 
-    const location = await this.getLocationFromIP(clientIP);
+    const location = await this.getLocationFromIP(clientIP as string);
     const restriction = this.parseRestriction(constraint);
 
     // 制限チェック

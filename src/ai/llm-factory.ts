@@ -29,8 +29,8 @@ export class DefaultLLMFactory implements LLMFactory {
 
   constructor() {
     this.providerMap = new Map([
-      ['openai', OpenAILLM as any],
-      ['anthropic', AnthropicLLM as any]
+      ['openai', OpenAILLM as new (config: LLMConfig) => LLMProvider],
+      ['anthropic', AnthropicLLM as new (config: LLMConfig) => LLMProvider]
     ]);
   }
 

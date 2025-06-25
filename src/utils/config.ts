@@ -21,7 +21,7 @@ export class Config {
 
       // LLM設定
       llm: {
-        provider: (process.env.LLM_PROVIDER as any) || 'openai',
+        provider: ((process.env.LLM_PROVIDER || 'openai') as 'openai' | 'anthropic' | 'azure'),
         apiKey: this.getApiKey(overrides?.llm?.provider || process.env.LLM_PROVIDER || 'openai'),
         model: process.env.LLM_MODEL || 'gpt-4',
         maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '4096'),
@@ -96,7 +96,7 @@ export class Config {
     const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
     
     // LLM設定検証
-    if (!this.config.llm.apiKey) {
+    if (!this.config.llm?.apiKey) {
       if (!isStdioMode) {
         console.error('[Config] Warning: OpenAI API key not set. Set OPENAI_API_KEY environment variable.');
       }
@@ -110,8 +110,8 @@ export class Config {
     if (!isStdioMode) {
       console.error('[Config] Configuration loaded successfully');
       console.error(`[Config] Environment: ${this.config.nodeEnv}`);
-      console.error(`[Config] LLM Provider: ${this.config.llm.provider}`);
-      console.error(`[Config] LLM Model: ${this.config.llm.model}`);
+      console.error(`[Config] LLM Provider: ${this.config.llm?.provider}`);
+      console.error(`[Config] LLM Model: ${this.config.llm?.model}`);
     }
   }
 
@@ -119,10 +119,10 @@ export class Config {
   get nodeEnv() { return this.config.nodeEnv; }
   get port() { return this.config.port; }
   get logLevel() { return this.config.logLevel; }
-  get llm(): LLMConfig { return this.config.llm; }
-  get cache(): CacheConfig { return this.config.cache; }
+  get llm(): LLMConfig { return this.config.llm!; }
+  get cache(): CacheConfig { return this.config.cache!; }
   get mcpProxy(): MCPProxyConfig { return this.config.mcpProxy; }
-  get monitoring(): MonitoringConfig { return this.config.monitoring; }
+  get monitoring(): MonitoringConfig { return this.config.monitoring!; }
   get defaultPolicyStrictness() { return this.config.defaultPolicyStrictness; }
   get policyValidationEnabled() { return this.config.policyValidationEnabled; }
   get secretKey() { return this.config.secretKey; }
@@ -145,10 +145,10 @@ export class Config {
   toJSON(): Partial<AEGISConfig> {
     return {
       ...this.config,
-      llm: {
+      llm: this.config.llm ? {
         ...this.config.llm,
         apiKey: this.config.llm.apiKey ? '[REDACTED]' : '[NOT_SET]'
-      },
+      } : undefined,
       secretKey: '[REDACTED]',
       jwtSecret: this.config.jwtSecret ? '[REDACTED]' : '[NOT_SET]'
     };

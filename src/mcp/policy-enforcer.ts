@@ -8,17 +8,25 @@ import type {
   AccessControlResult,
   PolicyDecision 
 } from '../types/index.js';
+import type {
+  IContextCollector,
+  IIntelligentCacheSystem,
+  IHybridPolicyEngine,
+  IAdvancedAuditSystem,
+  IRealTimeAnomalyDetector,
+  IPolicyLoader
+} from '../types/component-interfaces.js';
 import { Logger } from '../utils/logger.js';
 import { TIMEOUTS, ERROR_MESSAGES } from '../constants/index.js';
 
 export class PolicyEnforcer {
   constructor(
     private logger: Logger,
-    private contextCollector: any,
-    private intelligentCacheSystem: any,
-    private hybridPolicyEngine: any,
-    private advancedAuditSystem: any,
-    private realTimeAnomalyDetector: any
+    private contextCollector: IContextCollector,
+    private intelligentCacheSystem: IIntelligentCacheSystem | null,
+    private hybridPolicyEngine: IHybridPolicyEngine,
+    private advancedAuditSystem: IAdvancedAuditSystem,
+    private realTimeAnomalyDetector: IRealTimeAnomalyDetector | null
   ) {}
 
   /**
@@ -27,8 +35,8 @@ export class PolicyEnforcer {
   async enforcePolicy(
     action: string, 
     resource: string, 
-    context: any,
-    policyLoader?: any
+    context: Record<string, any>,
+    policyLoader?: IPolicyLoader
   ): Promise<AccessControlResult> {
     const startTime = Date.now();
     
@@ -72,7 +80,7 @@ export class PolicyEnforcer {
   private async prepareContext(
     action: string,
     resource: string,
-    context: any
+    context: Record<string, any>
   ): Promise<DecisionContext> {
     const baseContext: DecisionContext = {
       agent: context.agent || 'mcp-client',
@@ -94,7 +102,7 @@ export class PolicyEnforcer {
    */
   private async selectPolicy(
     context: DecisionContext,
-    policyLoader?: any
+    policyLoader?: IPolicyLoader
   ): Promise<string | null> {
     if (policyLoader) {
       const activePolicies = policyLoader.getActivePolicies();
@@ -164,7 +172,7 @@ export class PolicyEnforcer {
       ...decision,
       processingTime: Date.now() - startTime,
       policyUsed: policy ? 'custom-policy' : 'default-policy',
-      context: decision as any  // 型の互換性のための一時的な対処
+      context: undefined  // context is optional in AccessControlResult
     };
   }
 

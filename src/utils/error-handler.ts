@@ -6,11 +6,19 @@
 import { Logger } from './logger.js';
 import { ERROR_MESSAGES } from '../constants/index.js';
 
+export interface ErrorContext {
+  component?: string;
+  operation?: string;
+  requestId?: string | number;
+  details?: Record<string, any>;
+  [key: string]: any;
+}
+
 export class AegisError extends Error {
   constructor(
     message: string,
     public code: string,
-    public context?: any,
+    public context?: ErrorContext,
     public cause?: Error
   ) {
     super(message);
@@ -213,13 +221,13 @@ export class ErrorHandler {
         code = 'CIRCUIT_BREAKER_OPEN';
       }
       
-      return new AegisError(error.message, code, { context }, error);
+      return new AegisError(error.message, code, { operation: context }, error);
     }
     
     return new AegisError(
       String(error),
       'UNKNOWN_ERROR',
-      { context, originalError: error }
+      { operation: context, originalError: error }
     );
   }
 
@@ -236,5 +244,58 @@ export class ErrorHandler {
     }
     
     return String(error);
+  }
+  
+  /**
+   * Create MCP error response
+   */
+  static createMCPErrorResponse(
+    error: unknown,
+    requestId?: string | number
+  ): {
+    jsonrpc: '2.0';
+    id: string | number | null;
+    error: {
+      code: number;
+      message: string;
+      data?: Record<string, any>;
+    };
+  } {
+    const aegisError = error instanceof AegisError ? error : this.createAegisError(error, 'mcp-response');
+    
+    // Map error codes to JSON-RPC error codes
+    let code = -32603; // Internal error
+    
+    switch (aegisError.code) {
+      case 'INVALID_REQUEST':
+        code = -32600;
+        break;
+      case 'METHOD_NOT_FOUND':
+        code = -32601;
+        break;
+      case 'INVALID_PARAMS':
+        code = -32602;
+        break;
+      case 'POLICY_VIOLATION':
+        code = -32001; // Application error
+        break;
+      case 'TIMEOUT':
+        code = -32002;
+        break;
+      case 'CONNECTION_REFUSED':
+      case 'CIRCUIT_BREAKER_OPEN':
+        code = -32003;
+        break;
+    }
+    
+    return {
+      jsonrpc: '2.0',
+      id: requestId || null,
+      error: {
+        code,
+        message: aegisError.message,
+        data: aegisError.context
+      }
+    };
   }
 }

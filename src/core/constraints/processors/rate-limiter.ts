@@ -169,7 +169,7 @@ export class RateLimiterProcessor implements ConstraintProcessor {
 
     // IPアドレスがあれば含める
     if (context.environment?.clientIP) {
-      parts.push(context.environment.clientIP);
+      parts.push(context.environment.clientIP as string);
     }
 
     return parts.join(':');
