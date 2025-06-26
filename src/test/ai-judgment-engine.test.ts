@@ -5,7 +5,7 @@ import { OpenAILLM } from '../ai/openai-llm';
 // OpenAILLMをモック
 jest.mock('../ai/openai-llm');
 
-describe('AIJudgmentEngine - Phase2機能テスト', () => {
+describe('AIJudgmentEngine - 機能テスト', () => {
   let engine: AIJudgmentEngine;
   let mockLLM: jest.Mocked<OpenAILLM>;
 

@@ -32,7 +32,7 @@ const transport = process.env.MCP_TRANSPORT || process.argv[2] || 'http';
 log(`🚀 Starting AEGIS MCP Server (${transport} mode)...`);
 
 // MCPサーバーを起動
-const args = [path.join(__dirname, 'dist/src/mcp-server.js')];
+const args = [path.join(__dirname, '..', 'dist/src/mcp-server.js')];
 if (transport === 'stdio') {
   args.push('--transport', 'stdio');
 }

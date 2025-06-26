@@ -24,15 +24,29 @@ cp .env.example .env
 # ANTHROPIC_API_KEY または OPENAI_API_KEY を設定
 
 # AEGIS起動（HTTPモード: MCP機能 + Web UI）
-node mcp-launcher.js
+node scripts/mcp-launcher.js
 
 # または stdio モードで起動（Claude Desktop用）
-node mcp-launcher.js stdio
+node scripts/mcp-launcher.js stdio
 
 # ODRLハイブリッドエンジンのテスト
 npm run test:odrl:demo  # デモ実行
 npm run test:odrl:quick # クイックテスト
 ```
+
+### MCP Inspector でのテスト
+
+MCP Inspector を使用して AEGIS Policy Engine の動作をインタラクティブにテストできます：
+
+```bash
+# テストスクリプトを実行
+cd test/mcp-inspector && ./test-with-inspector.sh
+
+# またはプロジェクトルートから直接実行
+npx @modelcontextprotocol/inspector node dist/src/mcp-server.js
+```
+
+詳細は [MCP Inspector セットアップガイド](docs/guides/mcp-inspector-setup.md) を参照してください。
 
 ## 🔌 トランスポートモード
 

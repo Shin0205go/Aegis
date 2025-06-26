@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "filesystem__read_file",
+    "arguments": {
+      "path": "/customer/personal-data.csv"
+    }
+  },
+  "id": 2
+}
