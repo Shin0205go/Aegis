@@ -18,7 +18,7 @@ jest.mock('express');
 // fetch のモック
 global.fetch = jest.fn();
 
-describe('MCPHttpPolicyProxy - Phase2機能テスト', () => {
+describe('MCPHttpPolicyProxy - 機能テスト', () => {
   let proxy: MCPHttpPolicyProxy;
   let mockJudgmentEngine: jest.Mocked<AIJudgmentEngine>;
   let mockLogger: jest.Mocked<Logger>;

@@ -33,7 +33,7 @@ export abstract class MCPPolicyProxyBase {
   protected contextCollector: ContextCollector;
   protected enforcementSystem: EnforcementSystem;
   
-  // Phase 3: 高度な監査システム
+  // 高度な監査システム
   protected advancedAuditSystem: AdvancedAuditSystem;
   protected auditDashboardProvider: AuditDashboardDataProvider;
   
@@ -62,7 +62,7 @@ export abstract class MCPPolicyProxyBase {
     // 制約・義務実施システム初期化
     this.enforcementSystem = new EnforcementSystem();
     
-    // Phase 3: 高度な監査システム初期化
+    // 高度な監査システム初期化
     this.advancedAuditSystem = new AdvancedAuditSystem();
     
     this.auditDashboardProvider = new AuditDashboardDataProvider(
@@ -115,7 +115,7 @@ export abstract class MCPPolicyProxyBase {
     // リソースタイプに基づいてポリシーを選択
     const resource = context.resource.toLowerCase();
     
-    // Phase 2: 時間ベースのポリシー選択
+    // 時間ベースのポリシー選択
     const currentHour = new Date().getHours();
     const isAfterHours = currentHour < 9 || currentHour >= 18;
     
@@ -155,7 +155,7 @@ export abstract class MCPPolicyProxyBase {
     for (const constraint of result.constraints) {
       this.logger.info(`Applying constraint: ${constraint}`);
       
-      // Phase 3: EnforcementSystemを使用して制約を適用
+      // EnforcementSystemを使用して制約を適用
       try {
         // applyConstraintsはデータを直接返す
         modifiedResponse = await this.enforcementSystem.applyConstraints(
@@ -186,7 +186,7 @@ export abstract class MCPPolicyProxyBase {
       return;
     }
 
-    // Phase 3: EnforcementSystemを使用して義務を実行
+    // EnforcementSystemを使用して義務を実行
     try {
       // executeObligationsは戻り値なし
       await this.enforcementSystem.executeObligations(

@@ -73,16 +73,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   // ポリシー管理（追加機能）
   private policyLoader: PolicyLoader;
   
-  // Phase 3: 追加機能
+  // 追加機能
   private realTimeAnomalyDetector: RealTimeAnomalyDetector;
   
-  // Phase 3: パフォーマンス最適化
+  // パフォーマンス最適化
   private intelligentCacheSystem: IntelligentCacheSystem;
   private batchJudgmentSystem: BatchJudgmentSystem;
   
   private upstreamStartPromise: Promise<void> | null = null;
   
-  // Phase 3: サーキットブレーカー状態管理
+  // サーキットブレーカー状態管理
   private circuitBreakerState: Map<string, CircuitBreakerState> = new Map();
   
 
@@ -94,7 +94,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     // ポリシーローダー初期化
     this.initializePolicyLoader();
     
-    // Phase 3: 追加機能初期化
+    // 追加機能初期化
     this.realTimeAnomalyDetector = new RealTimeAnomalyDetector(this.advancedAuditSystem);
     
     // 異常検知アラートのハンドリング設定
@@ -114,7 +114,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       );
     });
 
-    // Phase 3: インテリジェントキャッシュシステム初期化
+    // インテリジェントキャッシュシステム初期化
     this.intelligentCacheSystem = new IntelligentCacheSystem({
       maxEntries: CACHE.INTELLIGENT_CACHE.MAX_ENTRIES,
       defaultTtl: CACHE.INTELLIGENT_CACHE.DEFAULT_TTL,
@@ -130,7 +130,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       patternRecognition: true
     });
 
-    // Phase 3: バッチ判定システム初期化
+    // バッチ判定システム初期化
     this.batchJudgmentSystem = new BatchJudgmentSystem(this.judgmentEngine as AIJudgmentEngine, {
       maxBatchSize: BATCH.MAX_SIZE.STDIO,
       batchTimeout: BATCH.TIMEOUT,
@@ -170,7 +170,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
           throw new Error(`Access denied: ${decision.reason}`);
         }
         
-        // Phase 3: INDETERMINATEも拒否として扱う
+        // INDETERMINATEも拒否として扱う
         if (decision.decision === 'INDETERMINATE') {
           throw new Error(`Access denied (indeterminate): ${decision.reason}`);
         }
@@ -227,7 +227,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
           throw new Error(`Access denied: ${decision.reason}`);
         }
         
-        // Phase 3: INDETERMINATEも拒否として扱う
+        // INDETERMINATEも拒否として扱う
         if (decision.decision === 'INDETERMINATE') {
           throw new Error(`Access denied (indeterminate): ${decision.reason}`);
         }
@@ -336,7 +336,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       this.logger.info(`Using policy: ${selectedPolicy.name} (priority: ${selectedPolicy.metadata.priority})`);
     }
 
-    // Phase 3: キャッシュから判定結果を確認
+    // キャッシュから判定結果を確認
     const cachedResult = await this.intelligentCacheSystem.get(enrichedContext, policy || '', enrichedContext.environment);
     if (cachedResult) {
       this.logger.debug('Using cached decision result', {
@@ -384,7 +384,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     
     if (!policy) {
       this.logger.warn(`No policy found for resource: ${resource}`);
-      // Phase 3: ポリシーがない場合はセキュアなデフォルトでINDETERMINATEを返す
+      // ポリシーがない場合はセキュアなデフォルトでINDETERMINATEを返す
       return {
         decision: 'INDETERMINATE',
         reason: 'No applicable policy found - manual review required',
@@ -396,7 +396,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       };
     }
     
-    // Phase 3: ハイブリッド判定実行にタイムアウトを設定
+    // ハイブリッド判定実行にタイムアウトを設定
     const decision = await Promise.race([
       this.hybridPolicyEngine.decide(enrichedContext, policy),
       new Promise<never>((_, reject) => {
@@ -411,7 +411,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       context: enrichedContext
     };
 
-    // Phase 3: 高度な監査システムに判定結果を記録
+    // 高度な監査システムに判定結果を記録
     try {
       const outcome = decision.decision === 'PERMIT' ? 'SUCCESS' : 
                      decision.decision === 'DENY' ? 'FAILURE' : 'ERROR';
@@ -429,7 +429,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
       );
 
-      // Phase 3: リアルタイム異常検知の実行
+      // リアルタイム異常検知の実行
       const anomalyAlerts = await this.realTimeAnomalyDetector.detectRealTimeAnomalies(
         enrichedContext,
         decision,
@@ -446,7 +446,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         });
       }
 
-      // Phase 3: 新しい判定結果をキャッシュに保存
+      // 新しい判定結果をキャッシュに保存
       try {
         await this.intelligentCacheSystem.set(
           enrichedContext,
@@ -458,7 +458,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         this.logger.warn('Failed to cache decision result', cacheError);
       }
     } catch (auditError) {
-      // Phase 3: 監査記録の失敗も重大なセキュリティ問題として扱う
+      // 監査記録の失敗も重大なセキュリティ問題として扱う
       this.logger.error('Critical: Failed to record audit entry or detect anomalies', auditError);
       
       // 監査記録の失敗はコンプライアンス違反の可能性があるため、アラートを送信
@@ -472,7 +472,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
 
   private async forwardToUpstream(method: string, params: Record<string, any> | undefined): Promise<UpstreamResponse> {
-    // Phase 3: サーキットブレーカーチェック
+    // サーキットブレーカーチェック
     if (this.isCircuitBreakerOpen(method)) {
       throw new Error(`Circuit breaker is open for ${method}`);
     }
@@ -509,7 +509,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       this.logger.debug(`forwardToUpstream returning:`, JSON.stringify(response).substring(0, 200));
       return response;
     } catch (error) {
-      // Phase 3: 上流サーバーエラーも厳格に処理
+      // 上流サーバーエラーも厳格に処理
       this.recordCircuitBreakerFailure(method);
       this.logger.error(`Upstream forwarding failed for ${method}`, error);
       throw new Error(`Upstream service unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -521,7 +521,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       return data as ConstrainedData;
     }
 
-    // Phase 3: 新システムを完全に使用
+    // 新システムを完全に使用
     try {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
@@ -547,7 +547,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     } catch (error) {
       this.logger.error('Error applying constraints', error);
       
-      // Phase 3: 新システム完全統合 - より堅牢なエラーハンドリング
+      // 新システム完全統合 - より堅牢なエラーハンドリング
       if (error instanceof Error) {
         // 制約適用失敗の場合、ポリシーに応じて対応
         if (error.message.includes('CRITICAL_CONSTRAINT_FAILURE')) {
@@ -560,7 +560,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
       }
       
-      // Phase 3: その他のエラーも厳格に処理
+      // その他のエラーも厳格に処理
       this.logger.error('Unexpected error applying constraints, access denied', error);
       throw new Error(`Constraint application failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -571,7 +571,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       return;
     }
 
-    // Phase 3: 新システムを完全に使用
+    // 新システムを完全に使用
     try {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
@@ -603,7 +603,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     } catch (error) {
       this.logger.error('Error executing obligations', error);
       
-      // Phase 3: 新システム完全統合 - 重要な義務の失敗を追跡
+      // 新システム完全統合 - 重要な義務の失敗を追跡
       if (error instanceof Error) {
         // 重要な義務（監査ログ、コンプライアンス通知等）の失敗を特別扱い
         if (error.message.includes('CRITICAL_OBLIGATION_FAILURE')) {
@@ -619,14 +619,14 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
       }
       
-      // Phase 3: 義務実行の失敗はリクエスト自体には影響させない（非機能要件）
+      // 義務実行の失敗はリクエスト自体には影響させない（非機能要件）
       // ただし、重要な義務の失敗は監視システムで追跡
     }
   }
 
   /**
    * 重要な義務実行失敗時のアラート送信
-   * Phase 3: 新システム完全統合の一環
+   * 新システム完全統合の一環
    */
   private async sendCriticalObligationFailureAlert(obligations: string[], error: Error): Promise<void> {
     try {
@@ -662,7 +662,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
   /**
-   * Phase 3: 高度な監査・レポート機能
+   * 高度な監査・レポート機能
    */
   async generateComplianceReport(hours: number = 24): Promise<Record<string, any>> {
     const endTime = new Date();
@@ -762,7 +762,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
 
   /**
-   * Phase 3: サーキットブレーナー管理
+   * サーキットブレーナー管理
    */
   private isCircuitBreakerOpen(method: string): boolean {
     const state = this.circuitBreakerState.get(method);
@@ -819,7 +819,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
   
   /**
-   * Phase 3: パフォーマンス統計情報取得
+   * パフォーマンス統計情報取得
    */
   getCacheStats(): CacheStats {
     const stats = this.intelligentCacheSystem.getStats();
@@ -1046,7 +1046,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
   /**
-   * Phase 3: システム健全性監視の開始
+   * システム健全性監視の開始
    */
   private startSystemHealthMonitoring(): void {
     // 5分毎にシステム統計をログ出力
@@ -1071,7 +1071,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   async stop(): Promise<void> {
     try {
-      // Phase 3: システム停止時のクリーンアップ
+      // システム停止時のクリーンアップ
       
       // HTTPサーバー（Web UI）を停止
       if (this.httpProxy) {

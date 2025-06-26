@@ -45,7 +45,7 @@ jest.mock('@modelcontextprotocol/sdk/types.js', () => ({
   ListToolsRequestSchema: 'ListToolsRequestSchema'
 }));
 
-describe('MCPStdioPolicyProxy - Phase2機能テスト', () => {
+describe('MCPStdioPolicyProxy - 機能テスト', () => {
   let proxy: MCPStdioPolicyProxy;
   let mockJudgmentEngine: jest.Mocked<AIJudgmentEngine>;
   let mockLogger: jest.Mocked<Logger>;

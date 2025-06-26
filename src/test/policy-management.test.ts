@@ -7,7 +7,7 @@ import * as path from 'path';
 jest.mock('fs/promises');
 jest.mock('../utils/logger');
 
-describe('PolicyAdministrator - Phase2機能テスト', () => {
+describe('PolicyAdministrator - 機能テスト', () => {
   let administrator: PolicyAdministrator;
   const testStorageDir = './test-policies';
 

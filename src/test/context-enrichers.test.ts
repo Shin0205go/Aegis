@@ -4,7 +4,7 @@ import { ResourceClassifier } from '../context/enrichers/resource-classifier';
 import { SecurityInfoEnricher } from '../context/enrichers/security-info';
 import { DecisionContext } from '../types';
 
-describe('Context Enrichers - Phase2機能テスト', () => {
+describe('Context Enrichers - 機能テスト', () => {
   describe('TimeBasedEnricher', () => {
     let enricher: TimeBasedEnricher;
 

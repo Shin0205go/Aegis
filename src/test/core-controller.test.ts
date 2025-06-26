@@ -15,7 +15,7 @@ jest.mock('../context/enrichers/agent-info');
 jest.mock('../context/enrichers/resource-classifier');
 jest.mock('../context/enrichers/security-info');
 
-describe('AEGISController - Phase2統合テスト', () => {
+describe('AEGISController - 統合テスト', () => {
   let controller: AEGISController;
   let mockJudgmentEngine: jest.Mocked<AIJudgmentEngine>;
   let mockContextCollector: jest.Mocked<ContextCollector>;

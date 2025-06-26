@@ -343,7 +343,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       context: enrichedContext
     };
     
-    // Phase 3: 監査ログ記録
+    // 監査ログ記録
     try {
       const outcome = decision.decision === 'PERMIT' ? 'SUCCESS' : 
                      decision.decision === 'DENY' ? 'FAILURE' : 'ERROR';
@@ -433,7 +433,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       return data;
     }
 
-    // Phase 3: 新システムを完全に使用
+    // 新システムを完全に使用
     try {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
@@ -468,7 +468,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       return;
     }
 
-    // Phase 3: 新システムを完全に使用
+    // 新システムを完全に使用
     try {
       // 実際のコンテキストを作成
       const context: DecisionContext = {
@@ -617,7 +617,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       res.json({ success: true, message: `Policy ${name} updated` });
     });
     
-    // Phase 3: 監査APIエンドポイントを追加
+    // 監査APIエンドポイントを追加
     const auditRouter = createAuditEndpoints({
       auditSystem: this.advancedAuditSystem,
       dashboardProvider: this.auditDashboardProvider

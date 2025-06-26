@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "execution-server__execute_command",
+    "arguments": {
+      "command": "rm -rf /important/data"
+    }
+  },
+  "id": 3
+}

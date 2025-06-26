@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "filesystem__list_directory",
+    "arguments": {
+      "path": "/sensitive/financial-reports"
+    }
+  },
+  "id": 4
+}
