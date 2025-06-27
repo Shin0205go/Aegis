@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ポリシー管理 - AEGIS</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        /* タブ */
+        .tabs {
+            background: white;
+            padding: 4px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            margin-bottom: 24px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            color: #718096;
+        }
+
+        .tab.active {
+            background: #4299e1;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 2カラムレイアウト */
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+
+        /* フォーム要素 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+
+        textarea.form-control {
+            min-height: 200px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        select.form-control {
+            background: white;
+        }
+
+        /* コードエディタ風 */
+        .code-editor {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            min-height: 300px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* プレビュー */
+        .preview-section {
+            background: #f7fafc;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        .preview-section h4 {
+            margin-bottom: 12px;
+            color: #2d3748;
+        }
+
+        /* テストセクション */
+        .test-section {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+
+        .test-result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+
+        .test-result.success {
+            background: #c6f6d5;
+            border: 1px solid #9ae6b4;
+        }
+
+        .test-result.error {
+            background: #fed7d7;
+            border: 1px solid #feb2b2;
+        }
+
+        /* ポリシーリスト */
+        .policy-list {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+
+        .policy-item {
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .policy-item:hover {
+            border-color: #4299e1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .policy-item.selected {
+            border-color: #4299e1;
+            background: #ebf8ff;
+        }
+
+        .policy-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .policy-name {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .policy-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .policy-type.nl {
+            background: #e6fffa;
+            color: #234e52;
+        }
+
+        .policy-type.odrl {
+            background: #ebf8ff;
+            color: #2c5282;
+        }
+
+        /* ヘルプテキスト */
+        .help-text {
+            font-size: 13px;
+            color: #718096;
+            margin-top: 4px;
+        }
+
+        /* アラート */
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert.success {
+            background: #c6f6d5;
+            color: #276749;
+        }
+
+        .alert.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .alert.info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ローディング */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top-color: #4299e1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>📋 ポリシー管理</h1>
+                <p style="color: #718096; margin-top: 4px;">ポリシーの作成・編集・テスト</p>
+            </div>
+            <a href="/" class="btn btn-secondary">
+                🏠 ホームに戻る
+            </a>
+        </div>
+
+        <!-- タブナビゲーション -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('list')">
+                📋 ポリシー一覧
+            </button>
+            <button class="tab" onclick="switchTab('natural')">
+                💬 自然言語エディタ
+            </button>
+            <button class="tab" onclick="switchTab('odrl')">
+                📝 ODRLフォーム
+            </button>
+            <button class="tab" onclick="switchTab('test')">
+                🧪 APIテスト
+            </button>
+        </div>
+
+        <!-- ポリシー一覧タブ -->
+        <div id="listTab" class="tab-content active">
+            <div class="policy-list">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>既存のポリシー</h2>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="createNewPolicy()">
+                            ➕ 新規作成
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshPolicyList()">
+                            🔄 更新
+                        </button>
+                    </div>
+                </div>
+                <div id="policyListContent">
+                    <div style="text-align: center; color: #718096; padding: 40px;">
+                        <div class="loading"></div>
+                        <p style="margin-top: 12px;">ポリシーを読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自然言語エディタタブ -->
+        <div id="naturalTab" class="tab-content">
+            <div class="two-column">
+                <div class="panel">
+                    <h2>自然言語ポリシーエディタ</h2>
+                    <div id="nlAlert" class="alert info" style="display: none;"></div>
+                    
+                    <div class="form-group">
+                        <label>ポリシーID</label>
+                        <input type="text" id="nlPolicyId" class="form-control" placeholder="例: customer-data-policy">
+                        <div class="help-text">英数字とハイフンのみ使用可能</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>説明</label>
+                        <input type="text" id="nlDescription" class="form-control" placeholder="このポリシーの説明">
+                    </div>
+
+                    <div class="form-group">
+                        <label>ポリシー内容</label>
+                        <textarea id="nlPolicyText" class="form-control" placeholder="日本語または英語でポリシーを記述してください。
+
+例：
+顧客データアクセスポリシー：
+
+【基本原則】
+- 顧客データは顧客サポート目的でのみアクセス可能
+- アクセスは営業時間内（平日9時から18時）を基本とする
+
+【制限事項】
+- 外部エージェントのアクセス禁止
+- 個人情報の長期保存禁止
+
+【義務】
+- 全アクセスのログ記録必須
+- 30日後の自動削除" style="min-height: 400px;"></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="saveNaturalLanguagePolicy()">
+                            💾 保存
+                        </button>
+                        <button class="btn btn-secondary" onclick="previewNaturalLanguagePolicy()">
+                            👁️ プレビュー
+                        </button>
+                        <button class="btn btn-secondary" onclick="clearNaturalLanguageForm()">
+                            🗑️ クリア
+                        </button>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>プレビュー・テスト</h2>
+                    
+                    <div class="preview-section">
+                        <h4>ポリシープレビュー</h4>
+                        <div id="nlPreview" class="code-editor" style="background: #f7fafc; color: #2d3748;">
+                            プレビューがここに表示されます
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h4>クイックテスト</h4>
+                        <button class="btn btn-success" onclick="testNaturalLanguagePolicy()">
+                            🧪 ポリシーをテスト
+                        </button>
+                        <div id="nlTestResult" class="test-result" style="display: none; margin-top: 16px;"></div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <h4>テンプレート</h4>
+                        <select class="form-control" onchange="loadNLTemplate(this.value)">
+                            <option value="">テンプレートを選択...</option>
+                            <option value="customer-data">顧客データアクセス</option>
+                            <option value="after-hours">営業時間外制限</option>
+                            <option value="high-risk">高リスク操作制限</option>
+                            <option value="external-agent">外部エージェント制限</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ODRLフォームタブ -->
+        <div id="odrlTab" class="tab-content">
+            <iframe src="/odrl-policy-form.html" style="width: 100%; height: 800px; border: none; border-radius: 12px;"></iframe>
+        </div>
+
+        <!-- APIテストタブ -->
+        <div id="testTab" class="tab-content">
+            <div class="test-section">
+                <h2>API評価テスト</h2>
+                
+                <div class="two-column">
+                    <div>
+                        <h3>テストコンテキスト</h3>
+                        
+                        <div class="form-group">
+                            <label>ポリシーID</label>
+                            <select id="testPolicyId" class="form-control">
+                                <option value="">ポリシーを選択...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>エージェント</label>
+                            <input type="text" id="testAgent" class="form-control" value="test-agent">
+                        </div>
+
+                        <div class="form-group">
+                            <label>アクション</label>
+                            <select id="testAction" class="form-control">
+                                <option value="read">read (読み取り)</option>
+                                <option value="write">write (書き込み)</option>
+                                <option value="execute">execute (実行)</option>
+                                <option value="list">list (一覧)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>リソース</label>
+                            <input type="text" id="testResource" class="form-control" placeholder="例: gmail://inbox/message/123">
+                        </div>
+
+                        <div class="form-group">
+                            <label>目的（オプション）</label>
+                            <input type="text" id="testPurpose" class="form-control" placeholder="例: customer-support">
+                        </div>
+
+                        <div class="form-group">
+                            <label>追加コンテキスト（JSON）</label>
+                            <textarea id="testAdditionalContext" class="form-control" placeholder='{"location": "office", "department": "support"}' style="min-height: 100px;"></textarea>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="runAPITest()">
+                            ▶️ テスト実行
+                        </button>
+                    </div>
+
+                    <div>
+                        <h3>実行結果</h3>
+                        <div id="testResultContainer" style="display: none;">
+                            <div class="test-result" id="testResultContent"></div>
+                            
+                            <div style="margin-top: 20px;">
+                                <h4>リクエスト詳細</h4>
+                                <div class="code-editor" id="testRequestDetails"></div>
+                            </div>
+                            
+                            <div style="margin-top: 20px;">
+                                <h4>レスポンス詳細</h4>
+                                <div class="code-editor" id="testResponseDetails"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="testPlaceholder" style="text-align: center; color: #718096; padding: 60px;">
+                            テスト結果がここに表示されます
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'list';
+        let policies = [];
+        let selectedPolicy = null;
+
+        // タブ切り替え
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // タブボタンの状態更新
+            document.querySelectorAll('.tab').forEach((btn, index) => {
+                btn.classList.toggle('active', 
+                    (tab === 'list' && index === 0) ||
+                    (tab === 'natural' && index === 1) ||
+                    (tab === 'odrl' && index === 2) ||
+                    (tab === 'test' && index === 3)
+                );
+            });
+            
+            // タブコンテンツの表示切り替え
+            document.getElementById('listTab').classList.toggle('active', tab === 'list');
+            document.getElementById('naturalTab').classList.toggle('active', tab === 'natural');
+            document.getElementById('odrlTab').classList.toggle('active', tab === 'odrl');
+            document.getElementById('testTab').classList.toggle('active', tab === 'test');
+            
+            // タブごとの初期化処理
+            if (tab === 'list') {
+                refreshPolicyList();
+            } else if (tab === 'test') {
+                loadPolicyOptions();
+            }
+        }
+
+        // ポリシー一覧の更新
+        async function refreshPolicyList() {
+            try {
+                const response = await fetch('/policies');
+                const data = await response.json();
+                policies = data.policies || [];
+                
+                renderPolicyList();
+            } catch (error) {
+                console.error('Failed to load policies:', error);
+            }
+        }
+
+        // ポリシー一覧の描画
+        function renderPolicyList() {
+            const content = document.getElementById('policyListContent');
+            
+            if (policies.length === 0) {
+                content.innerHTML = `
+                    <div style="text-align: center; color: #718096; padding: 40px;">
+                        <p>ポリシーがありません</p>
+                        <button class="btn btn-primary" onclick="createNewPolicy()" style="margin-top: 16px;">
+                            新規作成
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            content.innerHTML = policies.map(policy => {
+                const isNL = typeof policy.policy === 'object'; // JSONオブジェクトの場合は自然言語ポリシー
+                const policyName = policy.name || policy.id;
+                
+                return `
+                    <div class="policy-item" onclick="selectPolicy('${policy.id}')">
+                        <div class="policy-header">
+                            <div class="policy-name">${policyName}</div>
+                            <span class="policy-type ${isNL ? 'nl' : 'odrl'}">
+                                ${isNL ? '自然言語' : 'ODRL'}
+                            </span>
+                        </div>
+                        <div style="color: #718096; font-size: 14px;">
+                            ${policy.description || 'No description'}
+                        </div>
+                        <div style="margin-top: 8px; display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" 
+                                    onclick="editPolicy('${policy.id}', event)">
+                                ✏️ 編集
+                            </button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" 
+                                    onclick="testPolicy('${policy.id}', event)">
+                                🧪 テスト
+                            </button>
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" 
+                                    onclick="deletePolicy('${policy.id}', event)">
+                                🗑️ 削除
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ポリシー選択
+        function selectPolicy(policyId) {
+            selectedPolicy = policies.find(p => p.id === policyId);
+            
+            // 選択状態の更新
+            document.querySelectorAll('.policy-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        // ポリシー編集
+        function editPolicy(policyId, event) {
+            event.stopPropagation();
+            const policy = policies.find(p => p.id === policyId);
+            
+            if (typeof policy.policy === 'object') {
+                // 自然言語ポリシー（JSONオブジェクト形式）の編集
+                switchTab('natural');
+                document.getElementById('nlPolicyId').value = policy.id;
+                document.getElementById('nlDescription').value = policy.description || '';
+                // JSONオブジェクトを自然言語形式に変換して表示
+                const nlText = convertPolicyObjectToText(policy.policy);
+                document.getElementById('nlPolicyText').value = nlText;
+                previewNaturalLanguagePolicy();
+            } else {
+                // ODRLフォームに切り替え
+                alert('ODRLポリシーの編集はODRLフォームタブで行ってください');
+                switchTab('odrl');
+            }
+        }
+
+        // ポリシーテスト
+        function testPolicy(policyId, event) {
+            event.stopPropagation();
+            switchTab('test');
+            document.getElementById('testPolicyId').value = policyId;
+        }
+
+        // ポリシー削除
+        async function deletePolicy(policyId, event) {
+            event.stopPropagation();
+            
+            if (!confirm(`ポリシー "${policyId}" を削除してもよろしいですか？`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/policies/${policyId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showAlert('success', 'ポリシーが削除されました');
+                    refreshPolicyList();
+                } else {
+                    showAlert('error', '削除に失敗しました');
+                }
+            } catch (error) {
+                showAlert('error', 'エラーが発生しました: ' + error.message);
+            }
+        }
+
+        // 新規ポリシー作成
+        function createNewPolicy() {
+            if (confirm('自然言語でポリシーを作成しますか？\n\n「いいえ」を選択するとODRLフォームが開きます。')) {
+                switchTab('natural');
+                clearNaturalLanguageForm();
+            } else {
+                switchTab('odrl');
+            }
+        }
+
+        // 自然言語ポリシーの保存
+        async function saveNaturalLanguagePolicy() {
+            const policyId = document.getElementById('nlPolicyId').value.trim();
+            const description = document.getElementById('nlDescription').value.trim();
+            const policyText = document.getElementById('nlPolicyText').value.trim();
+            
+            if (!policyId || !policyText) {
+                showNLAlert('error', 'ポリシーIDとポリシー内容は必須です');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/policies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        uid: `aegis:policy:${policyId}`,
+                        naturalLanguageSource: policyText,
+                        metadata: {
+                            description: description,
+                            created: new Date().toISOString()
+                        }
+                    })
+                });
+                
+                if (response.ok) {
+                    showNLAlert('success', 'ポリシーが保存されました');
+                    setTimeout(() => {
+                        switchTab('list');
+                    }, 1500);
+                } else {
+                    const error = await response.json();
+                    showNLAlert('error', 'エラー: ' + (error.message || '保存に失敗しました'));
+                }
+            } catch (error) {
+                showNLAlert('error', 'エラーが発生しました: ' + error.message);
+            }
+        }
+
+        // プレビュー
+        function previewNaturalLanguagePolicy() {
+            const policyText = document.getElementById('nlPolicyText').value;
+            const preview = document.getElementById('nlPreview');
+            
+            if (!policyText) {
+                preview.textContent = 'ポリシー内容を入力してください';
+                return;
+            }
+            
+            preview.textContent = policyText;
+        }
+
+        // 自然言語ポリシーのテスト
+        async function testNaturalLanguagePolicy() {
+            const policyText = document.getElementById('nlPolicyText').value.trim();
+            
+            if (!policyText) {
+                showNLAlert('error', 'テストするポリシー内容を入力してください');
+                return;
+            }
+            
+            const testContext = {
+                agent: 'test-agent',
+                action: 'read',
+                resource: 'test-resource',
+                time: new Date().toISOString()
+            };
+            
+            try {
+                // 仮のポリシーオブジェクトを作成してテスト
+                const tempPolicy = {
+                    uid: 'test-policy',
+                    naturalLanguageSource: policyText
+                };
+                
+                const resultDiv = document.getElementById('nlTestResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'test-result';
+                resultDiv.innerHTML = `
+                    <strong>テストコンテキスト:</strong><br>
+                    エージェント: ${testContext.agent}<br>
+                    アクション: ${testContext.action}<br>
+                    リソース: ${testContext.resource}<br>
+                    <br>
+                    <strong>結果:</strong> AI判定機能が必要です<br>
+                    <br>
+                    <em>注: 実際の判定にはANTHROPIC_API_KEYの設定が必要です</em>
+                `;
+            } catch (error) {
+                showNLAlert('error', 'テストエラー: ' + error.message);
+            }
+        }
+
+        // フォームクリア
+        function clearNaturalLanguageForm() {
+            document.getElementById('nlPolicyId').value = '';
+            document.getElementById('nlDescription').value = '';
+            document.getElementById('nlPolicyText').value = '';
+            document.getElementById('nlPreview').textContent = 'プレビューがここに表示されます';
+            document.getElementById('nlTestResult').style.display = 'none';
+        }
+
+        // テンプレート読み込み
+        function loadNLTemplate(templateId) {
+            const templates = {
+                'customer-data': `顧客データアクセスポリシー：
+
+【基本原則】
+- 顧客データは顧客サポート目的でのみアクセス可能
+- アクセスは営業時間内（平日9時から18時）を基本とする
+- 適切なクリアランスレベルが必要
+
+【制限事項】  
+- 外部エージェントのアクセス禁止
+- データの外部共有は一切禁止
+- 個人情報の長期保存禁止
+
+【義務】
+- 全アクセスのログ記録必須
+- データ処理後の結果通知
+- 30日後の自動削除スケジュール設定`,
+
+                'after-hours': `営業時間外アクセスポリシー：
+
+【基本ルール】
+- 営業時間外（平日18時以降および土日祝日）のアクセスは原則禁止
+- 緊急対応チームのみ例外的にアクセス可能
+
+【許可条件】
+- 緊急対応チームメンバーであること
+- 事前承認済みのメンテナンス作業
+- システム障害対応
+
+【追加制限】
+- 読み取り専用アクセスのみ
+- 重要データへのアクセスは記録必須
+- 作業完了後の報告書提出義務`,
+
+                'high-risk': `高リスク操作制限ポリシー：
+
+【対象操作】
+- データ一括削除
+- システム設定変更
+- 権限設定の変更
+- 外部システムとの連携設定
+
+【制限事項】
+- 管理者権限を持つエージェントのみ実行可能
+- 二要素認証必須
+- 実行前の承認プロセス必須
+
+【監査要件】
+- 全操作の詳細ログ記録
+- リアルタイム通知の送信
+- 月次監査レポートへの記載`,
+
+                'external-agent': `外部エージェント制限ポリシー：
+
+【基本方針】
+- 外部エージェントは最小限の権限のみ付与
+- 内部データへの直接アクセス禁止
+- APIを通じた限定的なアクセスのみ許可
+
+【許可される操作】
+- 公開情報の読み取り
+- 事前定義されたAPIエンドポイントへのアクセス
+- 一時的なデータ参照（キャッシュ不可）
+
+【セキュリティ要件】
+- IPアドレス制限
+- レート制限（1分間に10リクエストまで）
+- アクセストークンの定期更新必須`
+            };
+            
+            if (templateId && templates[templateId]) {
+                document.getElementById('nlPolicyText').value = templates[templateId];
+                previewNaturalLanguagePolicy();
+            }
+        }
+
+        // APIテスト実行
+        async function runAPITest() {
+            const policyId = document.getElementById('testPolicyId').value;
+            const agent = document.getElementById('testAgent').value;
+            const action = document.getElementById('testAction').value;
+            const resource = document.getElementById('testResource').value;
+            const purpose = document.getElementById('testPurpose').value;
+            let additionalContext = {};
+            
+            try {
+                const contextText = document.getElementById('testAdditionalContext').value.trim();
+                if (contextText) {
+                    additionalContext = JSON.parse(contextText);
+                }
+            } catch (e) {
+                alert('追加コンテキストのJSONが無効です');
+                return;
+            }
+            
+            if (!policyId || !resource) {
+                alert('ポリシーIDとリソースは必須です');
+                return;
+            }
+            
+            const context = {
+                agent,
+                action,
+                resource,
+                purpose: purpose || undefined,
+                time: new Date().toISOString(),
+                ...additionalContext
+            };
+            
+            // リクエスト詳細表示
+            document.getElementById('testRequestDetails').textContent = JSON.stringify({
+                policyId,
+                context
+            }, null, 2);
+            
+            try {
+                const response = await fetch('/api/test/evaluate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ context, policyId })
+                });
+                
+                const result = await response.json();
+                
+                // 結果表示
+                document.getElementById('testPlaceholder').style.display = 'none';
+                document.getElementById('testResultContainer').style.display = 'block';
+                
+                const resultContent = document.getElementById('testResultContent');
+                resultContent.className = `test-result ${result.decision === 'PERMIT' ? 'success' : 'error'}`;
+                resultContent.innerHTML = `
+                    <h3>${result.decision === 'PERMIT' ? '✅ 許可' : '❌ 拒否'}</h3>
+                    <p><strong>判定:</strong> ${result.decision}</p>
+                    <p><strong>理由:</strong> ${result.reason}</p>
+                    <p><strong>信頼度:</strong> ${(result.confidence * 100).toFixed(1)}%</p>
+                    ${result.processingTime ? `<p><strong>処理時間:</strong> ${result.processingTime}ms</p>` : ''}
+                `;
+                
+                // レスポンス詳細表示
+                document.getElementById('testResponseDetails').textContent = JSON.stringify(result, null, 2);
+                
+            } catch (error) {
+                alert('テストエラー: ' + error.message);
+            }
+        }
+
+        // ポリシーオプションの読み込み
+        async function loadPolicyOptions() {
+            try {
+                const response = await fetch('/policies');
+                const data = await response.json();
+                const policies = data.policies || [];
+                
+                const select = document.getElementById('testPolicyId');
+                select.innerHTML = '<option value="">ポリシーを選択...</option>' +
+                    policies.map(p => `<option value="${p.id}">${p.name || p.id}</option>`).join('');
+            } catch (error) {
+                console.error('Failed to load policy options:', error);
+            }
+        }
+
+        // アラート表示
+        function showNLAlert(type, message) {
+            const alert = document.getElementById('nlAlert');
+            alert.className = `alert ${type}`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        function showAlert(type, message) {
+            // グローバルアラート表示（実装は省略）
+            alert(message);
+        }
+
+        // JSONオブジェクト形式のポリシーを自然言語テキストに変換
+        function convertPolicyObjectToText(policyObject) {
+            let text = '';
+            
+            for (const [section, content] of Object.entries(policyObject)) {
+                text += `【${section}】\n`;
+                
+                if (Array.isArray(content)) {
+                    content.forEach(item => {
+                        text += `- ${item}\n`;
+                    });
+                } else if (typeof content === 'object') {
+                    for (const [subKey, subValue] of Object.entries(content)) {
+                        text += `■ ${subKey}\n`;
+                        if (Array.isArray(subValue)) {
+                            subValue.forEach(item => {
+                                text += `  - ${item}\n`;
+                            });
+                        } else {
+                            text += `  ${subValue}\n`;
+                        }
+                    }
+                } else {
+                    text += `${content}\n`;
+                }
+                text += '\n';
+            }
+            
+            return text.trim();
+        }
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshPolicyList();
+        });
+    </script>
+</body>
+</html>

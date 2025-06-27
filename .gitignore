@@ -19,6 +19,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 test/logs/
+test-logs/
+aegis.log
+server.log
 
 # OS files
 .DS_Store
@@ -68,3 +71,6 @@ policies/*.js
 policies/*.js.map
 policies/*.d.ts
 policies/*.d.ts.map
+
+# Runtime policy storage
+policies-store/

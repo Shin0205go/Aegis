@@ -41,7 +41,9 @@ export class OpenAILLM {
 
       return content;
     } catch (error) {
-      console.error('[OpenAI LLM] Error:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[OpenAI LLM] Error:', error);
+      }
       throw new Error(`OpenAI API Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -74,7 +76,9 @@ export class OpenAILLM {
         }
       }
     } catch (error) {
-      console.error('[OpenAI LLM] Stream Error:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[OpenAI LLM] Stream Error:', error);
+      }
       throw new Error(`OpenAI Stream API Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

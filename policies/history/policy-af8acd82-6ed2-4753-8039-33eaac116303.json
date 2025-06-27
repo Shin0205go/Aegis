@@ -1,9 +1,0 @@
-[
-  {
-    "version": "1.0.0",
-    "policy": "- fileSystemの読み取りは許可\n- fileSystemの書き込みは禁止\n- 日本時間で22時以降のツールの使用は禁止",
-    "createdAt": "2025-06-15T13:06:45.966Z",
-    "createdBy": "admin",
-    "changeLog": "Initial version"
-  }
-]

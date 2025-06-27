@@ -12,7 +12,7 @@ import { ConstraintProcessorManager } from '../../core/constraints/manager';
 import { ObligationExecutorManager } from '../../core/obligations/manager';
 import { StdioRouter } from '../../mcp/stdio-router';
 import { ToolDiscoveryService } from '../../mcp/tool-discovery';
-import { HybridPolicyEngine } from '../../policies/hybrid-policy-engine';
+import { HybridPolicyEngine } from '../../policy/hybrid-policy-engine';
 import { Logger } from '../../utils/logger';
 import type { DecisionContext, PolicyDecision, AEGISConfig } from '../../types';
 import { spawn } from 'child_process';

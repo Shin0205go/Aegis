@@ -157,4 +157,9 @@ export class Config {
       jwtSecret: this.config.jwtSecret ? '[REDACTED]' : '[NOT_SET]'
     };
   }
+
+  // 設定全体を取得（テスト用）
+  getConfig(): AEGISConfig {
+    return { ...this.config };
+  }
 }

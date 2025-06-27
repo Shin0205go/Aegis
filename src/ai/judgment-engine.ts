@@ -55,10 +55,15 @@ export class AIJudgmentEngine {
 
   constructor(llmConfig: LLMConfig) {
     // Select LLM provider based on configuration
-    console.error('[AI Judgment] Initializing with provider:', llmConfig.provider);
+    // Only log in non-stdio mode to avoid corrupting JSON-RPC output
+    if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+      console.error('[AI Judgment] Initializing with provider:', llmConfig.provider);
+    }
     switch (llmConfig.provider) {
       case 'anthropic':
-        console.error('[AI Judgment] Using Anthropic Claude API for real AI judgment');
+        if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+          console.error('[AI Judgment] Using Anthropic Claude API for real AI judgment');
+        }
         this.llm = new AnthropicLLM(llmConfig);
         break;
       case 'openai':
@@ -84,7 +89,9 @@ export class AIJudgmentEngine {
       const cacheKey = this.generateCacheKey(naturalLanguagePolicy, context);
       const cachedDecision = this.decisionCache.get(cacheKey);
       if (cachedDecision) {
-        console.error('[AI Judgment] Using cached decision');
+        if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+          console.error('[AI Judgment] Using cached decision');
+        }
         return cachedDecision;
       }
 
@@ -92,7 +99,9 @@ export class AIJudgmentEngine {
       const analysisPrompt = this.buildAnalysisPrompt(naturalLanguagePolicy, context);
       
       // 3. AI判定実行
-      console.error('[AI Judgment] Executing AI decision...');
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] Executing AI decision...');
+      }
       const rawResponse = await this.llm.complete(analysisPrompt);
       
       // 4. 結果パース・検証
@@ -106,7 +115,9 @@ export class AIJudgmentEngine {
       
       return decision;
     } catch (error) {
-      console.error('[AI Judgment] Decision error:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] Decision error:', error);
+      }
       return {
         decision: "INDETERMINATE",
         reason: `AI判定エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -201,7 +212,9 @@ ${JSON.stringify(context.environment, null, 2)}
       };
       
     } catch (error) {
-      console.error('[AI Judgment] Parse error:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] Parse error:', error);
+      }
       return {
         decision: "INDETERMINATE",
         reason: `判定処理エラー: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -306,7 +319,9 @@ ${contexts.map((ctx, i) => {
       policyHash: this.hashString(policy)
     };
     
-    console.error(`[AI_JUDGMENT] ${JSON.stringify(logEntry)}`);
+    if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+      console.error(`[AI_JUDGMENT] ${JSON.stringify(logEntry)}`);
+    }
   }
 
   // 判定統計情報取得
@@ -356,7 +371,9 @@ ${policy}
       const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
       return JSON.parse(jsonMatch ? jsonMatch[1] : response);
     } catch (error) {
-      console.error('[AI Judgment] ポリシー解析エラー', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] ポリシー解析エラー', error);
+      }
       return {
         type: 'unknown',
         resources: [],
@@ -379,7 +396,9 @@ ${policy}
       
       return response;
     } catch (error) {
-      console.error('[AI Analysis] Failed:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Analysis] Failed:', error);
+      }
       throw error;
     }
   }
@@ -395,7 +414,9 @@ ${policy}
       
       return response;
     } catch (error) {
-      console.error('[AI Generate] Failed:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Generate] Failed:', error);
+      }
       throw error;
     }
   }
@@ -404,7 +425,9 @@ ${policy}
   async learn(prompt: string): Promise<void> {
     // TODO: 実際の学習実装
     // 現在は学習データを記録するのみ
-    console.error('[AI Learn] Learning from:', prompt.substring(0, 100) + '...');
+    if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+      console.error('[AI Learn] Learning from:', prompt.substring(0, 100) + '...');
+    }
     
     // 将来的には:
     // - ファインチューニングAPIの呼び出し
@@ -429,7 +452,9 @@ ${policy}
       // フォールバック：全体をパース
       return JSON.parse(response);
     } catch (error) {
-      console.error('[AI Parse] Failed to parse JSON:', error);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Parse] Failed to parse JSON:', error);
+      }
       // デフォルトレスポンス
       return {};
     }

@@ -10,11 +10,15 @@ import { Logger } from './utils/logger.js';
 import { AIJudgmentEngine } from './ai/judgment-engine.js';
 import { MCPStdioPolicyProxy } from './mcp/stdio-proxy.js';
 import { MCPHttpPolicyProxy } from './mcp/http-proxy.js';
-import { SAMPLE_POLICIES } from '../policies/sample-policies.js';
+import { policyLoader } from './policies/policy-loader.js';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import express from 'express';
+import cors from 'cors';
+import { HybridPolicyEngine } from './policy/hybrid-policy-engine.js';
+import { createODRLEndpoints } from './api/odrl-endpoints.js';
 
 // 環境変数読み込み
 dotenv.config();
@@ -22,7 +26,7 @@ dotenv.config();
 /**
  * MCPプロキシサーバーを起動
  */
-async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
+async function startMCPServer(transport: 'stdio' | 'http' | 'api-only' = 'stdio') {
   const logLevel = process.env.LOG_LEVEL || 'info';
   const logger = new Logger(logLevel);
   
@@ -57,23 +61,27 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       
       // 上流サーバー設定
       // 1. aegis-mcp-config.jsonから読み込み（優先）
-      const aegisConfigPath = path.join(process.cwd(), 'aegis-mcp-config.json');
-      logger.critical(`Looking for config at: ${aegisConfigPath}`);
-      logger.critical(`Current directory: ${process.cwd()}`);
+      // 環境変数またはデフォルトパスを使用
+      const configPath = process.env.AEGIS_CONFIG_PATH || 'aegis-mcp-config.json';
+      const aegisConfigPath = path.isAbsolute(configPath) ? configPath : path.join(process.cwd(), configPath);
+      
+      logger.debug(`Looking for config at: ${aegisConfigPath}`);
+      logger.debug(`Current directory: ${process.cwd()}`);
       
       if (fs.existsSync(aegisConfigPath)) {
-        logger.critical('Config file found!');
+        logger.debug('Config file found!');
         try {
           const configContent = fs.readFileSync(aegisConfigPath, 'utf-8');
           const aegisConfig = JSON.parse(configContent);
           
           if (aegisConfig.mcpServers) {
-            logger.critical('Loading upstream servers from aegis-mcp-config.json...');
+            logger.info('Loading upstream servers from aegis-mcp-config.json...');
             mcpProxy.loadDesktopConfig(aegisConfig);
             
             const serverNames = Object.keys(aegisConfig.mcpServers)
               .filter(name => name !== 'aegis-proxy' && name !== 'aegis');
-            logger.critical(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`)
+            logger.info(`  ✓ Loaded ${serverNames.length} servers: ${serverNames.join(', ')}`);
+          
           }
         } catch (error) {
           logger.warn('Failed to load aegis-mcp-config.json:', error);
@@ -166,10 +174,21 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
 
     // デフォルトポリシーを追加
     logger.info('Loading default policies...');
-    Object.entries(SAMPLE_POLICIES).forEach(([key, policyData]) => {
-      mcpProxy.addPolicy(key, policyData.policy);
-      logger.info(`  ✓ Loaded policy: ${key}`);
-    });
+    try {
+      await policyLoader.loadPolicies();
+      const policies = policyLoader.getAllPolicies();
+      
+      policies.forEach(policy => {
+        const policyText = typeof policy.policy === 'string' 
+          ? policy.policy 
+          : JSON.stringify(policy.policy);
+        
+        mcpProxy.addPolicy(policy.id, policyText);
+        logger.info(`  ✓ Loaded policy: ${policy.id}`);
+      });
+    } catch (error) {
+      logger.error('Failed to load policies:', error);
+    }
 
     // サーバー起動
     await mcpProxy.start();
@@ -177,17 +196,8 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     const port = config.mcpProxy.port || 3000;
     
     if (transport === 'stdio') {
-      // stdioモードでは、起動メッセージをstderrに直接出力（LOG_SILENTの影響を受けない）
-      logger.critical('✅ AEGIS MCP Proxy Server is running (stdio mode)');
-      logger.critical('📝 Reading from stdin, writing to stdout');
-      logger.critical('');
-      logger.critical('🌐 Management Web UI available at:');
-      logger.critical(`  📝 Policy Management: http://localhost:${port}/`);
-      logger.critical(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard-enhanced.html`);
-      logger.critical(`  📋 Policies API: http://localhost:${port}/policies`);
-      logger.critical(`  🔧 Health Check: http://localhost:${port}/health`);
-      logger.critical('');
-      logger.critical('Connect via MCP client with stdio transport');
+      // In stdio mode, DO NOT output any startup messages
+      // All output must be JSON-RPC only
     } else {
       logger.info('✅ AEGIS MCP Proxy Server is running (HTTP mode)');
       logger.info(`📍 MCP endpoint: http://localhost:${port}/mcp/messages`);
@@ -197,38 +207,29 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
       logger.info(`  📊 Audit Dashboard: http://localhost:${port}/audit-dashboard-enhanced.html`);
       logger.info(`  📋 Policies API: http://localhost:${port}/policies`);
       logger.info(`  🔧 Health Check: http://localhost:${port}/health`);
+      logger.info('');
+      logger.info('Press Ctrl+C to stop the server');
     }
-    
-    logger.info('');
-    logger.info('Press Ctrl+C to stop the server');
 
     // グレースフルシャットダウン
     process.on('SIGINT', async () => {
-      if (transport === 'stdio') {
-        console.error('\n🛑 Shutting down AEGIS MCP Proxy Server...');
-      } else {
-        logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      if (transport !== 'stdio') {
+        logger.critical('\n🛑 Shutting down AEGIS MCP Proxy Server...');
       }
       await mcpProxy.stop();
-      if (transport === 'stdio') {
-        console.error('✅ Server stopped gracefully');
-      } else {
-        logger.info('✅ Server stopped gracefully');
+      if (transport !== 'stdio') {
+        logger.critical('✅ Server stopped gracefully');
       }
       process.exit(0);
     });
 
     process.on('SIGTERM', async () => {
-      if (transport === 'stdio') {
-        console.error('\n🛑 Shutting down AEGIS MCP Proxy Server...');
-      } else {
-        logger.info('\n🛑 Shutting down AEGIS MCP Proxy Server...');
+      if (transport !== 'stdio') {
+        logger.critical('\n🛑 Shutting down AEGIS MCP Proxy Server...');
       }
       await mcpProxy.stop();
-      if (transport === 'stdio') {
-        console.error('✅ Server stopped gracefully');
-      } else {
-        logger.info('✅ Server stopped gracefully');
+      if (transport !== 'stdio') {
+        logger.critical('✅ Server stopped gracefully');
       }
       process.exit(0);
     });
@@ -245,7 +246,9 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
     });
 
   } catch (error) {
-    logger.error('Failed to start MCP Proxy Server:', error);
+    if (transport !== 'stdio') {
+      logger.error('Failed to start MCP Proxy Server:', error);
+    }
     process.exit(1);
   }
 }
@@ -273,6 +276,18 @@ function parseArgs() {
 
 // ヘルプ表示
 function showHelp() {
+  // Use the logger with critical level to ensure it goes to stderr in stdio mode
+  const logLevel = process.env.LOG_LEVEL || 'info';
+  const logger = new Logger(logLevel);
+  
+  // In stdio mode, we must not output anything to stdout
+  const transport = process.argv.includes('--transport') && process.argv[process.argv.indexOf('--transport') + 1] === 'stdio' ? 'stdio' : 'http';
+  if (transport === 'stdio') {
+    // In stdio mode, exit immediately without outputting help
+    process.exit(0);
+  }
+  
+  // For non-stdio mode, output help to stderr
   console.error(`
 AEGIS MCP Proxy Server (MCP Standard Compliant)
 
@@ -333,6 +348,15 @@ Examples:
 // メイン関数
 async function main() {
   const options = parseArgs();
+  
+  // Determine transport mode FIRST, before any logging
+  const transport = (options.transport as 'stdio' | 'http') || 'http';
+  
+  // Set LOG_SILENT immediately for stdio mode
+  if (transport === 'stdio') {
+    process.env.LOG_SILENT = 'true';
+    process.env.MCP_TRANSPORT = 'stdio';
+  }
 
   if (options.help) {
     showHelp();
@@ -343,13 +367,17 @@ async function main() {
   if (options.port) process.env.MCP_PROXY_PORT = options.port;
   if (options.provider) process.env.LLM_PROVIDER = options.provider;
   if (options.model) process.env.LLM_MODEL = options.model;
-  if (options.debug) process.env.LOG_LEVEL = 'debug';
+  if (options.debug && transport !== 'stdio') process.env.LOG_LEVEL = 'debug';
 
-  // トランスポートタイプを決定
-  const transport = (options.transport as 'stdio' | 'http') || 'http';
-  if (transport !== 'stdio' && transport !== 'http') {
-    console.error('Invalid transport type. Use "stdio" or "http".');
-    process.exit(1);
+  // トランスポートタイプを検証
+  if (!['stdio', 'http'].includes(transport)) {
+    // In stdio mode, we must not output anything to stdout
+    if (transport === 'stdio' || options.transport === 'stdio') {
+      process.exit(1);
+    } else {
+      console.error('Invalid transport type. Use "stdio" or "http".');
+      process.exit(1);
+    }
   }
 
   await startMCPServer(transport);

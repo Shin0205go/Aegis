@@ -17,6 +17,7 @@ import {
 
 export class ODRLEvaluator {
   private evaluationStartTime: number = 0;
+  private policies: Map<string, ODRLPolicy> = new Map();
 
   /**
    * Evaluate a policy against a context
@@ -445,5 +446,26 @@ export class ODRLEvaluator {
         policyId: policy?.uid || 'unknown'
       }
     };
+  }
+
+  /**
+   * Add a policy to the evaluator
+   */
+  async addPolicy(policyId: string, policy: ODRLPolicy): Promise<void> {
+    this.policies.set(policyId, policy);
+  }
+
+  /**
+   * Remove a policy from the evaluator
+   */
+  async removePolicy(policyId: string): Promise<boolean> {
+    return this.policies.delete(policyId);
+  }
+
+  /**
+   * List all policies
+   */
+  async listPolicies(): Promise<Array<{ id: string; policy: ODRLPolicy }>> {
+    return Array.from(this.policies.entries()).map(([id, policy]) => ({ id, policy }));
   }
 }

@@ -15,6 +15,7 @@ import { defaultPolicySet } from '../odrl/sample-policies';
 import { PolicyDecision, DecisionContext } from '../types';
 import { logger } from '../utils/logger';
 import { AIJudgmentEngine } from '../ai/judgment-engine';
+import { PolicyFormatDetector, PolicyFormat } from './policy-detector';
 
 export interface HybridPolicyConfig {
   useODRL: boolean;
@@ -23,6 +24,7 @@ export interface HybridPolicyConfig {
   aiThreshold?: number; // Confidence threshold for AI decisions
   cacheEnabled?: boolean;
   cacheTTL?: number;
+  autoDetectFormat?: boolean; // 自動形式検出を有効化
 }
 
 export class HybridPolicyEngine {
@@ -60,7 +62,7 @@ export class HybridPolicyEngine {
    */
   async decide(
     context: DecisionContext,
-    policyText?: string
+    policyText?: string | object
   ): Promise<PolicyDecision> {
     const startTime = Date.now();
     
@@ -73,8 +75,32 @@ export class HybridPolicyEngine {
     }
 
     try {
+      // Auto-detect policy format if enabled
+      let useODRL = this.config.useODRL;
+      let useAI = this.config.useAI;
+      
+      if (this.config.autoDetectFormat && policyText) {
+        const detection = PolicyFormatDetector.detect(policyText);
+        logger.info('Policy format auto-detected', {
+          format: detection.format,
+          confidence: detection.confidence,
+          indicators: detection.indicators
+        });
+        
+        // Override config based on detection
+        if (detection.confidence > 0.7) {
+          if (detection.format === 'ODRL') {
+            useODRL = true;
+            useAI = false;
+          } else if (detection.format === 'NATURAL_LANGUAGE') {
+            useODRL = false;
+            useAI = true;
+          }
+        }
+      }
+
       // Step 1: Try ODRL evaluation first (fast, deterministic)
-      if (this.config.useODRL) {
+      if (useODRL) {
         const odrlContext = this.convertToODRLContext(context);
         const odrlDecision = await this.evaluateODRL(odrlContext);
         
@@ -93,8 +119,24 @@ export class HybridPolicyEngine {
       }
 
       // Step 2: Fall back to AI for complex cases
-      if (this.config.useAI) {
-        const aiDecision = await this.aiEngine.judge(context, policyText);
+      if (useAI && this.aiEngine) {
+        // AIエンジンには文字列形式のポリシーのみ渡す
+        let aiPolicyText: string | undefined;
+        if (typeof policyText === 'string') {
+          aiPolicyText = policyText;
+        } else if (policyText && typeof policyText === 'object') {
+          // ODRLオブジェクトの場合、naturalLanguageSourceを優先的に使用
+          const odrlPolicy = policyText as any;
+          if (odrlPolicy.naturalLanguageSource) {
+            aiPolicyText = odrlPolicy.naturalLanguageSource;
+            logger.debug('Using naturalLanguageSource for AI judgment');
+          } else {
+            // naturalLanguageSourceがない場合は、ODRLをJSON文字列化（フォールバック）
+            aiPolicyText = JSON.stringify(policyText, null, 2);
+            logger.debug('Falling back to JSON stringified ODRL for AI judgment');
+          }
+        }
+        const aiDecision = await this.aiEngine.judge(context, aiPolicyText);
         
         // If AI confidence is high enough, use it
         if (aiDecision.confidence >= (this.config.aiThreshold || 0.8)) {
@@ -104,13 +146,30 @@ export class HybridPolicyEngine {
             evaluationTime: Date.now() - startTime
           });
           
-          this.cacheDecision(cacheKey, aiDecision);
-          return aiDecision;
+          // Add metadata for AI engine
+          const enhancedDecision = {
+            ...aiDecision,
+            metadata: {
+              ...aiDecision.metadata,
+              engine: 'AI',
+              evaluationTime: Date.now() - startTime
+            }
+          };
+          
+          this.cacheDecision(cacheKey, enhancedDecision);
+          return enhancedDecision;
         }
       }
 
       // Step 3: If both uncertain, combine insights
-      return this.combineDecisions(context, policyText);
+      let combineAIText: string | undefined;
+      if (typeof policyText === 'string') {
+        combineAIText = policyText;
+      } else if (policyText && typeof policyText === 'object') {
+        const odrlPolicy = policyText as any;
+        combineAIText = odrlPolicy.naturalLanguageSource || JSON.stringify(policyText, null, 2);
+      }
+      return this.combineDecisions(context, combineAIText);
       
     } catch (error) {
       logger.error('Hybrid policy engine error', error);
@@ -236,6 +295,28 @@ export class HybridPolicyEngine {
     policyText?: string
   ): Promise<PolicyDecision> {
     const odrlContext = this.convertToODRLContext(context);
+    
+    // Check if AI engine is available
+    if (!this.aiEngine) {
+      const odrlDecision = await this.evaluateODRL(odrlContext);
+      let reason = 'ODRL-only decision (no AI engine)';
+      if (odrlDecision?.matchedRules && odrlDecision.matchedRules.length > 0) {
+        const ruleTypes = odrlDecision.matchedRules.map(r => r['@type'] || 'Rule');
+        reason = `Matched ${ruleTypes.join(', ')} (no AI engine)`;
+      }
+      return {
+        decision: odrlDecision?.decision === 'PERMIT' ? 'PERMIT' : 'DENY',
+        reason,
+        confidence: 1.0,
+        constraints: this.extractConstraints(odrlDecision),
+        obligations: this.extractObligations(odrlDecision),
+        metadata: {
+          engine: 'ODRL',
+          odrlDecision: odrlDecision?.decision ?? 'INDETERMINATE'
+        }
+      };
+    }
+    
     const [odrlDecision, aiDecision] = await Promise.all([
       this.evaluateODRL(odrlContext),
       this.aiEngine.judge(context, policyText)
@@ -275,6 +356,49 @@ export class HybridPolicyEngine {
         aiConfidence: aiDecision.confidence ?? 0
       }
     };
+  }
+
+  /**
+   * Add an ODRL policy to the evaluator
+   */
+  async addODRLPolicy(policyId: string, policy: any): Promise<void> {
+    if (!this.config.useODRL) {
+      throw new Error('ODRL is not enabled');
+    }
+    
+    await this.odrlEvaluator.addPolicy(policyId, policy);
+    logger.info('ODRL policy added', { policyId });
+    
+    // Clear cache as policies have changed
+    this.clearCache();
+  }
+
+  /**
+   * Remove an ODRL policy from the evaluator
+   */
+  async removeODRLPolicy(policyId: string): Promise<boolean> {
+    if (!this.config.useODRL) {
+      throw new Error('ODRL is not enabled');
+    }
+    
+    const removed = await this.odrlEvaluator.removePolicy(policyId);
+    if (removed) {
+      logger.info('ODRL policy removed', { policyId });
+      this.clearCache();
+    }
+    
+    return removed;
+  }
+
+  /**
+   * List all ODRL policies
+   */
+  async listODRLPolicies(): Promise<Array<{ id: string; policy: any }>> {
+    if (!this.config.useODRL) {
+      return [];
+    }
+    
+    return this.odrlEvaluator.listPolicies();
   }
 
   /**

@@ -6,8 +6,8 @@
 import { MCPPolicyProxyBase } from '../../mcp/base-proxy';
 import { PolicyEnforcer } from '../../mcp/policy-enforcer';
 import { IntelligentCacheSystem } from '../../performance/intelligent-cache-system';
-import { RateLimiterProcessor } from '../../core/constraints/strategies';
-import { DataAnonymizerProcessor } from '../../core/constraints/strategies';
+import { RateLimiterProcessor } from '../../core/constraints/processors/rate-limiter';
+import { DataAnonymizerProcessor } from '../../core/constraints/processors/data-anonymizer';
 import { AuditLoggerExecutor } from '../../core/obligations/executors';
 import { DynamicToolDiscovery } from '../../mcp/dynamic-tool-discovery';
 import { Logger } from '../../utils/logger';

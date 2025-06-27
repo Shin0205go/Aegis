@@ -338,3 +338,11 @@ if (require.main === module) {
     }
   })();
 }
+
+// Add minimal test for Jest
+describe('Performance Benchmark', () => {
+  it('should create benchmark instance', () => {
+    const benchmark = new PolicyBenchmark();
+    expect(benchmark).toBeDefined();
+  });
+});

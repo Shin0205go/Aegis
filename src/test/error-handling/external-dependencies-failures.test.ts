@@ -5,7 +5,7 @@
 
 import { MCPHttpProxy } from '../../mcp/http-proxy';
 import { AIJudgmentEngine } from '../../ai/judgment-engine';
-import { GeoRestrictorProcessor } from '../../core/constraints/strategies';
+import { GeoRestrictorProcessor } from '../../core/constraints/processors/geo-restrictor';
 import { NotifierExecutor } from '../../core/obligations/executors';
 import { DataLifecycleExecutor } from '../../core/obligations/executors';
 import { AdvancedAuditSystem } from '../../audit/advanced-audit-system';

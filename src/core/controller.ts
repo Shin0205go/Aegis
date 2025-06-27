@@ -13,7 +13,7 @@ import type {
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 // Removed old WebSocket proxy import
 import { Logger } from '../utils/logger.js';
-import { SAMPLE_POLICIES } from '../../policies/sample-policies.js';
+import { policyLoader } from '../policies/policy-loader.js';
 import { 
   ContextCollector,
   TimeBasedEnricher,
@@ -73,8 +73,10 @@ export class AEGISController {
     this.policyResolver = new PolicyConflictResolver();
     this.policyFilter = new PolicyApplicabilityFilter();
     
-    // デフォルトポリシー設定
-    this.setupDefaultPolicies();
+    // デフォルトポリシー設定（非同期で実行）
+    this.setupDefaultPolicies().catch(error => {
+      this.logger.error('Failed to setup default policies:', error);
+    });
   }
 
   // コンテキストエンリッチャーのセットアップ
@@ -285,16 +287,27 @@ export class AEGISController {
   }
 
   // デフォルトポリシー設定
-  private setupDefaultPolicies(): void {
-    Object.entries(SAMPLE_POLICIES).forEach(([key, policyData]) => {
-      this.addPolicy(key, policyData.policy, {
-        description: policyData.description,
-        tags: policyData.tags,
-        createdBy: 'system'
+  private async setupDefaultPolicies(): Promise<void> {
+    try {
+      await policyLoader.loadPolicies();
+      const policies = policyLoader.getAllPolicies();
+      
+      policies.forEach(policy => {
+        const policyText = typeof policy.policy === 'string' 
+          ? policy.policy 
+          : JSON.stringify(policy.policy);
+        
+        this.addPolicy(policy.id, policyText, {
+          description: policy.description,
+          tags: policy.metadata.tags,
+          createdBy: 'system'
+        });
       });
-    });
-    
-    this.logger.info('Default policies loaded successfully');
+      
+      this.logger.info(`Loaded ${policies.length} policies from configuration`);
+    } catch (error) {
+      this.logger.error('Failed to load policies from configuration:', error);
+    }
   }
 
   // 履歴記録
