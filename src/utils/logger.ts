@@ -9,7 +9,9 @@ export class Logger {
 
   constructor(level: string = 'info') {
     // In MCP stdio mode, all logs must go to stderr
-    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || 
+                       process.argv.includes('--stdio') || 
+                       process.argv.includes('--transport') && process.argv[process.argv.indexOf('--transport') + 1] === 'stdio';
     const isSilent = process.env.LOG_SILENT === 'true';
     
     this.logger = winston.createLogger({
@@ -79,7 +81,15 @@ export class Logger {
   
   // Critical messages that should be visible even in stdio mode
   critical(message: string, metadata?: any) {
-    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || process.argv.includes('--stdio');
+    const isStdioMode = process.env.MCP_TRANSPORT === 'stdio' || 
+                       process.argv.includes('--stdio') || 
+                       process.argv.includes('--transport') && process.argv[process.argv.indexOf('--transport') + 1] === 'stdio';
+    
+    // In stdio mode with LOG_SILENT, do not output anything
+    if (isStdioMode && process.env.LOG_SILENT === 'true') {
+      return;
+    }
+    
     if (isStdioMode) {
       console.error(`[AEGIS CRITICAL] ${message}`, metadata ? JSON.stringify(metadata) : '');
     } else {

@@ -119,7 +119,7 @@ export class HybridPolicyEngine {
       }
 
       // Step 2: Fall back to AI for complex cases
-      if (useAI) {
+      if (useAI && this.aiEngine) {
         // AIエンジンには文字列形式のポリシーのみ渡す
         let aiPolicyText: string | undefined;
         if (typeof policyText === 'string') {
@@ -295,6 +295,28 @@ export class HybridPolicyEngine {
     policyText?: string
   ): Promise<PolicyDecision> {
     const odrlContext = this.convertToODRLContext(context);
+    
+    // Check if AI engine is available
+    if (!this.aiEngine) {
+      const odrlDecision = await this.evaluateODRL(odrlContext);
+      let reason = 'ODRL-only decision (no AI engine)';
+      if (odrlDecision?.matchedRules && odrlDecision.matchedRules.length > 0) {
+        const ruleTypes = odrlDecision.matchedRules.map(r => r['@type'] || 'Rule');
+        reason = `Matched ${ruleTypes.join(', ')} (no AI engine)`;
+      }
+      return {
+        decision: odrlDecision?.decision === 'PERMIT' ? 'PERMIT' : 'DENY',
+        reason,
+        confidence: 1.0,
+        constraints: this.extractConstraints(odrlDecision),
+        obligations: this.extractObligations(odrlDecision),
+        metadata: {
+          engine: 'ODRL',
+          odrlDecision: odrlDecision?.decision ?? 'INDETERMINATE'
+        }
+      };
+    }
+    
     const [odrlDecision, aiDecision] = await Promise.all([
       this.evaluateODRL(odrlContext),
       this.aiEngine.judge(context, policyText)

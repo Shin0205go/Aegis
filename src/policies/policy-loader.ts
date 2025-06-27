@@ -36,12 +36,27 @@ export class PolicyLoader {
   private loadedPolicies: Map<string, PolicyDefinition> = new Map();
 
   constructor(policiesPath?: string) {
-    this.policiesPath = policiesPath || path.join(process.cwd(), 'policies', 'policies.json');
+    // Ensure we use absolute path resolution
+    if (policiesPath) {
+      this.policiesPath = path.isAbsolute(policiesPath) ? policiesPath : path.resolve(process.cwd(), policiesPath);
+    } else {
+      // Default to policies/policies.json relative to project root
+      this.policiesPath = path.resolve(process.cwd(), 'policies', 'policies.json');
+    }
   }
 
   async loadPolicies(): Promise<void> {
     try {
       logger.info(`Loading policies from: ${this.policiesPath}`);
+      
+      // Check if file exists first
+      try {
+        await fs.access(this.policiesPath);
+      } catch {
+        logger.warn(`Policy file not found at ${this.policiesPath}, creating default policies`);
+        await this.createDefaultPolicies();
+        return;
+      }
       
       const data = await fs.readFile(this.policiesPath, 'utf-8');
       const config: PoliciesConfig = JSON.parse(data);
@@ -56,6 +71,9 @@ export class PolicyLoader {
       logger.info(`Successfully loaded ${config.policies.length} policies`);
     } catch (error) {
       logger.error('Failed to load policies:', error);
+      if (error instanceof SyntaxError) {
+        throw new Error(`Invalid JSON in policy file: ${error.message}`);
+      }
       throw new Error(`Policy loading failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -175,6 +193,46 @@ export class PolicyLoader {
     }
     
     return formatted;
+  }
+
+  private async createDefaultPolicies(): Promise<void> {
+    const defaultPolicy: PolicyDefinition = {
+      id: 'default-policy',
+      name: 'Default Policy',
+      version: '1.0.0',
+      status: 'active',
+      description: 'Default policy for AEGIS MCP Proxy',
+      policy: {
+        '基本原則': [
+          'すべてのアクセスは監査ログに記録される',
+          '明示的に許可されていないアクセスは拒否する'
+        ],
+        'アクセス許可': {
+          'ツール実行': ['低リスクのツールのみ許可'],
+          'リソース読み取り': ['公開情報のみ許可']
+        }
+      },
+      metadata: {
+        createdAt: new Date().toISOString(),
+        createdBy: 'system',
+        tags: ['default', 'security'],
+        priority: 100
+      }
+    };
+
+    this.loadedPolicies.set(defaultPolicy.id, defaultPolicy);
+    
+    // Create policies directory if it doesn't exist
+    const policiesDir = path.dirname(this.policiesPath);
+    try {
+      await fs.mkdir(policiesDir, { recursive: true });
+    } catch (error) {
+      logger.warn('Failed to create policies directory:', error);
+    }
+    
+    // Save the default policy
+    await this.savePolicies();
+    logger.info('Created default policies');
   }
 }
 

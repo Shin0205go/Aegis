@@ -41,7 +41,9 @@ export class DefaultLLMFactory implements LLMFactory {
     const ProviderClass = this.providerMap.get(config.provider);
     
     if (!ProviderClass) {
-      console.warn(`Unknown LLM provider: ${config.provider}, falling back to OpenAI`);
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.warn(`Unknown LLM provider: ${config.provider}, falling back to OpenAI`);
+      }
       return new OpenAILLM(config);
     }
     

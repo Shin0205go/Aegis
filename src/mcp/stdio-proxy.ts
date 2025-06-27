@@ -48,6 +48,9 @@ import type {
   AnomalyAlert
 } from '../types/enforcement-types.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
+import express from 'express';
+import cors from 'cors';
+import * as path from 'path';
 import { Logger } from '../utils/logger.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
 import { PolicyLoader } from '../policies/policy-loader.js';
@@ -78,12 +81,15 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   // パフォーマンス最適化
   private intelligentCacheSystem: IntelligentCacheSystem;
-  private batchJudgmentSystem: BatchJudgmentSystem;
+  private batchJudgmentSystem?: BatchJudgmentSystem;
   
   private upstreamStartPromise: Promise<void> | null = null;
   
   // サーキットブレーカー状態管理
   private circuitBreakerState: Map<string, CircuitBreakerState> = new Map();
+  
+  // HTTP API サーバー（stdio用）
+  private apiApp!: express.Application;
   
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
@@ -93,6 +99,9 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     
     // ポリシーローダー初期化
     this.initializePolicyLoader();
+    
+    // APIサーバー初期化
+    this.initializeAPIServer();
     
     // 追加機能初期化
     this.realTimeAnomalyDetector = new RealTimeAnomalyDetector(this.advancedAuditSystem);
@@ -130,13 +139,17 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       patternRecognition: true
     });
 
-    // バッチ判定システム初期化
-    this.batchJudgmentSystem = new BatchJudgmentSystem(this.judgmentEngine as AIJudgmentEngine, {
-      maxBatchSize: BATCH.MAX_SIZE.STDIO,
-      batchTimeout: BATCH.TIMEOUT,
-      enableParallelProcessing: true,
-      priorityQueuing: true
-    });
+    // バッチ判定システム初期化（AI判定エンジンが利用可能な場合のみ）
+    if (this.judgmentEngine) {
+      this.batchJudgmentSystem = new BatchJudgmentSystem(this.judgmentEngine, {
+        maxBatchSize: BATCH.MAX_SIZE.STDIO,
+        batchTimeout: BATCH.TIMEOUT,
+        enableParallelProcessing: true,
+        priorityQueuing: true
+      });
+    } else {
+      this.logger.warn('BatchJudgmentSystem disabled - no AI engine available (missing API keys)');
+    }
     
     // ハンドラーのセットアップ
     this.setupHandlers();
@@ -154,9 +167,202 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }
   }
 
+  private initializeAPIServer(): void {
+    this.apiApp = express();
+    
+    // Middleware
+    this.apiApp.use(cors());
+    this.apiApp.use(express.json());
+    
+    // 静的ファイル配信
+    const webDir = path.join(process.cwd(), 'src/web');
+    this.apiApp.use(express.static(webDir));
+    
+    // Routes
+    this.apiApp.get('/', (req, res) => {
+      res.redirect('/policy-management.html');
+    });
+    
+    this.apiApp.get('/health', (req, res) => {
+      res.json({
+        status: 'healthy',
+        version: '1.0.0',
+        mode: 'stdio',
+        policies: this.hybridPolicyEngine.getPolicies().length,
+        aiEnabled: !!this.judgmentEngine,
+      });
+    });
+    
+    // CRUD API for policies
+    this.setupPolicyAPI();
+  }
+
+  private setupPolicyAPI(): void {
+    // ポリシー一覧取得
+    this.apiApp.get('/policies', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policies = policyLoader.getAllPolicies();
+        res.json({
+          policies: policies,
+          count: policies.length
+        });
+      } catch (error) {
+        this.logger.error('Failed to get policies:', error);
+        res.status(500).json({ error: 'Failed to get policies' });
+      }
+    });
+
+    // 個別ポリシー取得
+    this.apiApp.get('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policy = policyLoader.getPolicy(req.params.id);
+        if (!policy) {
+          return res.status(404).json({ error: 'Policy not found' });
+        }
+        res.json(policy);
+      } catch (error) {
+        this.logger.error('Failed to get policy:', error);
+        res.status(500).json({ error: 'Failed to get policy' });
+      }
+    });
+
+    // ポリシー作成
+    this.apiApp.post('/policies', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policyId = await policyLoader.createPolicy(req.body);
+        
+        // HybridPolicyEngineにも追加
+        const policy = policyLoader.getPolicy(policyId);
+        if (policy) {
+          const policyText = typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy);
+          this.hybridPolicyEngine.addPolicy({
+            uid: `aegis:policy:${policyId}`,
+            '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
+            '@type': 'Policy',
+            profile: 'https://aegis.example.com/odrl/profile',
+            permission: [],
+            naturalLanguageSource: policyText
+          });
+        }
+
+        res.status(201).json({ success: true, id: policyId, message: 'Policy created' });
+      } catch (error) {
+        this.logger.error('Failed to create policy:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create policy' });
+      }
+    });
+
+    // ポリシー更新
+    this.apiApp.put('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        await policyLoader.updatePolicy(req.params.id, req.body);
+        
+        // HybridPolicyEngineのキャッシュクリア
+        this.hybridPolicyEngine.clearCache();
+        
+        res.json({ success: true, message: `Policy ${req.params.id} updated` });
+      } catch (error) {
+        this.logger.error('Failed to update policy:', error);
+        res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500)
+           .json({ error: error instanceof Error ? error.message : 'Failed to update policy' });
+      }
+    });
+
+    // ポリシー削除
+    this.apiApp.delete('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        await policyLoader.deletePolicy(req.params.id);
+        
+        // HybridPolicyEngineのキャッシュクリア
+        this.hybridPolicyEngine.clearCache();
+        
+        res.json({ success: true, message: `Policy ${req.params.id} deleted` });
+      } catch (error) {
+        this.logger.error('Failed to delete policy:', error);
+        res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500)
+           .json({ error: error instanceof Error ? error.message : 'Failed to delete policy' });
+      }
+    });
+
+    // 監査統計API
+    this.apiApp.get('/audit/statistics', (req, res) => {
+      res.json({
+        totalRequests: 0,
+        permittedRequests: 0,
+        deniedRequests: 0,
+        averageProcessingTime: 0,
+        policyEvaluations: 0,
+        cacheHitRate: 0
+      });
+    });
+
+    // 監査メトリクスAPI
+    this.apiApp.get('/audit/metrics', (req, res) => {
+      res.json({
+        totalRequests: 0,
+        permittedRequests: 0,
+        deniedRequests: 0,
+        averageProcessingTime: 0
+      });
+    });
+
+    // ポリシー評価テストAPI
+    this.apiApp.post('/api/test/evaluate', async (req, res) => {
+      try {
+        const { context, policyId } = req.body;
+        
+        if (!context || !policyId) {
+          return res.status(400).json({ error: 'Missing context or policyId' });
+        }
+        
+        // ポリシーローダーからポリシーを取得
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policy = policyLoader.getPolicy(policyId);
+        
+        if (!policy) {
+          return res.status(404).json({ error: 'Policy not found' });
+        }
+        
+        // HybridPolicyEngineで評価実行
+        const startTime = Date.now();
+        const decision = await this.hybridPolicyEngine.decide(context, {
+          uid: `aegis:policy:${policyId}`,
+          '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
+          '@type': 'Policy',
+          profile: 'https://aegis.example.com/odrl/profile',
+          permission: [],
+          naturalLanguageSource: typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy)
+        });
+        const processingTime = Date.now() - startTime;
+        
+        // 処理時間を追加
+        const response = {
+          ...decision,
+          processingTime
+        };
+        
+        this.logger.info(`Policy evaluation completed for ${policyId}: ${decision.decision}`);
+        res.json(response);
+        
+      } catch (error) {
+        this.logger.error('Policy evaluation failed:', error);
+        res.status(500).json({ 
+          error: 'Policy evaluation failed',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+  }
+
 
   protected setupHandlers(): void {
-    console.error('[AEGIS] Setting up MCP handlers...');
+    this.logger.debug('[AEGIS] Setting up MCP handlers...');
     
     // リソース読み取りハンドラー
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
@@ -265,18 +471,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       try {
         // 上流サーバーの起動を待つ
         if (this.upstreamStartPromise) {
-          console.error('[AEGIS] Waiting for upstream servers to be ready...');
-          this.logger.info('Waiting for upstream servers to be ready...');
+          this.logger.debug('[AEGIS] Waiting for upstream servers to be ready...');
           await this.upstreamStartPromise;
         }
         
         // 上流サーバーの状態を確認
         const availableServers = this.stdioRouter.getAvailableServers();
-        console.error(`[AEGIS] Available upstream servers: ${availableServers.length}`);
+        this.logger.debug(`[AEGIS] Available upstream servers: ${availableServers.length}`);
         availableServers.forEach(server => {
-          console.error(`[AEGIS]   - ${server}`);
+          this.logger.debug(`[AEGIS]   - ${server}`);
         });
-        this.logger.info(`Available upstream servers: ${availableServers.length}`);
         
         // ツール一覧取得はポリシー判定をスキップ（ツール実行時に判定）
         // 上流サーバーに転送
@@ -847,6 +1051,17 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
   getBatchJudgmentStats(): BatchJudgmentStats {
+    if (!this.batchJudgmentSystem) {
+      return {
+        totalBatches: 0,
+        averageBatchSize: 0,
+        processingTime: 0,
+        totalRequests: 0,
+        batchedRequests: 0,
+        averageResponseTime: 0
+      };
+    }
+    
     const stats = this.batchJudgmentSystem.getStats();
     // Calculate derived metrics since they're not provided by the underlying system
     const totalBatches = Math.ceil(stats.totalRequests / BATCH.MAX_SIZE.STDIO);
@@ -863,6 +1078,18 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
   getBatchQueueStatus(): QueueStatus {
+    if (!this.batchJudgmentSystem) {
+      return {
+        pending: 0,
+        processing: 0,
+        completed: 0,
+        waitingRequests: 0,
+        processingRequests: 0,
+        isProcessing: false,
+        priorityDistribution: {}
+      };
+    }
+    
     const status = this.batchJudgmentSystem.getQueueStatus();
     return {
       pending: status.waitingRequests,
@@ -876,6 +1103,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
   async forceProcessBatchQueue(): Promise<void> {
+    if (!this.batchJudgmentSystem) {
+      this.logger.warn('Cannot force process batch queue - batch judgment system not available');
+      return;
+    }
     await this.batchJudgmentSystem.forceProcessPendingRequests();
   }
   
@@ -988,30 +1219,17 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     await this.enforcementSystem.initialize();
     this.logger.info('Constraint and obligation enforcement system initialized');
     
-    // HTTPサーバー（Web UI付き）を同時に起動
-    let HttpProxyClass;
-    try {
-      HttpProxyClass = (await import('./http-proxy.js')).MCPHttpPolicyProxy;
-    } catch (error) {
-      this.logger.error('Failed to import HTTP proxy module:', error);
-      throw new Error(`Failed to load HTTP proxy module: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-    
-    const httpProxy = new HttpProxyClass(
-      this.config, 
-      this.logger, 
-      this.judgmentEngine
-    );
-    
-    // HTTPプロキシにポリシーを追加
-    this.policies.forEach((policy, name) => {
-      httpProxy.addPolicy(name, policy);
+    // APIサーバー起動
+    const apiPort = parseInt(process.env.MCP_PROXY_PORT || '3000');
+    this.apiApp.listen(apiPort, () => {
+      // In stdio mode, don't log anything to avoid corrupting JSON-RPC output
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        this.logger.info(`🚀 AEGIS API Server running at http://localhost:${apiPort}`);
+        this.logger.info(`📝 Policy Management UI: http://localhost:${apiPort}/policy-management.html`);
+        this.logger.info(`📋 Policies API: http://localhost:${apiPort}/policies`);
+        this.logger.info(`✅ Health check: http://localhost:${apiPort}/health`);
+      }
     });
-    
-    // HTTPサーバーを起動（管理UI用）
-    await httpProxy.start();
-    this.httpProxy = httpProxy;
-    this.logger.info('📊 Management web UI started on port', this.config.mcpProxy.port || 3000);
     
     // 上流サーバーはloadDesktopConfigまたはaddUpstreamServerで事前に登録されている前提
     // ここでは起動のみ行う

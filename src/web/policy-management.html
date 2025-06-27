@@ -585,7 +585,7 @@
         // ポリシー一覧の更新
         async function refreshPolicyList() {
             try {
-                const response = await fetch('/api/odrl/policies');
+                const response = await fetch('/policies');
                 const data = await response.json();
                 policies = data.policies || [];
                 
@@ -612,11 +612,11 @@
             }
             
             content.innerHTML = policies.map(policy => {
-                const isNL = !!policy.naturalLanguageSource;
-                const policyName = policy.uid.replace('aegis:policy:', '');
+                const isNL = typeof policy.policy === 'object'; // JSONオブジェクトの場合は自然言語ポリシー
+                const policyName = policy.name || policy.id;
                 
                 return `
-                    <div class="policy-item" onclick="selectPolicy('${policy.uid}')">
+                    <div class="policy-item" onclick="selectPolicy('${policy.id}')">
                         <div class="policy-header">
                             <div class="policy-name">${policyName}</div>
                             <span class="policy-type ${isNL ? 'nl' : 'odrl'}">
@@ -624,19 +624,19 @@
                             </span>
                         </div>
                         <div style="color: #718096; font-size: 14px;">
-                            ${policy.metadata?.description || 'No description'}
+                            ${policy.description || 'No description'}
                         </div>
                         <div style="margin-top: 8px; display: flex; gap: 8px;">
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" 
-                                    onclick="editPolicy('${policy.uid}', event)">
+                                    onclick="editPolicy('${policy.id}', event)">
                                 ✏️ 編集
                             </button>
                             <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" 
-                                    onclick="testPolicy('${policy.uid}', event)">
+                                    onclick="testPolicy('${policy.id}', event)">
                                 🧪 テスト
                             </button>
                             <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" 
-                                    onclick="deletePolicy('${policy.uid}', event)">
+                                    onclick="deletePolicy('${policy.id}', event)">
                                 🗑️ 削除
                             </button>
                         </div>
@@ -647,7 +647,7 @@
 
         // ポリシー選択
         function selectPolicy(policyId) {
-            selectedPolicy = policies.find(p => p.uid === policyId);
+            selectedPolicy = policies.find(p => p.id === policyId);
             
             // 選択状態の更新
             document.querySelectorAll('.policy-item').forEach(item => {
@@ -659,14 +659,16 @@
         // ポリシー編集
         function editPolicy(policyId, event) {
             event.stopPropagation();
-            const policy = policies.find(p => p.uid === policyId);
+            const policy = policies.find(p => p.id === policyId);
             
-            if (policy.naturalLanguageSource) {
-                // 自然言語エディタに切り替え
+            if (typeof policy.policy === 'object') {
+                // 自然言語ポリシー（JSONオブジェクト形式）の編集
                 switchTab('natural');
-                document.getElementById('nlPolicyId').value = policy.uid.replace('aegis:policy:', '');
-                document.getElementById('nlDescription').value = policy.metadata?.description || '';
-                document.getElementById('nlPolicyText').value = policy.naturalLanguageSource;
+                document.getElementById('nlPolicyId').value = policy.id;
+                document.getElementById('nlDescription').value = policy.description || '';
+                // JSONオブジェクトを自然言語形式に変換して表示
+                const nlText = convertPolicyObjectToText(policy.policy);
+                document.getElementById('nlPolicyText').value = nlText;
                 previewNaturalLanguagePolicy();
             } else {
                 // ODRLフォームに切り替え
@@ -691,7 +693,7 @@
             }
             
             try {
-                const response = await fetch(`/api/odrl/policies/${policyId}`, {
+                const response = await fetch(`/policies/${policyId}`, {
                     method: 'DELETE'
                 });
                 
@@ -728,7 +730,7 @@
             }
             
             try {
-                const response = await fetch('/api/odrl/policies', {
+                const response = await fetch('/policies', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -969,13 +971,13 @@
         // ポリシーオプションの読み込み
         async function loadPolicyOptions() {
             try {
-                const response = await fetch('/api/odrl/policies');
+                const response = await fetch('/policies');
                 const data = await response.json();
                 const policies = data.policies || [];
                 
                 const select = document.getElementById('testPolicyId');
                 select.innerHTML = '<option value="">ポリシーを選択...</option>' +
-                    policies.map(p => `<option value="${p.uid}">${p.uid.replace('aegis:policy:', '')}</option>`).join('');
+                    policies.map(p => `<option value="${p.id}">${p.name || p.id}</option>`).join('');
             } catch (error) {
                 console.error('Failed to load policy options:', error);
             }
@@ -996,6 +998,37 @@
         function showAlert(type, message) {
             // グローバルアラート表示（実装は省略）
             alert(message);
+        }
+
+        // JSONオブジェクト形式のポリシーを自然言語テキストに変換
+        function convertPolicyObjectToText(policyObject) {
+            let text = '';
+            
+            for (const [section, content] of Object.entries(policyObject)) {
+                text += `【${section}】\n`;
+                
+                if (Array.isArray(content)) {
+                    content.forEach(item => {
+                        text += `- ${item}\n`;
+                    });
+                } else if (typeof content === 'object') {
+                    for (const [subKey, subValue] of Object.entries(content)) {
+                        text += `■ ${subKey}\n`;
+                        if (Array.isArray(subValue)) {
+                            subValue.forEach(item => {
+                                text += `  - ${item}\n`;
+                            });
+                        } else {
+                            text += `  ${subValue}\n`;
+                        }
+                    }
+                } else {
+                    text += `${content}\n`;
+                }
+                text += '\n';
+            }
+            
+            return text.trim();
         }
 
         // 初期化

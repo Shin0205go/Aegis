@@ -1,6 +1,39 @@
 {
   "policies": [
     {
+      "id": "dev-permissive-policy",
+      "name": "開発環境用寛容ポリシー",
+      "version": "1.0.0",
+      "status": "active",
+      "description": "開発環境での作業を妨げないための寛容なポリシー",
+      "policy": {
+        "基本原則": [
+          "すべてのファイルシステムアクセスは基本的に許可",
+          "時間制限なし（24時間365日アクセス可能）",
+          "IPアドレス制限なし",
+          "開発効率を最優先"
+        ],
+        "アクセス許可": [
+          "すべてのファイル・ディレクトリの読み取り: 許可",
+          "すべてのファイル・ディレクトリの書き込み: 許可",
+          "すべてのツール実行: 許可",
+          "削除操作: 許可（警告のみ）"
+        ],
+        "制限事項": [
+          "なし（開発環境のため）"
+        ],
+        "義務事項": [
+          "基本的なアクセスログ記録のみ"
+        ]
+      },
+      "metadata": {
+        "createdAt": "2025-06-27",
+        "createdBy": "dev",
+        "tags": ["development", "permissive", "no-restrictions"],
+        "priority": 1000
+      }
+    },
+    {
       "id": "claude-desktop-policy",
       "name": "Claude Desktop アクセスポリシー",
       "version": "1.0.0",
