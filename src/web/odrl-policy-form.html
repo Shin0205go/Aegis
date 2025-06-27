@@ -420,7 +420,7 @@
         // Load available templates
         async function loadTemplates() {
             try {
-                const response = await fetch('/api/odrl/templates');
+                const response = await fetch('/odrl/templates');
                 const templates = await response.json();
                 
                 const grid = document.getElementById('templateGrid');
@@ -747,10 +747,18 @@
 
         // Collect form data
         function collectFormData() {
+            const policyNameEl = document.getElementById('policyName');
+            const policyDescriptionEl = document.getElementById('policyDescription');
+            const policyTypeEl = document.querySelector('input[name="policyType"]:checked');
+            
+            if (!policyNameEl || !policyDescriptionEl || !policyTypeEl) {
+                throw new Error('Required form elements not found');
+            }
+            
             const formData = {
-                name: document.getElementById('policyName').value,
-                description: document.getElementById('policyDescription').value,
-                type: document.querySelector('input[name="policyType"]:checked').value,
+                name: policyNameEl.value,
+                description: policyDescriptionEl.value,
+                type: policyTypeEl.value,
                 rules: [],
                 obligations: []
             };
@@ -759,9 +767,18 @@
             const ruleElements = document.querySelectorAll('[id^="rule-"]');
             ruleElements.forEach(ruleDiv => {
                 const ruleId = ruleDiv.id.split('-')[1];
-                const ruleType = ruleDiv.querySelector('select').value;
-                const action = document.getElementById(`rule-${ruleId}-action`).value;
-                const target = document.getElementById(`rule-${ruleId}-target`).value;
+                const ruleTypeSelect = ruleDiv.querySelector('select');
+                const actionEl = document.getElementById(`rule-${ruleId}-action`);
+                const targetEl = document.getElementById(`rule-${ruleId}-target`);
+                
+                if (!ruleTypeSelect || !actionEl || !targetEl) {
+                    console.warn(`Missing elements for rule ${ruleId}`);
+                    return;
+                }
+                
+                const ruleType = ruleTypeSelect.value;
+                const action = actionEl.value;
+                const target = targetEl.value;
                 
                 const conditions = [];
                 const conditionRows = ruleDiv.querySelectorAll(`#rule-${ruleId}-conditions .condition-row`);
@@ -769,17 +786,19 @@
                     const selects = row.querySelectorAll('select');
                     const inputs = row.querySelectorAll('input');
                     
-                    const condition = {
-                        type: selects[0].value,
-                        operator: selects[1].value,
-                        value: inputs[0].value
-                    };
-                    
-                    if (selects[1].value === 'between' && inputs[1]) {
-                        condition.value2 = inputs[1].value;
+                    if (selects.length >= 2 && inputs.length >= 1) {
+                        const condition = {
+                            type: selects[0].value,
+                            operator: selects[1].value,
+                            value: inputs[0].value
+                        };
+                        
+                        if (selects[1].value === 'between' && inputs[1]) {
+                            condition.value2 = inputs[1].value;
+                        }
+                        
+                        conditions.push(condition);
                     }
-                    
-                    conditions.push(condition);
                 });
                 
                 const duties = [];
@@ -788,16 +807,18 @@
                     const select = row.querySelector('select');
                     const inputs = row.querySelectorAll('input');
                     
-                    const duty = {
-                        type: select.value,
-                        target: inputs[0].value
-                    };
-                    
-                    if (inputs[1] && inputs[1].value) {
-                        duty.timeframe = parseInt(inputs[1].value);
+                    if (select && inputs.length >= 1) {
+                        const duty = {
+                            type: select.value,
+                            target: inputs[0].value
+                        };
+                        
+                        if (inputs[1] && inputs[1].value) {
+                            duty.timeframe = parseInt(inputs[1].value);
+                        }
+                        
+                        duties.push(duty);
                     }
-                    
-                    duties.push(duty);
                 });
                 
                 formData.rules.push({
@@ -815,16 +836,18 @@
                 const select = row.querySelector('select');
                 const inputs = row.querySelectorAll('input');
                 
-                const obligation = {
-                    type: select.value,
-                    target: inputs[0].value
-                };
-                
-                if (inputs[1] && inputs[1].value) {
-                    obligation.timeframe = parseInt(inputs[1].value);
+                if (select && inputs.length >= 1) {
+                    const obligation = {
+                        type: select.value,
+                        target: inputs[0].value
+                    };
+                    
+                    if (inputs[1] && inputs[1].value) {
+                        obligation.timeframe = parseInt(inputs[1].value);
+                    }
+                    
+                    formData.obligations.push(obligation);
                 }
-                
-                formData.obligations.push(obligation);
             });
             
             return formData;
@@ -836,7 +859,7 @@
                 const formData = collectFormData();
                 
                 // Send to server to generate ODRL
-                const response = await fetch('/api/odrl/build', {
+                const response = await fetch('/odrl/build', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
@@ -848,10 +871,15 @@
                         JSON.stringify(policy, null, 2);
                 }
             } catch (error) {
-                // Fallback to simple preview
-                const formData = collectFormData();
-                document.getElementById('policyPreview').textContent = 
-                    JSON.stringify(formData, null, 2);
+                // Fallback to simple preview with error handling
+                try {
+                    const formData = collectFormData();
+                    document.getElementById('policyPreview').textContent = 
+                        JSON.stringify(formData, null, 2);
+                } catch (collectError) {
+                    document.getElementById('policyPreview').textContent = 
+                        `// Error: ${collectError.message}\n// Please fill in all required fields.`;
+                }
             }
         }
 
@@ -860,7 +888,7 @@
             try {
                 const formData = collectFormData();
                 
-                const response = await fetch('/api/odrl/validate', {
+                const response = await fetch('/odrl/validate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
@@ -874,7 +902,11 @@
                     showError(result.errors.join('<br>'));
                 }
             } catch (error) {
-                showError('検証中にエラーが発生しました');
+                if (error.message && error.message.includes('Required form elements')) {
+                    showError('必須フォーム要素が見つかりません。すべての必須フィールドを入力してください。');
+                } else {
+                    showError('検証中にエラーが発生しました: ' + (error.message || error));
+                }
             }
         }
 
@@ -886,7 +918,7 @@
                 const formData = collectFormData();
                 
                 // Create policy via API
-                const response = await fetch('/api/odrl/policies', {
+                const response = await fetch('/odrl/policies', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ formData })
@@ -905,7 +937,11 @@
                     showError(error.message || 'ポリシーの作成に失敗しました');
                 }
             } catch (error) {
-                showError('ポリシーの作成中にエラーが発生しました');
+                if (error.message && error.message.includes('Required form elements')) {
+                    showError('必須フォーム要素が見つかりません。すべての必須フィールドを入力してください。');
+                } else {
+                    showError('ポリシーの作成中にエラーが発生しました: ' + (error.message || error));
+                }
             }
         });
 
