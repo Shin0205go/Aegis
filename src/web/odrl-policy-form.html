@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ODRL Policy Form Builder - AEGIS</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #2d3748;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #718096;
+        }
+
+        .form-section {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+
+        .form-section h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .radio-group, .checkbox-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 8px;
+        }
+
+        .radio-label, .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .rule-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            background: #f7fafc;
+        }
+
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .rule-type {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .rule-type.permission {
+            background: #c6f6d5;
+            color: #276749;
+        }
+
+        .rule-type.prohibition {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .condition-row {
+            display: grid;
+            grid-template-columns: 150px 150px 1fr 100px;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .duty-row {
+            display: grid;
+            grid-template-columns: 150px 1fr 150px 100px;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .template-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .template-card:hover {
+            border-color: #4299e1;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .template-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .template-card p {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .preview-section {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 24px;
+            border-radius: 12px;
+            margin-top: 24px;
+        }
+
+        .preview-section h3 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: white;
+        }
+
+        .preview-code {
+            background: #1a202c;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .success-message {
+            background: #c6f6d5;
+            color: #276749;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 24px 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ ODRL Policy Form Builder</h1>
+            <p>フォームを使用して、複雑なODRLポリシーを簡単に作成できます</p>
+        </div>
+
+        <div class="form-section">
+            <h2>📋 テンプレートから始める</h2>
+            <div class="template-grid" id="templateGrid">
+                <!-- Templates will be loaded here -->
+            </div>
+        </div>
+
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+
+        <form id="policyForm">
+            <div class="form-section">
+                <h2>📝 基本情報</h2>
+                
+                <div class="form-group">
+                    <label for="policyName">ポリシー名 *</label>
+                    <input type="text" id="policyName" class="form-control" required 
+                           placeholder="例: Business Hours Access Policy">
+                </div>
+
+                <div class="form-group">
+                    <label for="policyDescription">説明 *</label>
+                    <textarea id="policyDescription" class="form-control" required 
+                              placeholder="このポリシーの目的と動作を説明してください"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>ポリシータイプ *</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="policyType" value="permission" checked>
+                            <span>許可のみ</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="policyType" value="prohibition">
+                            <span>禁止のみ</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="policyType" value="both">
+                            <span>両方</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>⚖️ ルール設定</h2>
+                <div id="rulesContainer">
+                    <!-- Rules will be added here -->
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addRule()">
+                    ➕ ルールを追加
+                </button>
+            </div>
+
+            <div class="form-section">
+                <h2>📌 全体的な義務（オプション）</h2>
+                <div id="obligationsContainer">
+                    <!-- Obligations will be added here -->
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addObligation()">
+                    ➕ 義務を追加
+                </button>
+            </div>
+
+            <div class="preview-section">
+                <h3>👁️ プレビュー</h3>
+                <pre class="preview-code" id="policyPreview">
+{
+  // ODRLポリシーがここに表示されます
+}
+                </pre>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">
+                    💾 ポリシーを作成
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="validateForm()">
+                    ✅ 検証
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="clearForm()">
+                    🔄 リセット
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Global state
+        let ruleCount = 0;
+        let obligationCount = 0;
+
+        // Load templates on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTemplates();
+            addRule(); // Add initial rule
+            updatePreview();
+        });
+
+        // Load available templates
+        async function loadTemplates() {
+            try {
+                const response = await fetch('/api/odrl/templates');
+                const templates = await response.json();
+                
+                const grid = document.getElementById('templateGrid');
+                grid.innerHTML = '';
+                
+                Object.entries(templates).forEach(([key, template]) => {
+                    const card = document.createElement('div');
+                    card.className = 'template-card';
+                    card.onclick = () => loadTemplate(template);
+                    card.innerHTML = `
+                        <h3>${template.name}</h3>
+                        <p>${template.description}</p>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Failed to load templates:', error);
+            }
+        }
+
+        // Load a template into the form
+        function loadTemplate(template) {
+            // Clear existing form
+            clearForm();
+            
+            // Set basic info
+            document.getElementById('policyName').value = template.name;
+            document.getElementById('policyDescription').value = template.description;
+            document.querySelector(`input[name="policyType"][value="${template.type}"]`).checked = true;
+            
+            // Add rules
+            template.rules.forEach(rule => {
+                addRule(rule);
+            });
+            
+            // Add obligations
+            if (template.obligations) {
+                template.obligations.forEach(obligation => {
+                    addObligation(obligation);
+                });
+            }
+            
+            updatePreview();
+            showSuccess('テンプレートを読み込みました');
+        }
+
+        // Add a new rule
+        function addRule(ruleData = null) {
+            ruleCount++;
+            const container = document.getElementById('rulesContainer');
+            
+            const ruleDiv = document.createElement('div');
+            ruleDiv.className = 'rule-card fade-in';
+            ruleDiv.id = `rule-${ruleCount}`;
+            
+            const ruleType = ruleData?.type || 'permission';
+            const action = ruleData?.action || 'read';
+            const target = ruleData?.target || '';
+            
+            ruleDiv.innerHTML = `
+                <div class="rule-header">
+                    <div>
+                        <span class="rule-type ${ruleType}">
+                            ${ruleType === 'permission' ? '許可' : '禁止'}
+                        </span>
+                        <select onchange="updateRuleType(${ruleCount}, this.value)" style="margin-left: 12px;">
+                            <option value="permission" ${ruleType === 'permission' ? 'selected' : ''}>許可</option>
+                            <option value="prohibition" ${ruleType === 'prohibition' ? 'selected' : ''}>禁止</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeRule(${ruleCount})">
+                        削除
+                    </button>
+                </div>
+                
+                <div class="form-group">
+                    <label>アクション</label>
+                    <select class="form-control" id="rule-${ruleCount}-action" onchange="updatePreview()">
+                        <option value="read" ${action === 'read' ? 'selected' : ''}>読み取り</option>
+                        <option value="write" ${action === 'write' ? 'selected' : ''}>書き込み</option>
+                        <option value="execute" ${action === 'execute' ? 'selected' : ''}>実行</option>
+                        <option value="delete" ${action === 'delete' ? 'selected' : ''}>削除</option>
+                        <option value="modify" ${action === 'modify' ? 'selected' : ''}>変更</option>
+                        <option value="access" ${action === 'access' ? 'selected' : ''}>アクセス</option>
+                        <option value="tool_execute" ${action === 'tool_execute' ? 'selected' : ''}>ツール実行</option>
+                        <option value="api_call" ${action === 'api_call' ? 'selected' : ''}>API呼び出し</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>対象リソース（オプション）</label>
+                    <input type="text" class="form-control" id="rule-${ruleCount}-target" 
+                           placeholder="例: confidential://* または file://documents/*" 
+                           value="${target}" onchange="updatePreview()">
+                </div>
+                
+                <div class="form-group">
+                    <label>条件</label>
+                    <div id="rule-${ruleCount}-conditions">
+                        <!-- Conditions will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" 
+                            onclick="addCondition(${ruleCount})">
+                        条件を追加
+                    </button>
+                </div>
+                
+                <div class="form-group">
+                    <label>義務（Duties）</label>
+                    <div id="rule-${ruleCount}-duties">
+                        <!-- Duties will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" 
+                            onclick="addDuty(${ruleCount})">
+                        義務を追加
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(ruleDiv);
+            
+            // Add initial conditions and duties from template
+            if (ruleData?.conditions) {
+                ruleData.conditions.forEach(condition => {
+                    addCondition(ruleCount, condition);
+                });
+            }
+            
+            if (ruleData?.duties) {
+                ruleData.duties.forEach(duty => {
+                    addDuty(ruleCount, duty);
+                });
+            }
+            
+            updatePreview();
+        }
+
+        // Add a condition to a rule
+        function addCondition(ruleId, conditionData = null) {
+            const container = document.getElementById(`rule-${ruleId}-conditions`);
+            const conditionId = Date.now();
+            
+            const conditionDiv = document.createElement('div');
+            conditionDiv.className = 'condition-row';
+            conditionDiv.id = `condition-${conditionId}`;
+            
+            const type = conditionData?.type || 'time';
+            const operator = conditionData?.operator || 'equals';
+            const value = conditionData?.value || '';
+            const value2 = conditionData?.value2 || '';
+            
+            conditionDiv.innerHTML = `
+                <select onchange="updatePreview()">
+                    <option value="time" ${type === 'time' ? 'selected' : ''}>時間</option>
+                    <option value="agent" ${type === 'agent' ? 'selected' : ''}>エージェント</option>
+                    <option value="resource" ${type === 'resource' ? 'selected' : ''}>リソース分類</option>
+                    <option value="trust" ${type === 'trust' ? 'selected' : ''}>信頼スコア</option>
+                    <option value="location" ${type === 'location' ? 'selected' : ''}>場所</option>
+                </select>
+                
+                <select onchange="handleOperatorChange(this, ${conditionId})">
+                    <option value="equals" ${operator === 'equals' ? 'selected' : ''}>=</option>
+                    <option value="not_equals" ${operator === 'not_equals' ? 'selected' : ''}>≠</option>
+                    <option value="greater_than" ${operator === 'greater_than' ? 'selected' : ''}>></option>
+                    <option value="less_than" ${operator === 'less_than' ? 'selected' : ''}><</option>
+                    <option value="between" ${operator === 'between' ? 'selected' : ''}>範囲</option>
+                </select>
+                
+                <div id="value-container-${conditionId}">
+                    ${operator === 'between' ? 
+                        `<div style="display: flex; gap: 8px;">
+                            <input type="text" class="form-control" placeholder="開始" value="${value}" onchange="updatePreview()">
+                            <span>〜</span>
+                            <input type="text" class="form-control" placeholder="終了" value="${value2}" onchange="updatePreview()">
+                        </div>` :
+                        `<input type="text" class="form-control" placeholder="値" value="${value}" onchange="updatePreview()">`
+                    }
+                </div>
+                
+                <button type="button" class="btn btn-danger btn-sm" 
+                        onclick="removeElement('condition-${conditionId}')">
+                    削除
+                </button>
+            `;
+            
+            container.appendChild(conditionDiv);
+            updatePreview();
+        }
+
+        // Add a duty to a rule
+        function addDuty(ruleId, dutyData = null) {
+            const container = document.getElementById(`rule-${ruleId}-duties`);
+            const dutyId = Date.now();
+            
+            const dutyDiv = document.createElement('div');
+            dutyDiv.className = 'duty-row';
+            dutyDiv.id = `duty-${dutyId}`;
+            
+            const type = dutyData?.type || 'log';
+            const target = dutyData?.target || '';
+            const timeframe = dutyData?.timeframe || '';
+            
+            dutyDiv.innerHTML = `
+                <select onchange="updatePreview()">
+                    <option value="log" ${type === 'log' ? 'selected' : ''}>ログ記録</option>
+                    <option value="notify" ${type === 'notify' ? 'selected' : ''}>通知</option>
+                    <option value="anonymize" ${type === 'anonymize' ? 'selected' : ''}>匿名化</option>
+                    <option value="delete" ${type === 'delete' ? 'selected' : ''}>削除</option>
+                    <option value="encrypt" ${type === 'encrypt' ? 'selected' : ''}>暗号化</option>
+                </select>
+                
+                <input type="text" class="form-control" placeholder="対象（例: access-log）" 
+                       value="${target}" onchange="updatePreview()">
+                
+                <input type="number" class="form-control" placeholder="期限（日）" 
+                       value="${timeframe}" onchange="updatePreview()">
+                
+                <button type="button" class="btn btn-danger btn-sm" 
+                        onclick="removeElement('duty-${dutyId}')">
+                    削除
+                </button>
+            `;
+            
+            container.appendChild(dutyDiv);
+            updatePreview();
+        }
+
+        // Add an obligation
+        function addObligation(obligationData = null) {
+            obligationCount++;
+            const container = document.getElementById('obligationsContainer');
+            
+            const obligationDiv = document.createElement('div');
+            obligationDiv.className = 'duty-row';
+            obligationDiv.id = `obligation-${obligationCount}`;
+            
+            const type = obligationData?.type || 'notify';
+            const target = obligationData?.target || '';
+            const timeframe = obligationData?.timeframe || '';
+            
+            obligationDiv.innerHTML = `
+                <select onchange="updatePreview()">
+                    <option value="notify" ${type === 'notify' ? 'selected' : ''}>通知</option>
+                    <option value="report" ${type === 'report' ? 'selected' : ''}>レポート</option>
+                    <option value="delete" ${type === 'delete' ? 'selected' : ''}>削除</option>
+                </select>
+                
+                <input type="text" class="form-control" placeholder="対象（例: admin）" 
+                       value="${target}" onchange="updatePreview()">
+                
+                <input type="number" class="form-control" placeholder="期限（日）" 
+                       value="${timeframe}" onchange="updatePreview()">
+                
+                <button type="button" class="btn btn-danger btn-sm" 
+                        onclick="removeElement('obligation-${obligationCount}')">
+                    削除
+                </button>
+            `;
+            
+            container.appendChild(obligationDiv);
+            updatePreview();
+        }
+
+        // Update rule type
+        function updateRuleType(ruleId, type) {
+            const ruleDiv = document.getElementById(`rule-${ruleId}`);
+            const typeSpan = ruleDiv.querySelector('.rule-type');
+            
+            typeSpan.className = `rule-type ${type}`;
+            typeSpan.textContent = type === 'permission' ? '許可' : '禁止';
+            
+            updatePreview();
+        }
+
+        // Handle operator change
+        function handleOperatorChange(select, conditionId) {
+            const valueContainer = document.getElementById(`value-container-${conditionId}`);
+            
+            if (select.value === 'between') {
+                valueContainer.innerHTML = `
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" class="form-control" placeholder="開始" onchange="updatePreview()">
+                        <span>〜</span>
+                        <input type="text" class="form-control" placeholder="終了" onchange="updatePreview()">
+                    </div>
+                `;
+            } else {
+                valueContainer.innerHTML = `
+                    <input type="text" class="form-control" placeholder="値" onchange="updatePreview()">
+                `;
+            }
+            
+            updatePreview();
+        }
+
+        // Remove an element
+        function removeElement(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.remove();
+                updatePreview();
+            }
+        }
+
+        // Remove a rule
+        function removeRule(ruleId) {
+            const ruleDiv = document.getElementById(`rule-${ruleId}`);
+            if (ruleDiv) {
+                ruleDiv.remove();
+                updatePreview();
+            }
+        }
+
+        // Clear the form
+        function clearForm() {
+            document.getElementById('policyForm').reset();
+            document.getElementById('rulesContainer').innerHTML = '';
+            document.getElementById('obligationsContainer').innerHTML = '';
+            ruleCount = 0;
+            obligationCount = 0;
+            addRule(); // Add initial rule
+            updatePreview();
+        }
+
+        // Collect form data
+        function collectFormData() {
+            const formData = {
+                name: document.getElementById('policyName').value,
+                description: document.getElementById('policyDescription').value,
+                type: document.querySelector('input[name="policyType"]:checked').value,
+                rules: [],
+                obligations: []
+            };
+            
+            // Collect rules
+            const ruleElements = document.querySelectorAll('[id^="rule-"]');
+            ruleElements.forEach(ruleDiv => {
+                const ruleId = ruleDiv.id.split('-')[1];
+                const ruleType = ruleDiv.querySelector('select').value;
+                const action = document.getElementById(`rule-${ruleId}-action`).value;
+                const target = document.getElementById(`rule-${ruleId}-target`).value;
+                
+                const conditions = [];
+                const conditionRows = ruleDiv.querySelectorAll(`#rule-${ruleId}-conditions .condition-row`);
+                conditionRows.forEach(row => {
+                    const selects = row.querySelectorAll('select');
+                    const inputs = row.querySelectorAll('input');
+                    
+                    const condition = {
+                        type: selects[0].value,
+                        operator: selects[1].value,
+                        value: inputs[0].value
+                    };
+                    
+                    if (selects[1].value === 'between' && inputs[1]) {
+                        condition.value2 = inputs[1].value;
+                    }
+                    
+                    conditions.push(condition);
+                });
+                
+                const duties = [];
+                const dutyRows = ruleDiv.querySelectorAll(`#rule-${ruleId}-duties .duty-row`);
+                dutyRows.forEach(row => {
+                    const select = row.querySelector('select');
+                    const inputs = row.querySelectorAll('input');
+                    
+                    const duty = {
+                        type: select.value,
+                        target: inputs[0].value
+                    };
+                    
+                    if (inputs[1] && inputs[1].value) {
+                        duty.timeframe = parseInt(inputs[1].value);
+                    }
+                    
+                    duties.push(duty);
+                });
+                
+                formData.rules.push({
+                    type: ruleType,
+                    action,
+                    target: target || undefined,
+                    conditions,
+                    duties
+                });
+            });
+            
+            // Collect obligations
+            const obligationRows = document.querySelectorAll('#obligationsContainer .duty-row');
+            obligationRows.forEach(row => {
+                const select = row.querySelector('select');
+                const inputs = row.querySelectorAll('input');
+                
+                const obligation = {
+                    type: select.value,
+                    target: inputs[0].value
+                };
+                
+                if (inputs[1] && inputs[1].value) {
+                    obligation.timeframe = parseInt(inputs[1].value);
+                }
+                
+                formData.obligations.push(obligation);
+            });
+            
+            return formData;
+        }
+
+        // Update preview
+        async function updatePreview() {
+            try {
+                const formData = collectFormData();
+                
+                // Send to server to generate ODRL
+                const response = await fetch('/api/odrl/build', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (response.ok) {
+                    const policy = await response.json();
+                    document.getElementById('policyPreview').textContent = 
+                        JSON.stringify(policy, null, 2);
+                }
+            } catch (error) {
+                // Fallback to simple preview
+                const formData = collectFormData();
+                document.getElementById('policyPreview').textContent = 
+                    JSON.stringify(formData, null, 2);
+            }
+        }
+
+        // Validate form
+        async function validateForm() {
+            try {
+                const formData = collectFormData();
+                
+                const response = await fetch('/api/odrl/validate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.valid) {
+                    showSuccess('✅ フォームは有効です');
+                } else {
+                    showError(result.errors.join('<br>'));
+                }
+            } catch (error) {
+                showError('検証中にエラーが発生しました');
+            }
+        }
+
+        // Handle form submission
+        document.getElementById('policyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const formData = collectFormData();
+                
+                // Create policy via API
+                const response = await fetch('/api/odrl/policies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ formData })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    showSuccess('✅ ポリシーが正常に作成されました！');
+                    
+                    // Optionally redirect to policy list
+                    setTimeout(() => {
+                        window.location.href = '/policies';
+                    }, 2000);
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'ポリシーの作成に失敗しました');
+                }
+            } catch (error) {
+                showError('ポリシーの作成中にエラーが発生しました');
+            }
+        });
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.innerHTML = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.innerHTML = message;
+            successDiv.style.display = 'block';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

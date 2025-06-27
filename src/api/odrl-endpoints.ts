@@ -8,6 +8,8 @@ import { NLToODRLConverter } from '../odrl/nl-to-odrl-converter';
 import { ODRLParser } from '../odrl/parser';
 import { AEGISPolicy } from '../odrl/types';
 import { logger } from '../utils/logger';
+import { PolicyFormatDetector } from '../policy/policy-detector';
+import { ODRLFormBuilder, PolicyFormData } from '../odrl/odrl-form-builder';
 
 export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
   const router = Router();
@@ -24,16 +26,25 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
       const policies = hybridEngine.getPolicies();
       res.json({
         count: policies.length,
-        policies: policies.map(p => ({
-          uid: p.uid,
-          type: p['@type'],
-          naturalLanguageSource: p.naturalLanguageSource,
-          metadata: p.metadata,
-          priority: p.priority,
-          permissions: p.permission?.length || 0,
-          prohibitions: p.prohibition?.length || 0,
-          obligations: p.obligation?.length || 0
-        }))
+        policies: policies.map(p => {
+          // ポリシー形式を自動検出
+          const detection = PolicyFormatDetector.detect(p);
+          
+          return {
+            uid: p.uid,
+            type: p['@type'],
+            naturalLanguageSource: p.naturalLanguageSource,
+            metadata: p.metadata,
+            priority: p.priority,
+            permissions: p.permission?.length || 0,
+            prohibitions: p.prohibition?.length || 0,
+            obligations: p.obligation?.length || 0,
+            // 検出された形式情報を追加
+            detectedFormat: detection.format,
+            formatConfidence: detection.confidence,
+            formatIndicators: detection.indicators
+          };
+        })
       });
     } catch (error) {
       logger.error('Failed to list policies', error);
@@ -53,7 +64,16 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
         return res.status(404).json({ error: 'Policy not found' });
       }
       
-      res.json(policy);
+      // ポリシー形式を自動検出
+      const detection = PolicyFormatDetector.detect(policy);
+      
+      res.json({
+        ...policy,
+        // 検出された形式情報を追加
+        detectedFormat: detection.format,
+        formatConfidence: detection.confidence,
+        formatIndicators: detection.indicators
+      });
     } catch (error) {
       logger.error('Failed to get policy', error);
       res.status(500).json({ error: 'Failed to get policy' });
@@ -555,6 +575,151 @@ export function createODRLEndpoints(hybridEngine: HybridPolicyEngine): Router {
     } catch (error) {
       logger.error('Failed to test policy', error);
       res.status(500).json({ error: 'Failed to test policy' });
+    }
+  });
+
+  /**
+   * GET /odrl/templates - Get available policy templates
+   */
+  router.get('/templates', (req: Request, res: Response) => {
+    try {
+      const templates = ODRLFormBuilder.getTemplates();
+      res.json(templates);
+    } catch (error) {
+      logger.error('Failed to get templates', error);
+      res.status(500).json({ error: 'Failed to get templates' });
+    }
+  });
+
+  /**
+   * POST /odrl/build - Build ODRL policy from form data
+   */
+  router.post('/build', (req: Request, res: Response) => {
+    try {
+      const formData: PolicyFormData = req.body;
+      
+      // Validate form data
+      const validation = ODRLFormBuilder.validateFormData(formData);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          error: 'Invalid form data', 
+          errors: validation.errors 
+        });
+      }
+      
+      // Build ODRL policy
+      const policy = ODRLFormBuilder.buildPolicy(formData);
+      
+      res.json(policy);
+    } catch (error) {
+      logger.error('Failed to build policy from form', error);
+      res.status(500).json({ error: 'Failed to build policy' });
+    }
+  });
+
+  /**
+   * POST /odrl/validate - Validate form data
+   */
+  router.post('/validate', (req: Request, res: Response) => {
+    try {
+      const formData: PolicyFormData = req.body;
+      const validation = ODRLFormBuilder.validateFormData(formData);
+      res.json(validation);
+    } catch (error) {
+      logger.error('Failed to validate form data', error);
+      res.status(500).json({ error: 'Failed to validate form data' });
+    }
+  });
+
+  /**
+   * POST /odrl/policies (extended) - Create policy from form data
+   */
+  const originalCreatePolicy = router.post.bind(router);
+  router.post('/policies', async (req: Request, res: Response) => {
+    // Check if this is a form submission
+    if (req.body.formData) {
+      try {
+        const formData: PolicyFormData = req.body.formData;
+        
+        // Validate form data
+        const validation = ODRLFormBuilder.validateFormData(formData);
+        if (!validation.valid) {
+          return res.status(400).json({ 
+            error: 'Invalid form data', 
+            errors: validation.errors 
+          });
+        }
+        
+        // Build ODRL policy
+        const odrlPolicy = ODRLFormBuilder.buildPolicy(formData);
+        
+        // Add to engine
+        hybridEngine.addPolicy(odrlPolicy);
+        
+        res.status(201).json({
+          success: true,
+          policy: odrlPolicy,
+          message: 'Policy created successfully from form'
+        });
+      } catch (error) {
+        logger.error('Failed to create policy from form', error);
+        res.status(500).json({ error: 'Failed to create policy from form' });
+      }
+    } else {
+      // Fall back to original handler
+      return originalCreatePolicy('/policies', async (req: Request, res: Response) => {
+        try {
+          const { policy, naturalLanguage } = req.body;
+          
+          let odrlPolicy: AEGISPolicy;
+          
+          if (naturalLanguage) {
+            // Convert from natural language
+            const result = await nlConverter.convert(naturalLanguage);
+            
+            if (!result.success) {
+              return res.status(400).json({ 
+                error: 'Failed to convert natural language', 
+                details: result.error 
+              });
+            }
+            
+            odrlPolicy = result.policy!;
+            
+            // Add additional metadata
+            if (req.body.metadata) {
+              odrlPolicy.metadata = { ...odrlPolicy.metadata, ...req.body.metadata };
+            }
+          } else if (policy) {
+            // Direct ODRL policy
+            try {
+              odrlPolicy = ODRLParser.parseAEGIS(policy);
+            } catch (parseError) {
+              return res.status(400).json({ 
+                error: 'Invalid ODRL policy', 
+                details: parseError instanceof Error ? parseError.message : 'Unknown error'
+              });
+            }
+          } else {
+            return res.status(400).json({ 
+              error: 'Either policy or naturalLanguage must be provided' 
+            });
+          }
+          
+          // Add to engine
+          hybridEngine.addPolicy(odrlPolicy);
+          
+          res.status(201).json({
+            success: true,
+            policy: odrlPolicy,
+            message: 'Policy created successfully'
+          });
+          
+        } catch (error) {
+          logger.error('Failed to create policy', error);
+          res.status(500).json({ error: 'Failed to create policy' });
+        }
+      });
     }
   });
 

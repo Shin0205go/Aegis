@@ -1,4 +1,4 @@
-import { Configuration } from '../../utils/config';
+import { Config } from '../../utils/config';
 import * as crypto from 'crypto';
 
 describe('Configuration Security Tests', () => {
@@ -39,7 +39,7 @@ describe('Configuration Security Tests', () => {
         process.env.AEGIS_SECRET_KEY = weakKey;
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         
         // Current implementation only checks for default key
         if (weakKey === 'default-secret-key') {
@@ -67,7 +67,7 @@ describe('Configuration Security Tests', () => {
         process.env.AEGIS_SECRET_KEY = key;
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         
         // Document that minimum length should be enforced
         expect(config.getConfig().security.secretKey.length).toBe(key.length);
@@ -77,7 +77,7 @@ describe('Configuration Security Tests', () => {
     it('should generate cryptographically secure defaults in development', () => {
       process.env.NODE_ENV = 'development';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       const secretKey = config.getConfig().security.secretKey;
       
       // Should have reasonable entropy (not just repeating characters)
@@ -91,7 +91,7 @@ describe('Configuration Security Tests', () => {
       process.env.OPENAI_API_KEY = 'sk-1234567890abcdef';
       process.env.ANTHROPIC_API_KEY = 'sk-ant-api-key-secret';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       try {
         // Simulate an error that might include config
@@ -115,7 +115,7 @@ describe('Configuration Security Tests', () => {
           process.env[`${provider.toUpperCase()}_API_KEY`] = invalidKey;
           (Configuration as any).instance = null;
           
-          const config = Configuration.getInstance();
+          const config = new Config();
           // Document that API key format should be validated
           expect(config.getConfig().llm.apiKey).toBe(invalidKey);
         });
@@ -125,7 +125,7 @@ describe('Configuration Security Tests', () => {
     it('should mask API keys in toString representations', () => {
       process.env.OPENAI_API_KEY = 'sk-verysecretapikey123456';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       const configString = JSON.stringify(config.getConfig());
       
       // Should not contain full API key
@@ -158,7 +158,7 @@ describe('Configuration Security Tests', () => {
         process.env.AEGIS_JWT_SECRET = weak;
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         // Document that weak JWT secrets should be rejected
         expect(config.getConfig().security.jwtSecret).toBe(weak);
       });
@@ -168,7 +168,7 @@ describe('Configuration Security Tests', () => {
       process.env.AEGIS_SECRET_KEY = 'encryption-secret-key-32-characters';
       process.env.AEGIS_JWT_SECRET = 'jwt-secret-key-different-from-above';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(config.getConfig().security.secretKey).not.toBe(
         config.getConfig().security.jwtSecret
@@ -189,7 +189,7 @@ describe('Configuration Security Tests', () => {
     it('should validate encryption key derivation settings', () => {
       process.env.AEGIS_SECRET_KEY = 'master-secret-key-for-derivation';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       const secretKey = config.getConfig().security.secretKey;
       
       // Should be suitable for key derivation
@@ -210,7 +210,7 @@ describe('Configuration Security Tests', () => {
         process.env.CORS_ORIGINS = origin;
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         // Document that dangerous origins should be rejected
         const origins = config.getConfig().mcpProxy.corsOrigins;
         expect(origins).toBeDefined();
@@ -221,7 +221,7 @@ describe('Configuration Security Tests', () => {
       process.env.NODE_ENV = 'production';
       process.env.CORS_ORIGINS = 'http://example.com,https://secure.com';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       const origins = config.getConfig().mcpProxy.corsOrigins;
       
       // In production, should warn or reject non-HTTPS origins
@@ -235,7 +235,7 @@ describe('Configuration Security Tests', () => {
       process.env.AEGIS_AUDIT_LOG_ENABLED = 'true';
       process.env.NODE_ENV = 'production';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // When audit logs are enabled in production, encryption should be required
       expect(config.getConfig().monitoring.auditLogEnabled).toBe(true);
@@ -245,7 +245,7 @@ describe('Configuration Security Tests', () => {
     it('should validate audit log retention policies', () => {
       process.env.AEGIS_AUDIT_LOG_RETENTION = '365'; // 1 year
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Document that retention should be validated for compliance
       expect(config.getConfig()).toBeDefined();
@@ -254,7 +254,7 @@ describe('Configuration Security Tests', () => {
 
   describe('Network Security Configuration', () => {
     it('should not expose services on all interfaces by default', () => {
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Should bind to localhost by default, not 0.0.0.0
       // Document expected behavior
@@ -273,7 +273,7 @@ describe('Configuration Security Tests', () => {
         process.env.MCP_UPSTREAM_SERVERS = JSON.stringify({ test: url });
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         // Document that dangerous URLs should be validated
         expect(config.getConfig().mcpProxy.upstreamServers).toBeDefined();
       });
@@ -287,7 +287,7 @@ describe('Configuration Security Tests', () => {
       process.env.DATABASE_PASSWORD = 'db-password';
       
       const logSpy = jest.spyOn(console, 'log').mockImplementation();
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Simulate configuration logging
       console.log('Starting with config:', process.env);
@@ -303,7 +303,7 @@ describe('Configuration Security Tests', () => {
       process.env.AEGIS_SECRET_KEY = 'encryption-key-secret';
       process.env.AEGIS_JWT_SECRET = 'jwt-secret-value';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Create sanitized version for logging
       const sanitized = JSON.parse(JSON.stringify(config.getConfig(), (key, value) => {
@@ -326,7 +326,7 @@ describe('Configuration Security Tests', () => {
       process.env['__proto__.polluted'] = 'true';
       process.env['constructor.prototype.polluted'] = 'true';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       const obj = {};
       
       // Should not pollute prototype
@@ -337,7 +337,7 @@ describe('Configuration Security Tests', () => {
       process.env.PORT = '3000; rm -rf /';
       process.env.AEGIS_CACHE_TTL = '300 && echo hacked';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Should parse safely
       expect(config.getConfig().port).toBe(3000);
@@ -349,7 +349,7 @@ describe('Configuration Security Tests', () => {
     it('should enforce secure defaults', () => {
       process.env.NODE_ENV = 'production';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Document expected security defaults
       expect(config.getConfig().nodeEnv).toBe('production');
@@ -367,7 +367,7 @@ describe('Configuration Security Tests', () => {
       process.env.AEGIS_DATA_RETENTION_DAYS = '30';
       process.env.AEGIS_AUDIT_LOG_ENABLED = 'true';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       // Document compliance-related configuration
       expect(config.getConfig().monitoring.auditLogEnabled).toBe(true);
@@ -387,7 +387,7 @@ describe('Configuration Security Tests', () => {
         process.env.AEGIS_DATA_RETENTION_DAYS = days.toString();
         (Configuration as any).instance = null;
         
-        const config = Configuration.getInstance();
+        const config = new Config();
         // Document retention validation requirements
         expect(config.getConfig()).toBeDefined();
       });

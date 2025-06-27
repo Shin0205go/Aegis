@@ -7,7 +7,7 @@ import { MCPHttpProxy } from '../../mcp/http-proxy';
 import { PolicyEnforcer } from '../../mcp/policy-enforcer';
 import { AIJudgmentEngine } from '../../ai/judgment-engine';
 import { IntelligentCacheSystem } from '../../performance/intelligent-cache-system';
-import { RateLimiterProcessor } from '../../core/constraints/strategies';
+import { RateLimiterProcessor } from '../../core/constraints/processors/rate-limiter';
 import { Logger } from '../../utils/logger';
 import type { AEGISConfig, DecisionContext, PolicyDecision } from '../../types';
 import { performance } from 'perf_hooks';

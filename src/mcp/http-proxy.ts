@@ -578,10 +578,11 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       }
     }
     
-    // 静的ファイルの提供（監査ダッシュボード用）
-    const publicPath = path.join(process.cwd(), 'web', 'public');
-    this.app.use('/public', express.static(publicPath));
-    this.app.use(express.static(publicPath));
+    // 静的ファイルの提供（管理UI用）
+    // 開発環境と本番環境の両方で動作するパス解決
+    const webPath = path.join(process.cwd(), 'src/web');
+    this.app.use(express.static(webPath));
+    this.logger.info(`Serving static files from: ${webPath}`);
     
     // ヘルスチェックエンドポイント
     this.app.get('/health', (req, res) => {

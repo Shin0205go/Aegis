@@ -3,7 +3,8 @@
 // ============================================================================
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import fetch from 'node-fetch';
+// @ts-ignore
+const fetch = require('node-fetch').default || require('node-fetch');
 import { PolicyAdministrator } from '../../policies/administrator.js';
 import { AIJudgmentEngine } from '../../ai/judgment-engine.js';
 

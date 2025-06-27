@@ -8,7 +8,7 @@ import { MCPHttpProxy } from '../../mcp/http-proxy';
 import { Logger } from '../../utils/logger';
 import { AIJudgmentEngine } from '../../ai/judgment-engine';
 import { AdvancedAuditSystem } from '../../audit/advanced-audit-system';
-import { PolicyAdministrator } from '../../policies/policy-administrator';
+import { PolicyAdministrator } from '../../policies/administrator';
 import { StdioRouter } from '../../mcp/stdio-router';
 import { ToolDiscoveryService } from '../../mcp/tool-discovery';
 import { DynamicToolDiscovery } from '../../mcp/dynamic-tool-discovery';

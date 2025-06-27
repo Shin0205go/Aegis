@@ -214,9 +214,9 @@ describe('制約・義務処理 - 機能テスト', () => {
       executor['auditLogger'] = {
         log: jest.fn().mockResolvedValue(true)
       };
-      // executor['notificationService'] = {
-      //   send: jest.fn().mockResolvedValue(true)
-      // }; // Notification service disabled - not needed yet
+      executor['notificationService'] = {
+        send: jest.fn().mockResolvedValue(true)
+      }; // Re-enabled for test compatibility
       executor['scheduler'] = {
         schedule: jest.fn().mockResolvedValue('job-123')
       };

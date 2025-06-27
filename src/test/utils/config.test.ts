@@ -1,4 +1,4 @@
-import { Configuration } from '../../utils/config';
+import { Config } from '../../utils/config';
 import { AEGISConfig } from '../../types';
 
 describe('Configuration Validation Tests', () => {
@@ -34,7 +34,7 @@ describe('Configuration Validation Tests', () => {
       process.env.AEGIS_SECRET_KEY = 'test-secret-key-at-least-32-chars-long';
       process.env.AEGIS_JWT_SECRET = 'test-jwt-secret';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(config.getConfig().nodeEnv).toBe('production');
       expect(config.getConfig().port).toBe(8080);
@@ -47,7 +47,7 @@ describe('Configuration Validation Tests', () => {
     });
 
     it('should use default values when environment variables are not set', () => {
-      const config = Configuration.getInstance();
+      const config = new Config();
       const defaultConfig = config.getConfig();
 
       expect(defaultConfig.nodeEnv).toBe('development');
@@ -65,7 +65,7 @@ describe('Configuration Validation Tests', () => {
       process.env.OPENAI_API_KEY = 'partial-test-key';
       process.env.AEGIS_LOG_LEVEL = 'error';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       const partialConfig = config.getConfig();
 
       expect(partialConfig.llm.apiKey).toBe('partial-test-key');
@@ -82,7 +82,7 @@ describe('Configuration Validation Tests', () => {
       process.env.OPENAI_API_KEY = 'test-key';
       // Not setting AEGIS_SECRET_KEY to trigger default
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(() => {
         // Force re-validation by calling validateConfig
@@ -95,7 +95,7 @@ describe('Configuration Validation Tests', () => {
       process.env.OPENAI_API_KEY = 'test-key';
       process.env.AEGIS_SECRET_KEY = 'production-secret-key-at-least-32-chars';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(() => {
         (config as any).validateConfig();
@@ -103,7 +103,7 @@ describe('Configuration Validation Tests', () => {
     });
 
     it('should validate API key presence', () => {
-      const config = Configuration.getInstance();
+      const config = new Config();
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
 
       (config as any).validateConfig();
@@ -118,7 +118,7 @@ describe('Configuration Validation Tests', () => {
     it('should validate LLM provider enum values', () => {
       process.env.AEGIS_AI_PROVIDER = 'invalid-provider';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       // Since the current implementation doesn't validate enums strictly,
       // we check that invalid values are stored as-is
       expect(config.getConfig().llm.provider).toBe('invalid-provider' as any);
@@ -130,7 +130,7 @@ describe('Configuration Validation Tests', () => {
       process.env.NODE_ENV = 'production';
       process.env.AEGIS_SECRET_KEY = 'weak'; // Too short
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       // Current implementation doesn't validate key strength
       // This test documents what SHOULD be validated
       expect(config.getConfig().security.secretKey).toBe('weak');
@@ -140,7 +140,7 @@ describe('Configuration Validation Tests', () => {
     it('should validate JWT secret configuration', () => {
       process.env.AEGIS_JWT_SECRET = 'test-jwt-secret';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().security.jwtSecret).toBe('test-jwt-secret');
     });
 
@@ -148,7 +148,7 @@ describe('Configuration Validation Tests', () => {
       process.env.OPENAI_API_KEY = 'sensitive-api-key';
       process.env.ANTHROPIC_API_KEY = 'another-sensitive-key';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       const configString = JSON.stringify(config.getConfig());
 
       // API keys should be masked or excluded from string representation
@@ -171,7 +171,7 @@ describe('Configuration Validation Tests', () => {
 
       testCases.forEach(({ port, valid }) => {
         process.env.PORT = port;
-        const config = Configuration.getInstance();
+        const config = new Config();
         
         if (valid) {
           expect(config.getConfig().port).toBe(parseInt(port));
@@ -187,7 +187,7 @@ describe('Configuration Validation Tests', () => {
       process.env.MCP_PROXY_PORT = '4000';
       process.env.CORS_ORIGINS = 'http://localhost:3000,http://example.com';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().mcpProxy.port).toBe(4000);
       expect(config.getConfig().mcpProxy.corsOrigins).toEqual([
         'http://localhost:3000',
@@ -208,7 +208,7 @@ describe('Configuration Validation Tests', () => {
 
       testCases.forEach(({ temp, valid }) => {
         process.env.AEGIS_AI_TEMPERATURE = temp;
-        const config = Configuration.getInstance();
+        const config = new Config();
         const temperature = config.getConfig().llm.temperature;
 
         if (valid) {
@@ -224,7 +224,7 @@ describe('Configuration Validation Tests', () => {
     it('should validate maxTokens is positive', () => {
       process.env.AEGIS_AI_MAX_TOKENS = '-100';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       // Current implementation doesn't validate this
       expect(config.getConfig().llm.maxTokens).toBe(-100);
       // TODO: Should throw or use default for invalid values
@@ -235,7 +235,7 @@ describe('Configuration Validation Tests', () => {
       process.env.AZURE_OPENAI_API_KEY = 'azure-key';
       process.env.AZURE_OPENAI_ENDPOINT = 'https://test.openai.azure.com';
 
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().llm.provider).toBe('azure');
       // Note: Current implementation may not properly handle Azure config
     });
@@ -245,7 +245,7 @@ describe('Configuration Validation Tests', () => {
     it('should validate cache TTL is positive', () => {
       process.env.AEGIS_CACHE_TTL = '0';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().cache.ttl).toBe(0);
       // TODO: Should validate TTL > 0
     });
@@ -253,14 +253,14 @@ describe('Configuration Validation Tests', () => {
     it('should validate cache size limits', () => {
       process.env.AEGIS_CACHE_MAX_SIZE = '10000';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().cache.maxSize).toBe(10000);
     });
 
     it('should handle cache disabled state', () => {
       process.env.AEGIS_CACHE_ENABLED = 'false';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().cache.enabled).toBe(false);
     });
   });
@@ -271,7 +271,7 @@ describe('Configuration Validation Tests', () => {
       
       validLevels.forEach(level => {
         process.env.AEGIS_DEFAULT_POLICY_STRICTNESS = level;
-        const config = Configuration.getInstance();
+        const config = new Config();
         expect(config.getConfig().policy.defaultPolicyStrictness).toBe(level);
       });
     });
@@ -279,7 +279,7 @@ describe('Configuration Validation Tests', () => {
     it('should handle invalid policy strictness', () => {
       process.env.AEGIS_DEFAULT_POLICY_STRICTNESS = 'invalid';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       // Current implementation doesn't validate enum
       expect(config.getConfig().policy.defaultPolicyStrictness).toBe('invalid' as any);
     });
@@ -288,7 +288,7 @@ describe('Configuration Validation Tests', () => {
   describe('Error Handling', () => {
     it('should handle missing required fields gracefully', () => {
       // No environment variables set
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(() => config.getConfig()).not.toThrow();
       expect(config.getConfig()).toBeDefined();
@@ -298,7 +298,7 @@ describe('Configuration Validation Tests', () => {
       process.env.NODE_ENV = 'production';
       // Missing secret key in production
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       
       expect(() => {
         (config as any).validateConfig();
@@ -308,7 +308,7 @@ describe('Configuration Validation Tests', () => {
 
   describe('Type Safety', () => {
     it('should return properly typed configuration object', () => {
-      const config = Configuration.getInstance();
+      const config = new Config();
       const typedConfig: AEGISConfig = config.getConfig();
       
       // TypeScript compile-time check
@@ -321,7 +321,7 @@ describe('Configuration Validation Tests', () => {
 
   describe('Configuration Immutability', () => {
     it('should not allow direct modification of configuration', () => {
-      const config = Configuration.getInstance();
+      const config = new Config();
       const configObj = config.getConfig();
       
       // Attempt to modify
@@ -336,7 +336,7 @@ describe('Configuration Validation Tests', () => {
     it('should apply development defaults in development mode', () => {
       process.env.NODE_ENV = 'development';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().nodeEnv).toBe('development');
       expect(config.getConfig().logLevel).toBe('info');
     });
@@ -345,14 +345,14 @@ describe('Configuration Validation Tests', () => {
       process.env.NODE_ENV = 'production';
       process.env.AEGIS_SECRET_KEY = 'production-key-with-sufficient-length';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().nodeEnv).toBe('production');
     });
 
     it('should apply test defaults in test mode', () => {
       process.env.NODE_ENV = 'test';
       
-      const config = Configuration.getInstance();
+      const config = new Config();
       expect(config.getConfig().nodeEnv).toBe('test');
     });
   });
