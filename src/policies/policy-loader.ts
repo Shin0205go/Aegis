@@ -11,6 +11,8 @@ const logger = new Logger('policy-loader');
 export interface PolicyMetadata {
   createdAt: string;
   createdBy: string;
+  lastModified?: string;
+  lastModifiedBy?: string;
   tags: string[];
   priority: number;
 }
@@ -74,6 +76,76 @@ export class PolicyLoader {
 
   async reloadPolicies(): Promise<void> {
     await this.loadPolicies();
+  }
+
+  async createPolicy(policy: Omit<PolicyDefinition, 'metadata'> & { metadata?: Partial<PolicyMetadata> }): Promise<string> {
+    const now = new Date().toISOString();
+    const fullPolicy: PolicyDefinition = {
+      ...policy,
+      metadata: {
+        createdAt: now,
+        createdBy: policy.metadata?.createdBy || 'api-user',
+        tags: policy.metadata?.tags || [],
+        priority: policy.metadata?.priority || 100,
+        ...policy.metadata
+      }
+    };
+
+    this.loadedPolicies.set(fullPolicy.id, fullPolicy);
+    await this.savePolicies();
+    
+    logger.info(`Policy created: ${fullPolicy.id}`);
+    return fullPolicy.id;
+  }
+
+  async updatePolicy(policyId: string, updates: Partial<PolicyDefinition>, updatedBy?: string): Promise<void> {
+    const existing = this.loadedPolicies.get(policyId);
+    if (!existing) {
+      throw new Error(`Policy ${policyId} not found`);
+    }
+
+    const updated: PolicyDefinition = {
+      ...existing,
+      ...updates,
+      metadata: {
+        ...existing.metadata,
+        ...updates.metadata,
+        lastModified: new Date().toISOString(),
+        lastModifiedBy: updatedBy || 'api-user'
+      }
+    };
+
+    this.loadedPolicies.set(policyId, updated);
+    await this.savePolicies();
+    
+    logger.info(`Policy updated: ${policyId}`);
+  }
+
+  async deletePolicy(policyId: string): Promise<void> {
+    if (!this.loadedPolicies.has(policyId)) {
+      throw new Error(`Policy ${policyId} not found`);
+    }
+
+    this.loadedPolicies.delete(policyId);
+    await this.savePolicies();
+    
+    logger.info(`Policy deleted: ${policyId}`);
+  }
+
+  private async savePolicies(): Promise<void> {
+    try {
+      const config: PoliciesConfig = {
+        policies: Array.from(this.loadedPolicies.values())
+      };
+
+      const data = JSON.stringify(config, null, 2);
+      await fs.writeFile(this.policiesPath, data, 'utf-8');
+      
+      logger.info(`Policies saved to: ${this.policiesPath}`);
+    } catch (error) {
+      logger.error('Failed to save policies:', error);
+      throw new Error(`Policy saving failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   formatPolicyForAI(policy: PolicyDefinition): string {

@@ -10,7 +10,7 @@ import { Logger } from './utils/logger';
 import { AIJudgmentEngine } from './ai/judgment-engine';
 import { HybridPolicyEngine } from './policy/hybrid-policy-engine';
 import { createODRLEndpoints } from './api/odrl-endpoints';
-import { SAMPLE_POLICIES } from '../policies/sample-policies';
+import { policyLoader } from './policies/policy-loader.js';
 
 const logger = new Logger('simple-server');
 const app = express();
@@ -35,25 +35,38 @@ const hybridEngine = new HybridPolicyEngine(aiEngine as any, {
   autoDetectFormat: true,
 });
 
-// Load sample policies
-Object.entries(SAMPLE_POLICIES).forEach(([name, policy]) => {
+// Load policies from configuration
+async function loadPolicies() {
   try {
-    hybridEngine.addPolicy({
-      uid: `aegis:policy:${name}`,
-      '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-      '@type': 'Policy',
-      profile: 'https://aegis.example.com/odrl/profile',
-      permission: [],
-      naturalLanguageSource: policy.policy,
-      metadata: {
-        description: policy.description,
-      },
+    await policyLoader.loadPolicies();
+    const policies = policyLoader.getAllPolicies();
+    
+    policies.forEach(policy => {
+      try {
+        const policyText = typeof policy.policy === 'string' 
+          ? policy.policy 
+          : JSON.stringify(policy.policy);
+        
+        hybridEngine.addPolicy({
+          uid: `aegis:policy:${policy.id}`,
+          '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
+          '@type': 'Policy',
+          profile: 'https://aegis.example.com/odrl/profile',
+          permission: [],
+          naturalLanguageSource: policyText,
+          metadata: {
+            description: policy.description,
+          },
+        });
+        logger.info(`Loaded policy: ${policy.id}`);
+      } catch (error) {
+        logger.error(`Failed to load policy ${policy.id}:`, error);
+      }
     });
-    logger.info(`Loaded policy: ${name}`);
   } catch (error) {
-    logger.error(`Failed to load policy ${name}:`, error);
+    logger.error('Failed to load policies from configuration:', error);
   }
-});
+}
 
 // Serve static files
 const webDir = path.join(__dirname, '../../src/web');
@@ -111,12 +124,22 @@ app.get('/api/audit/metrics', (req, res) => {
 });
 
 // Start server
-const PORT = parseInt(process.env.PORT || '3000');
-app.listen(PORT, () => {
-  logger.info(`🚀 AEGIS Simple Server running at http://localhost:${PORT}`);
-  logger.info(`📝 ODRL Form Builder: http://localhost:${PORT}/odrl-policy-form.html`);
-  logger.info(`🏠 Management UI: http://localhost:${PORT}/`);
-  logger.info(`✅ Health check: http://localhost:${PORT}/health`);
+async function startServer() {
+  // Load policies first
+  await loadPolicies();
+  
+  const PORT = parseInt(process.env.PORT || '3000');
+  app.listen(PORT, () => {
+    logger.info(`🚀 AEGIS Simple Server running at http://localhost:${PORT}`);
+    logger.info(`📝 ODRL Form Builder: http://localhost:${PORT}/odrl-policy-form.html`);
+    logger.info(`🏠 Management UI: http://localhost:${PORT}/`);
+    logger.info(`✅ Health check: http://localhost:${PORT}/health`);
+  });
+}
+
+startServer().catch(error => {
+  logger.error('Failed to start server:', error);
+  process.exit(1);
 });
 
 export { app };

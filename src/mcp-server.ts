@@ -10,7 +10,7 @@ import { Logger } from './utils/logger.js';
 import { AIJudgmentEngine } from './ai/judgment-engine.js';
 import { MCPStdioPolicyProxy } from './mcp/stdio-proxy.js';
 import { MCPHttpPolicyProxy } from './mcp/http-proxy.js';
-import { SAMPLE_POLICIES } from '../policies/sample-policies.js';
+import { policyLoader } from './policies/policy-loader.js';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -166,10 +166,21 @@ async function startMCPServer(transport: 'stdio' | 'http' = 'stdio') {
 
     // デフォルトポリシーを追加
     logger.info('Loading default policies...');
-    Object.entries(SAMPLE_POLICIES).forEach(([key, policyData]) => {
-      mcpProxy.addPolicy(key, policyData.policy);
-      logger.info(`  ✓ Loaded policy: ${key}`);
-    });
+    try {
+      await policyLoader.loadPolicies();
+      const policies = policyLoader.getAllPolicies();
+      
+      policies.forEach(policy => {
+        const policyText = typeof policy.policy === 'string' 
+          ? policy.policy 
+          : JSON.stringify(policy.policy);
+        
+        mcpProxy.addPolicy(policy.id, policyText);
+        logger.info(`  ✓ Loaded policy: ${policy.id}`);
+      });
+    } catch (error) {
+      logger.error('Failed to load policies:', error);
+    }
 
     // サーバー起動
     await mcpProxy.start();

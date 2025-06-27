@@ -600,22 +600,120 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
       });
     });
 
-    // ポリシー管理API
-    this.app.get('/policies', (req, res) => {
-      const policies = this.hybridPolicyEngine.getPolicies();
-      res.json({
-        policies: policies
-      });
+    // ポリシー管理API（完全CRUD対応）
+    this.app.get('/policies', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policies = policyLoader.getAllPolicies();
+        res.json({
+          policies: policies,
+          count: policies.length
+        });
+      } catch (error) {
+        this.logger.error('Failed to get policies:', error);
+        res.status(500).json({ error: 'Failed to get policies' });
+      }
     });
 
-    this.app.post('/policies/:name', (req, res) => {
-      const { name } = req.params;
-      const { policy } = req.body;
-      
-      this.addPolicy(name, policy);
-      this.logger.info(`Policy updated: ${name}`);
-      
-      res.json({ success: true, message: `Policy ${name} updated` });
+    this.app.get('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policy = policyLoader.getPolicy(req.params.id);
+        if (!policy) {
+          return res.status(404).json({ error: 'Policy not found' });
+        }
+        res.json(policy);
+      } catch (error) {
+        this.logger.error('Failed to get policy:', error);
+        res.status(500).json({ error: 'Failed to get policy' });
+      }
+    });
+
+    this.app.post('/policies', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const policyId = await policyLoader.createPolicy(req.body);
+        
+        // HybridPolicyEngineにも追加
+        const policy = policyLoader.getPolicy(policyId);
+        if (policy) {
+          this.hybridPolicyEngine.addPolicy({
+            uid: `aegis:policy:${policyId}`,
+            '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
+            '@type': 'Policy',
+            profile: 'https://aegis.example.com/odrl/profile',
+            permission: [],
+            naturalLanguageSource: typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy)
+          });
+        }
+
+        res.status(201).json({ success: true, id: policyId, message: 'Policy created' });
+      } catch (error) {
+        this.logger.error('Failed to create policy:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create policy' });
+      }
+    });
+
+    this.app.put('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        await policyLoader.updatePolicy(req.params.id, req.body);
+        
+        // HybridPolicyEngineのキャッシュクリア
+        this.hybridPolicyEngine.clearCache();
+        
+        res.json({ success: true, message: `Policy ${req.params.id} updated` });
+      } catch (error) {
+        this.logger.error('Failed to update policy:', error);
+        res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500)
+           .json({ error: error instanceof Error ? error.message : 'Failed to update policy' });
+      }
+    });
+
+    this.app.delete('/policies/:id', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        await policyLoader.deletePolicy(req.params.id);
+        
+        // HybridPolicyEngineのキャッシュクリア
+        this.hybridPolicyEngine.clearCache();
+        
+        res.json({ success: true, message: `Policy ${req.params.id} deleted` });
+      } catch (error) {
+        this.logger.error('Failed to delete policy:', error);
+        res.status(error instanceof Error && error.message.includes('not found') ? 404 : 500)
+           .json({ error: error instanceof Error ? error.message : 'Failed to delete policy' });
+      }
+    });
+
+    // レガシーサポート（POST /policies/:name）
+    this.app.post('/policies/:name', async (req, res) => {
+      try {
+        const { policyLoader } = await import('../policies/policy-loader.js');
+        const { policy } = req.body;
+        
+        // 既存ポリシーをチェック
+        const existing = policyLoader.getPolicy(req.params.name);
+        if (existing) {
+          // 更新
+          await policyLoader.updatePolicy(req.params.name, { policy });
+        } else {
+          // 新規作成
+          await policyLoader.createPolicy({
+            id: req.params.name,
+            name: req.params.name,
+            version: '1.0.0',
+            status: 'active',
+            policy
+          });
+        }
+        
+        this.hybridPolicyEngine.clearCache();
+        res.json({ success: true, message: `Policy ${req.params.name} updated` });
+      } catch (error) {
+        this.logger.error('Failed to update policy (legacy):', error);
+        res.status(500).json({ error: 'Failed to update policy' });
+      }
     });
     
     // 監査APIエンドポイントを追加
