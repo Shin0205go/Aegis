@@ -9,7 +9,10 @@ import {
   CallToolRequestSchema, 
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
-  ReadResourceRequestSchema 
+  ReadResourceRequestSchema,
+  InitializeRequestSchema,
+  InitializedNotificationSchema,
+  LATEST_PROTOCOL_VERSION
 } from '@modelcontextprotocol/sdk/types.js';
 import type { 
   DecisionContext, 
@@ -90,6 +93,13 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   // HTTP API サーバー（stdio用）
   private apiApp!: express.Application;
+  
+  // 長時間実行タスクの管理
+  private runningTasks: Map<string | number, { 
+    startTime: number; 
+    method: string;
+    cancelRequested?: boolean;
+  }> = new Map();
   
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
@@ -364,6 +374,61 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   protected setupHandlers(): void {
     this.logger.debug('[AEGIS] Setting up MCP handlers...');
     
+    // キャンセルリクエストハンドラー
+    // 注: MCP SDKの現在のバージョンでは通知ハンドラーの登録が
+    // 限定的なため、別の方法で処理する必要があります
+
+    // 初期化ハンドラー（MCP標準）
+    this.server.setRequestHandler(InitializeRequestSchema, async (request) => {
+      this.logger.info('🚀 MCP Initialize request received', {
+        protocolVersion: request.params.protocolVersion,
+        clientInfo: request.params.clientInfo
+      });
+      
+      // プロトコルバージョンの確認
+      const clientProtocolVersion = request.params.protocolVersion || LATEST_PROTOCOL_VERSION;
+      const serverProtocolVersion = LATEST_PROTOCOL_VERSION; // 現在サポートしているバージョン
+      
+      // バージョンの互換性チェック
+      if (!this.isCompatibleVersion(clientProtocolVersion, serverProtocolVersion)) {
+        this.createErrorResponse(
+          -32602, // Invalid params
+          `Unsupported protocol version: ${clientProtocolVersion}`,
+          {
+            supportedVersion: serverProtocolVersion,
+            requestedVersion: clientProtocolVersion
+          }
+        );
+      }
+      
+      // 初期化レスポンス
+      return {
+        protocolVersion: serverProtocolVersion,
+        capabilities: {
+          tools: { 
+            // ツール関連の能力
+            listChanged: false // ツールリスト変更通知はまだ未実装
+          },
+          resources: {
+            // リソース関連の能力
+            subscribe: false, // リソース購読は未実装
+            listChanged: false // リソースリスト変更通知は未実装
+          },
+          prompts: {
+            // プロンプト関連の能力（未実装）
+            listChanged: false
+          },
+          logging: {
+            // ロギング関連の能力（未実装）
+          }
+        },
+        serverInfo: {
+          name: 'AEGIS Policy Enforcement Proxy',
+          version: '1.0.0'
+        }
+      };
+    });
+    
     // リソース読み取りハンドラー
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
       this.logger.info('Resource read request', { uri: request.params.uri });
@@ -373,12 +438,20 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const decision = await this.enforcePolicy('read', request.params.uri, { request });
         
         if (decision.decision === 'DENY') {
-          throw new Error(`Access denied: ${decision.reason}`);
+          this.createAccessDeniedError(decision.reason, {
+            decision: decision.decision,
+            confidence: decision.confidence,
+            constraints: decision.constraints,
+            obligations: decision.obligations
+          });
         }
         
         // INDETERMINATEも拒否として扱う
         if (decision.decision === 'INDETERMINATE') {
-          throw new Error(`Access denied (indeterminate): ${decision.reason}`);
+          this.createAccessDeniedError(`Policy evaluation indeterminate: ${decision.reason}`, {
+            decision: decision.decision,
+            confidence: decision.confidence
+          });
         }
         
         // 上流サーバーに転送
@@ -418,7 +491,19 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
     // ツール実行ハンドラー
     this.server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
-      this.logger.info('Tool call request', { name: request.params.name });
+      this.logger.info('🔧 Tool call request', { 
+        name: request.params.name,
+        params: request.params
+      });
+      
+      // history-mcpツールの場合は特別に詳細ログ
+      if (request.params.name && request.params.name.startsWith('history-mcp__')) {
+        this.logger.info('🔍 HISTORY-MCP TOOL CALL REQUEST:', {
+          fullName: request.params.name,
+          arguments: request.params.arguments,
+          id: request.id
+        });
+      }
       
       try {
         // ポリシー判定実行
@@ -430,12 +515,20 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const decision = await this.enforcePolicy('execute', resourceString, { request });
         
         if (decision.decision === 'DENY') {
-          throw new Error(`Access denied: ${decision.reason}`);
+          this.createAccessDeniedError(decision.reason, {
+            decision: decision.decision,
+            confidence: decision.confidence,
+            constraints: decision.constraints,
+            obligations: decision.obligations
+          });
         }
         
         // INDETERMINATEも拒否として扱う
         if (decision.decision === 'INDETERMINATE') {
-          throw new Error(`Access denied (indeterminate): ${decision.reason}`);
+          this.createAccessDeniedError(`Policy evaluation indeterminate: ${decision.reason}`, {
+            decision: decision.decision,
+            confidence: decision.confidence
+          });
         }
         
         // サーバープレフィックスを除去してから転送
@@ -449,7 +542,18 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
         
         // 上流サーバーに転送
+        this.logger.debug('Forwarding to upstream with params:', strippedParams);
         const result = await this.forwardToUpstream('tools/call', strippedParams);
+        
+        // history-mcpの結果の場合は詳細ログ
+        if (request.params.name && request.params.name.startsWith('history-mcp__')) {
+          this.logger.info('🔍 HISTORY-MCP TOOL RESULT:', {
+            hasResult: !!result,
+            hasResultResult: !!(result && result.result),
+            resultType: typeof result,
+            resultKeys: result ? Object.keys(result) : []
+          });
+        }
         
         // 義務実行
         if (decision.obligations) {
@@ -460,6 +564,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         return result && result.result ? result.result : {};
       } catch (error) {
         this.logger.error('Tool call error', error);
+        
+        // history-mcpエラーの場合は詳細ログ
+        if (request.params.name && request.params.name.startsWith('history-mcp__')) {
+          this.logger.error('🔍 HISTORY-MCP TOOL ERROR:', {
+            toolName: request.params.name,
+            errorMessage: error instanceof Error ? error.message : String(error),
+            errorStack: error instanceof Error ? error.stack : undefined
+          });
+        }
+        
         throw error;
       }
     });
@@ -484,19 +598,29 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         
         // ツール一覧取得はポリシー判定をスキップ（ツール実行時に判定）
         // 上流サーバーに転送
-        this.logger.debug('Forwarding tools/list to upstream...');
+        this.logger.info('📋 Forwarding tools/list to upstream...');
         const result = await this.forwardToUpstream('tools/list', {});
         
-        this.logger.debug('Upstream response received:', JSON.stringify(result).substring(0, 200));
+        this.logger.info('📋 Upstream response received:', JSON.stringify(result));
         
         // MCPプロトコルに準拠した形式で返す
         if (result && result.result) {
-          this.logger.info(`Returning ${(result.result as any).tools?.length || 0} tools to client`);
+          const tools = (result.result as any).tools || [];
+          this.logger.info(`📋 Returning ${tools.length} tools to client`);
+          // ツール名をログ出力
+          if (tools.length > 0) {
+            this.logger.info('📋 Available tools:', tools.map((t: any) => t.name).join(', '));
+          }
           return result.result;
         } else if (result && (result as any).tools) {
           // 直接toolsが含まれている場合
-          this.logger.info(`Returning ${(result as any).tools?.length || 0} tools to client (direct format)`);
-          return { tools: (result as any).tools };
+          const tools = (result as any).tools || [];
+          this.logger.info(`📋 Returning ${tools.length} tools to client (direct format)`);
+          // ツール名をログ出力
+          if (tools.length > 0) {
+            this.logger.info('📋 Available tools:', tools.map((t: any) => t.name).join(', '));
+          }
+          return { tools };
         }
         
         // フォールバック（空の配列を返す）
@@ -675,10 +799,41 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   }
 
 
+  /**
+   * キャンセルリクエストを上流サーバーに転送
+   */
+  private async forwardCancelToUpstream(requestId: string | number): Promise<void> {
+    try {
+      // stdioルーター経由でキャンセル通知を送信
+      const cancelNotification = {
+        jsonrpc: '2.0',
+        method: '$/cancelRequest',
+        params: { id: requestId }
+      };
+      
+      // stdioRouterのrouteRequestメソッドを使用してキャンセル通知を送信
+      // 通知なのでレスポンスは期待しない
+      await this.stdioRouter.routeRequest(cancelNotification).catch(() => {
+        // キャンセル通知のエラーは無視
+      });
+    } catch (error) {
+      this.logger.error('Failed to forward cancel notification:', error);
+    }
+  }
+
   private async forwardToUpstream(method: string, params: Record<string, any> | undefined): Promise<UpstreamResponse> {
     // サーキットブレーカーチェック
     if (this.isCircuitBreakerOpen(method)) {
       throw new Error(`Circuit breaker is open for ${method}`);
+    }
+    
+    // history-mcpツール呼び出しの場合は詳細ログ
+    if (method === 'tools/call' && params?.name && params.name.startsWith('history-mcp__')) {
+      this.logger.info('🔍 HISTORY-MCP FORWARD REQUEST:', {
+        method,
+        toolName: params.name,
+        hasArguments: !!params.arguments
+      });
     }
     
     try {
@@ -690,6 +845,12 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         params
       };
       
+      this.logger.debug('Sending request to router:', {
+        id: request.id,
+        method: request.method,
+        paramsKeys: params ? Object.keys(params) : []
+      });
+      
       // タイムアウト付きでリクエスト実行
       const response = await Promise.race([
         this.stdioRouter.routeRequest(request),
@@ -699,6 +860,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       ]);
       
       this.logger.debug(`Upstream response for ${method}:`, JSON.stringify(response).substring(0, 500));
+      
+      // history-mcpレスポンスの場合は詳細ログ
+      if (method === 'tools/call' && params?.name && params.name.startsWith('history-mcp__')) {
+        this.logger.info('🔍 HISTORY-MCP FORWARD RESPONSE:', {
+          hasResponse: !!response,
+          hasError: !!response?.error,
+          responseKeys: response ? Object.keys(response) : [],
+          errorMessage: response?.error?.message
+        });
+      }
       
       // JSON-RPCレスポンスから結果を抽出
       if (response.error) {
@@ -716,6 +887,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       // 上流サーバーエラーも厳格に処理
       this.recordCircuitBreakerFailure(method);
       this.logger.error(`Upstream forwarding failed for ${method}`, error);
+      
+      // history-mcpエラーの場合は詳細ログ
+      if (method === 'tools/call' && params?.name && params.name.startsWith('history-mcp__')) {
+        this.logger.error('🔍 HISTORY-MCP FORWARD ERROR:', {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorType: error?.constructor?.name,
+          toolName: params.name
+        });
+      }
+      
       throw new Error(`Upstream service unavailable: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -1287,6 +1468,113 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     }, MONITORING.HEALTH_CHECK_INTERVAL);
   }
   
+  /**
+   * クライアントに通知を送信
+   */
+  private async sendNotification(method: string, params?: any): Promise<void> {
+    try {
+      // stdioトランスポートでは、server経由で通知を送信
+      const notification = {
+        jsonrpc: '2.0',
+        method,
+        params: params || {}
+      };
+      
+      // MCPサーバーは内部的に通知をクライアントに送信
+      // 注: 現在のSDKバージョンでは直接的な通知送信APIがないため、
+      // 将来的な実装のためのプレースホルダー
+      this.logger.debug(`Notification prepared: ${method}`, params);
+      
+      // TODO: SDKが通知APIを提供したら実装
+      // this.server.notify(method, params);
+    } catch (error) {
+      this.logger.error(`Failed to send notification ${method}:`, error);
+    }
+  }
+
+  /**
+   * 進捗通知を送信
+   */
+  private async sendProgressNotification(
+    requestId: string | number,
+    progress: number,
+    message?: string
+  ): Promise<void> {
+    await this.sendNotification('$/progress', {
+      id: requestId,
+      progress,
+      message
+    });
+  }
+
+  /**
+   * ツールリスト変更通知
+   */
+  private async sendToolsChangedNotification(): Promise<void> {
+    await this.sendNotification('tools/listChanged', {});
+  }
+
+  /**
+   * リソースリスト変更通知
+   */
+  private async sendResourcesChangedNotification(): Promise<void> {
+    await this.sendNotification('resources/listChanged', {});
+  }
+
+  /**
+   * JSON-RPC標準エラーレスポンスを作成
+   */
+  private createErrorResponse(code: number, message: string, data?: any): never {
+    const error = {
+      code,
+      message,
+      data
+    };
+    
+    // MCPプロキシの場合、エラーをthrowすることでSDKが適切にフォーマットしてくれる
+    const fullError = new Error(message) as any;
+    fullError.code = code;
+    fullError.data = data;
+    throw fullError;
+  }
+
+  /**
+   * アクセス拒否エラー
+   */
+  private createAccessDeniedError(reason: string, details?: any): never {
+    return this.createErrorResponse(
+      -32603, // Internal error
+      'Access denied',
+      {
+        reason,
+        details,
+        timestamp: new Date().toISOString()
+      }
+    );
+  }
+
+  /**
+   * プロトコルバージョンの互換性チェック
+   */
+  private isCompatibleVersion(clientVersion: string, serverVersion: string): boolean {
+    // セマンティックバージョニングの簡易チェック
+    const parseVersion = (version: string): { major: number; minor: number; patch: number } => {
+      const parts = version.split('.').map(Number);
+      return {
+        major: parts[0] || 0,
+        minor: parts[1] || 0,
+        patch: parts[2] || 0
+      };
+    };
+    
+    const client = parseVersion(clientVersion);
+    const server = parseVersion(serverVersion);
+    
+    // メジャーバージョンが一致し、クライアントのマイナーバージョンが
+    // サーバーのマイナーバージョン以下であれば互換性あり
+    return client.major === server.major && client.minor <= server.minor;
+  }
+
   async stop(): Promise<void> {
     try {
       // システム停止時のクリーンアップ

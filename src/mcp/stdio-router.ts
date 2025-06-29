@@ -7,6 +7,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
 import { Logger } from '../utils/logger.js';
 import { TIMEOUTS } from '../constants/index.js';
+import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 
 export interface MCPServerConfig {
   command: string;
@@ -103,6 +104,11 @@ export class StdioRouter extends EventEmitter {
           ...expandedEnv
         };
 
+        this.logger.info(`🚀 Starting upstream server ${name}`);
+        this.logger.debug(`  Command: ${server.config.command}`);
+        this.logger.debug(`  Args: ${(server.config.args || []).join(' ')}`);
+        this.logger.debug(`  Env: ${JSON.stringify(expandedEnv)}`);
+        
         const proc = spawn(server.config.command, server.config.args || [], {
           env,
           stdio: ['pipe', 'pipe', 'pipe']
@@ -117,10 +123,14 @@ export class StdioRouter extends EventEmitter {
           const text = data.toString();
           server.buffer += text;
           
-          // 初回データ受信時にconnectedにする
+          // 初回データ受信をログ（ただしまだconnectedにはしない）
           if (!server.connected) {
-            server.connected = true;
-            this.logger.debug(`${name} is now connected (stdout data received)`);
+            this.logger.debug(`[${name}] First stdout data received: ${text.substring(0, 200)}`);
+            
+            // history-mcpの場合は特別にログ
+            if (name === 'history-mcp') {
+              this.logger.info(`🔍 HISTORY-MCP: First response received (waiting for initialization)`);
+            }
           }
           
           // JSON-RPCメッセージを探す
@@ -144,15 +154,16 @@ export class StdioRouter extends EventEmitter {
         proc.stderr?.on('data', (data) => {
           const message = data.toString().trim();
           
-          // 初期化メッセージをチェック
+          // 初期化メッセージをログ（ただし接続状態は変更しない）
           if (!server.connected && (
             message.toLowerCase().includes('running on stdio') ||
             message.toLowerCase().includes('server running') ||
             message.toLowerCase().includes('server started') ||
-            message.toLowerCase().includes('listening')
+            message.toLowerCase().includes('listening') ||
+            message.toLowerCase().includes('mcp server started') // history-mcp用
           )) {
-            server.connected = true;
-            this.logger.debug(`${name} is now connected (initialization message detected)`);
+            this.logger.info(`📝 ${name} startup message detected: ${message}`);
+            this.logger.info(`⏳ Waiting for MCP initialization handshake...`);
           }
           
           // エラーレベルのメッセージのみ警告として記録
@@ -182,6 +193,7 @@ export class StdioRouter extends EventEmitter {
 
         proc.on('error', (error) => {
           this.logger.error(`Failed to start ${name}:`, error);
+          this.logger.error(`Command was: ${server.config.command} ${(server.config.args || []).join(' ')}`);
           server.connected = false;
           reject(error);
         });
@@ -192,12 +204,92 @@ export class StdioRouter extends EventEmitter {
           return new Promise<void>((waitResolve, waitReject) => {
             let initialized = false;
             
-            // タイムアウト設定（5秒）
+            // MCP標準の初期化ハンドシェイク
+            const sendInitializeRequest = () => {
+              const initRequest = {
+                jsonrpc: '2.0',
+                id: 0, // 初期化リクエストは常にID 0
+                method: 'initialize',
+                params: {
+                  protocolVersion: LATEST_PROTOCOL_VERSION,
+                  clientInfo: {
+                    name: 'AEGIS Policy Enforcement Proxy',
+                    version: '1.0.0'
+                  },
+                  capabilities: {} // 空のcapabilitiesオブジェクトを追加
+                }
+              };
+              
+              this.logger.info(`Sending initialize request to ${name}`);
+              
+              // 初期化リクエストをpendingRequestsに登録（resolve/rejectはダミー）
+              this.pendingRequests.set(initRequest.id, { 
+                resolve: () => {}, 
+                reject: () => {},
+                targetServer: name 
+              });
+              
+              // 初期化レスポンスハンドラー
+              const initResponseHandler = (message: any) => {
+                if (message.id === initRequest.id) {
+                  // pendingRequestsからの削除はレスポンス処理後に行う
+                  
+                  if (message.result) {
+                    this.logger.info(`✅ ${name} initialized successfully`, {
+                      protocolVersion: message.result.protocolVersion,
+                      serverInfo: message.result.serverInfo
+                    });
+                    
+                    // initialized通知を送信
+                    const initializedNotification = {
+                      jsonrpc: '2.0',
+                      method: 'initialized',
+                      params: {}
+                    };
+                    server.process!.stdin?.write(JSON.stringify(initializedNotification) + '\n');
+                    
+                    // ここで初めてconnectedをtrueにする
+                    server.connected = true;
+                    initialized = true;
+                    clearTimeout(initTimeout);
+                    
+                    // イベントリスナーとpendingRequestsのクリーンアップ
+                    this.removeListener(`response-${initRequest.id}`, initResponseHandler);
+                    this.pendingRequests.delete(initRequest.id);
+                    
+                    waitResolve();
+                  } else if (message.error) {
+                    this.logger.error(`${name} initialization failed:`, message.error);
+                    this.pendingRequests.delete(initRequest.id);
+                    waitReject(new Error(`${name} initialization failed: ${message.error.message}`));
+                  }
+                }
+              };
+              
+              this.on(`response-${initRequest.id}`, initResponseHandler);
+              
+              // 実際にリクエストを送信
+              server.process!.stdin?.write(JSON.stringify(initRequest) + '\n');
+            };
+            
+            // タイムアウト設定（10秒に延長）
             initTimeout = setTimeout(() => {
               if (!initialized) {
-                waitReject(new Error(`Server ${name} initialization timeout`));
+                // history-mcpなど一部のサーバーは初期化メッセージを送らない場合がある
+                // その場合でも接続を許可する
+                if (server.process && !server.process.killed) {
+                  this.logger.warn(`Server ${name} initialization timeout, but process is running - marking as connected`);
+                  server.connected = true;
+                  initialized = true;
+                  waitResolve();
+                } else {
+                  waitReject(new Error(`Server ${name} initialization timeout`));
+                }
               }
-            }, TIMEOUTS.UPSTREAM_SERVER_INIT);
+            }, 10000); // 10秒に延長
+            
+            // プロセスが起動したら初期化リクエストを送信
+            setTimeout(sendInitializeRequest, 500); // 500ms待ってから送信
             
             // 初期化完了を検知
             const checkInit = () => {
@@ -234,6 +326,11 @@ export class StdioRouter extends EventEmitter {
     
     this.logger.debug(`Routing request: ${method} (id: ${id})`);
     
+    // デバッグ: 現在の接続状態を表示
+    this.logger.info(`Current server connections:`, {
+      servers: this.getAvailableServers()
+    });
+    
     // tools/list と resources/list は全サーバーから集約
     if (method === 'tools/list' || method === 'resources/list') {
       this.logger.debug(`Aggregating ${method} from all servers`);
@@ -243,13 +340,40 @@ export class StdioRouter extends EventEmitter {
     // その他のリクエストは単一サーバーに転送
     const targetServer = this.selectTargetServer(method, params);
     
+    this.logger.info(`Selected target server: ${targetServer} for ${method}`, {
+      toolName: params?.name,
+      resourceUri: params?.uri
+    });
+    
     if (!targetServer) {
       throw new Error(`No upstream server available for ${method}`);
     }
 
     const server = this.upstreamServers.get(targetServer);
     if (!server?.connected || !server.process) {
+      this.logger.error(`Server ${targetServer} is not connected`, {
+        connected: server?.connected,
+        hasProcess: !!server?.process
+      });
       throw new Error(`Upstream server ${targetServer} is not connected`);
+    }
+
+    // tools/callの場合、プレフィックスを削除
+    let modifiedRequest = request;
+    if (method === 'tools/call' && params?.name) {
+      const toolName = params.name;
+      const prefix = `${targetServer}__`;
+      if (toolName.startsWith(prefix)) {
+        // プレフィックスを削除したリクエストを作成
+        modifiedRequest = {
+          ...request,
+          params: {
+            ...params,
+            name: toolName.substring(prefix.length)
+          }
+        };
+        this.logger.debug(`Removed prefix from tool name: ${toolName} -> ${modifiedRequest.params.name}`);
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -262,8 +386,14 @@ export class StdioRouter extends EventEmitter {
         reject(new Error(`Request timeout for ${method}`));
       }, 30000);
 
-      // リクエスト送信
-      server.process!.stdin?.write(JSON.stringify(request) + '\n');
+      // リクエスト送信（修正されたリクエストを使用）
+      const requestStr = JSON.stringify(modifiedRequest);
+      this.logger.info(`🔄 Sending request to ${targetServer}:`, {
+        id: modifiedRequest.id,
+        method: modifiedRequest.method,
+        params: modifiedRequest.params
+      });
+      server.process!.stdin?.write(requestStr + '\n');
       
       // レスポンス待ち
       const responseHandler = (response: any) => {
@@ -284,13 +414,26 @@ export class StdioRouter extends EventEmitter {
     const connectedServers = Array.from(this.upstreamServers.entries())
       .filter(([_, server]) => server.connected);
     
-    this.logger.info(`Aggregating ${method} from ${connectedServers.length} connected servers`);
-    connectedServers.forEach(([name, _]) => {
-      this.logger.debug(`  - ${name}: connected`);
+    this.logger.info(`📊 Aggregating ${method} from ${connectedServers.length} connected servers`);
+    connectedServers.forEach(([name, server]) => {
+      this.logger.info(`  ✅ ${name}: connected=${server.connected}, hasProcess=${!!server.process}`);
+      if (name === 'history-mcp') {
+        this.logger.info(`  🔍 HISTORY-MCP STATUS: connected=${server.connected}, pid=${server.process?.pid}`);
+      }
     });
     
+    // リクエストIDカウンター（標準形式）
+    const requestIdBase = typeof id === 'number' ? id : Date.now();
+    
     const responses = await Promise.allSettled(
-      connectedServers.map(([name, _]) => this.sendRequestToServer(name, { method, params, id: `${id}-${name}-${Date.now()}-${Math.random()}`, jsonrpc: '2.0' }))
+      connectedServers.map(([name, _], index) => 
+        this.sendRequestToServer(name, { 
+          method, 
+          params, 
+          id: requestIdBase + index, // シンプルな数値ID
+          jsonrpc: '2.0' 
+        })
+      )
     );
 
     // デバッグ: レスポンス状況を確認
@@ -319,10 +462,16 @@ export class StdioRouter extends EventEmitter {
           if (result.result?.tools) {
             result.result.tools.forEach((tool: any) => {
               // サーバー名をプレフィックスとして追加
+              const prefixedName = `${serverName}__${tool.name}`;
               allTools.push({
                 ...tool,
-                name: `${serverName}__${tool.name}`
+                name: prefixedName
               });
+              
+              // history-mcpツールの場合は特別にログ
+              if (serverName === 'history-mcp') {
+                this.logger.info(`  🔍 HISTORY-MCP TOOL: ${prefixedName}`);
+              }
             });
           }
         }
@@ -347,24 +496,83 @@ export class StdioRouter extends EventEmitter {
   private async sendRequestToServer(serverName: string, request: any): Promise<any> {
     const server = this.upstreamServers.get(serverName);
     if (!server?.connected || !server.process) {
+      this.logger.error(`Server ${serverName} is not connected`, {
+        hasServer: !!server,
+        connected: server?.connected,
+        hasProcess: !!server?.process
+      });
       throw new Error(`Server ${serverName} is not connected`);
+    }
+
+    // history-mcpリクエストの場合は詳細ログ
+    if (serverName === 'history-mcp') {
+      this.logger.info(`🔍 HISTORY-MCP SENDING REQUEST:`, {
+        method: request.method,
+        id: request.id,
+        params: request.params,
+        pid: server.process?.pid
+      });
+    }
+
+    // tools/callの場合、プレフィックスを削除
+    let modifiedRequest = request;
+    if (request.method === 'tools/call' && request.params?.name) {
+      const toolName = request.params.name;
+      const prefix = `${serverName}__`;
+      if (toolName.startsWith(prefix)) {
+        modifiedRequest = {
+          ...request,
+          params: {
+            ...request.params,
+            name: toolName.substring(prefix.length)
+          }
+        };
+        this.logger.debug(`[sendRequestToServer] Removed prefix: ${toolName} -> ${modifiedRequest.params.name}`);
+        
+        if (serverName === 'history-mcp') {
+          this.logger.info(`🔍 HISTORY-MCP STRIPPED TOOL NAME: ${modifiedRequest.params.name}`);
+        }
+      }
     }
 
     return new Promise((resolve, reject) => {
       const requestId = request.id;
       this.pendingRequests.set(requestId, { resolve, reject, targetServer: serverName });
       
+      this.logger.debug(`Pending request registered: ${requestId} -> ${serverName}`);
+      
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(requestId);
+        this.logger.error(`Request timeout for ${serverName} - method: ${modifiedRequest.method}, id: ${requestId}`);
+        
+        if (serverName === 'history-mcp') {
+          this.logger.error(`🔍 HISTORY-MCP TIMEOUT after 30s`);
+        }
+        
         reject(new Error(`Request timeout for ${serverName}`));
-      }, 10000);
+      }, 30000); // 30秒に延長
 
-      server.process!.stdin?.write(JSON.stringify(request) + '\n');
+      const jsonRequest = JSON.stringify(modifiedRequest) + '\n';
+      
+      if (serverName === 'history-mcp') {
+        this.logger.info(`🔍 HISTORY-MCP WRITING TO STDIN:`, jsonRequest.trim());
+      }
+      
+      server.process!.stdin?.write(jsonRequest);
       
       const responseHandler = (response: any) => {
         clearTimeout(timeout);
         this.pendingRequests.delete(requestId);
         this.removeListener(`response-${requestId}`, responseHandler);
+        
+        if (serverName === 'history-mcp') {
+          this.logger.info(`🔍 HISTORY-MCP RESPONSE RECEIVED:`, {
+            id: response.id,
+            hasResult: !!response.result,
+            hasError: !!response.error
+          });
+        }
+        
         resolve(response);
       };
       this.on(`response-${requestId}`, responseHandler);
@@ -401,13 +609,24 @@ export class StdioRouter extends EventEmitter {
     if (method === 'tools/call') {
       const toolName = params?.name || '';
       
+      this.logger.debug(`🔧 Selecting server for tool: ${toolName}`);
+      
       // 各サーバーに問い合わせて対応確認
       // プレフィックスでマッチング（__区切りを使用）
       for (const [name, server] of this.upstreamServers) {
         if (toolName.startsWith(name + '__')) {
+          this.logger.info(`✅ Matched tool ${toolName} to server ${name}`);
+          
+          // history-mcpの場合は特別確認
+          if (name === 'history-mcp') {
+            this.logger.info(`🔍 HISTORY-MCP TOOL CALL: ${toolName}, connected=${server.connected}`);
+          }
+          
           return name;
         }
       }
+      
+      this.logger.warn(`⚠️ No server found for tool: ${toolName}`);
     }
     
     // デフォルト: 最初の利用可能なサーバー
@@ -421,14 +640,36 @@ export class StdioRouter extends EventEmitter {
   }
 
   private handleUpstreamMessage(serverName: string, message: any): void {
-    this.logger.debug(`Received message from ${serverName}:`, JSON.stringify(message).substring(0, 200));
+    // history-mcpからのメッセージは特別に詳細ログ
+    if (serverName === 'history-mcp') {
+      this.logger.info(`🔍 HISTORY-MCP MESSAGE:`, JSON.stringify(message));
+    } else {
+      this.logger.debug(`Received message from ${serverName}:`, JSON.stringify(message).substring(0, 200));
+    }
     
-    if (message.id && this.pendingRequests.has(message.id)) {
-      // レスポンスを対応するリクエストに返す
-      this.emit(`response-${message.id}`, message);
+    // IDが0の場合も処理するため、undefinedとnullのみを除外
+    if (message.id !== undefined && message.id !== null) {
+      this.logger.debug(`Checking pending request for ID ${message.id}, has: ${this.pendingRequests.has(message.id)}`);
+      
+      if (this.pendingRequests.has(message.id)) {
+        // レスポンスを対応するリクエストに返す
+        this.logger.info(`✅ Response received for request ${message.id} from ${serverName}`);
+        
+        // history-mcpの場合は詳細確認
+        if (serverName === 'history-mcp') {
+          this.logger.info(`🔍 HISTORY-MCP RESPONSE ID ${message.id}:`, JSON.stringify(message));
+        }
+        
+        this.emit(`response-${message.id}`, message);
+      } else {
+        this.logger.warn(`Response for unknown request ID ${message.id} from ${serverName}`);
+      }
     } else if (message.method) {
       // 通知メッセージ
+      this.logger.debug(`Notification from ${serverName}: ${message.method}`);
       this.emit('notification', { from: serverName, message });
+    } else {
+      this.logger.debug(`Unknown message type from ${serverName}:`, message);
     }
   }
 
