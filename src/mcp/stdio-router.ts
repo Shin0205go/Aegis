@@ -667,6 +667,27 @@ export class StdioRouter extends EventEmitter {
     } else if (message.method) {
       // 通知メッセージ
       this.logger.debug(`Notification from ${serverName}: ${message.method}`);
+      
+      // $/notification形式の通知を処理
+      if (message.method === '$/notification' && message.params) {
+        const notificationMethod = message.params.method;
+        const notificationParams = message.params.params || {};
+        
+        this.logger.info(`📢 Upstream notification from ${serverName}: ${notificationMethod}`, {
+          params: notificationParams
+        });
+        
+        // resources/listChangedの場合は特別に処理
+        if (notificationMethod === 'resources/listChanged') {
+          this.emit('upstreamNotification', {
+            serverName,
+            notificationMethod,
+            notificationParams
+          });
+        }
+      }
+      
+      // 従来の通知形式もサポート
       this.emit('notification', { from: serverName, message });
     } else {
       this.logger.debug(`Unknown message type from ${serverName}:`, message);

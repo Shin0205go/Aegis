@@ -77,7 +77,9 @@ export abstract class MCPPolicyProxyBase {
       },
       {
         capabilities: {
-          resources: {},
+          resources: {
+            listChanged: true  // resources/listChanged通知をサポート
+          },
           tools: {},
           prompts: {}
         }
