@@ -5,6 +5,8 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { Logger } from '../utils/logger.js';
+import type { IPolicyLoader } from '../types/component-interfaces.js';
+import type { LoadedPolicy } from '../types/enforcement-types.js';
 
 const logger = new Logger('policy-loader');
 
@@ -31,7 +33,7 @@ export interface PoliciesConfig {
   policies: PolicyDefinition[];
 }
 
-export class PolicyLoader {
+export class PolicyLoader implements IPolicyLoader {
   private policiesPath: string;
   private loadedPolicies: Map<string, PolicyDefinition> = new Map();
 
@@ -65,7 +67,7 @@ export class PolicyLoader {
       
       for (const policy of config.policies) {
         this.loadedPolicies.set(policy.id, policy);
-        logger.info(`Loaded policy: ${policy.id} (${policy.status})`);
+        logger.info(`Loaded policy: ${policy.id} (${policy.status}, priority: ${policy.metadata?.priority || 'N/A'})`);
       }
       
       logger.info(`Successfully loaded ${config.policies.length} policies`);
@@ -82,10 +84,11 @@ export class PolicyLoader {
     return this.loadedPolicies.get(policyId);
   }
 
-  getActivePolicies(): PolicyDefinition[] {
+  getActivePolicies(): LoadedPolicy[] {
     return Array.from(this.loadedPolicies.values())
       .filter(policy => policy.status === 'active')
-      .sort((a, b) => b.metadata.priority - a.metadata.priority);
+      .sort((a, b) => b.metadata.priority - a.metadata.priority)
+      .map(policy => this.convertToLoadedPolicy(policy));
   }
 
   getAllPolicies(): PolicyDefinition[] {
@@ -166,7 +169,17 @@ export class PolicyLoader {
     }
   }
 
-  formatPolicyForAI(policy: PolicyDefinition): string {
+  formatPolicyForAI(policy: LoadedPolicy | PolicyDefinition): string {
+    // PolicyDefinitionの場合の処理
+    if ('policy' in policy) {
+      return this.formatPolicyDefinitionForAI(policy as PolicyDefinition);
+    }
+    
+    // LoadedPolicyの場合はcontentを返す
+    return policy.content;
+  }
+
+  private formatPolicyDefinitionForAI(policy: PolicyDefinition): string {
     let formatted = `【${policy.name}】\n`;
     formatted += `バージョン: ${policy.version}\n`;
     if (policy.description) {
@@ -193,6 +206,31 @@ export class PolicyLoader {
     }
     
     return formatted;
+  }
+
+  async loadPolicy(name: string): Promise<LoadedPolicy | null> {
+    const policy = Array.from(this.loadedPolicies.values())
+      .find(p => p.name === name || p.id === name);
+    
+    if (!policy) {
+      return null;
+    }
+    
+    return this.convertToLoadedPolicy(policy);
+  }
+
+  private convertToLoadedPolicy(policy: PolicyDefinition): LoadedPolicy {
+    return {
+      name: policy.name,
+      content: this.formatPolicyDefinitionForAI(policy),
+      metadata: {
+        priority: policy.metadata.priority,
+        status: policy.status,
+        tags: policy.metadata.tags,
+        createdAt: policy.metadata.createdAt ? new Date(policy.metadata.createdAt) : undefined,
+        updatedAt: policy.metadata.lastModified ? new Date(policy.metadata.lastModified) : undefined
+      }
+    };
   }
 
   private async createDefaultPolicies(): Promise<void> {

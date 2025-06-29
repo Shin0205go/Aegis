@@ -508,21 +508,44 @@ const unusualRequest = {
 
 ### 自動ポリシー選択ロジック
 
-システムは以下の優先順位でポリシーを自動選択します：
+システムはコンテキストに基づいて最適なポリシーを自動選択します。選択ロジックは`PolicyEnforcer`クラスの`selectBestMatchingPolicy`メソッドで実装されています：
 
 1. **時間ベース選択**
-   - 営業時間外: `after-hours-policy`
-   - 営業時間内: 通常ポリシー
+   - 営業時間外（18:00〜8:00）: `after-hours-policy`またはタグ`after-hours`を持つポリシー
+   - 営業時間内: 通常の優先度ベース選択
 
 2. **エージェントベース選択**
-   - Claude Desktop: `claude-desktop-policy`
-   - その他: リソースベース選択
+   - Claude Desktop（`claude-desktop`または`mcp-client`）: `claude-desktop-policy`
+   - その他のエージェント: リソースベース選択へ
 
-3. **リソースタイプベース選択**
-   - 顧客データ: `customer-data-policy`
-   - メール: `email-access-policy`
-   - ファイル: `file-system-policy`
-   - ツール実行（高リスク）: `high-risk-operations-policy`
-   - ツール実行（通常）: `tool-usage-policy`
+3. **リスクベース選択**
+   - 高リスクアクション判定基準：
+     - 削除系（delete, remove, destroy）
+     - 管理系（admin, root, sudo）
+     - システム系（system, config）
+     - 実行系（exec, execute, bash, shell, cmd）
+   - 高リスク判定時: `high-risk-operations-policy`
 
-4. **デフォルト**: `default-policy`
+4. **リソースタイプベース選択**
+   - ツール実行（`tools/call`）: `tool-control-policy`
+   - ファイルシステムアクセス: `file-system-policy`
+   - 顧客データアクセス（customer, client, user, pii）: `customer-data-policy`
+   - メールアクセス（gmail, email）: `email-access-policy`
+
+5. **環境ベース選択**
+   - 開発環境（`NODE_ENV=development`）: `dev-permissive-policy`
+
+6. **フォールバック**
+   - 上記いずれにも該当しない場合: 優先度（priority）が最も高いポリシーを選択
+   - デフォルト: `default-policy`（priority: 1）
+
+#### 選択理由のロギング
+
+システムは選択したポリシーとその理由をログに記録します：
+- `after-hours access`: 営業時間外アクセス
+- `Claude Desktop agent`: Claude Desktopエージェント
+- `high-risk operation`: 高リスク操作
+- `email resource access`: メールリソースアクセス
+- `file system access`: ファイルシステムアクセス
+- `tool execution`: ツール実行
+- `default selection`: デフォルト選択

@@ -104,17 +104,286 @@ export class PolicyEnforcer {
     context: DecisionContext,
     policyLoader?: IPolicyLoader
   ): Promise<string | null> {
-    if (policyLoader) {
-      const activePolicies = policyLoader.getActivePolicies();
-      if (activePolicies.length > 0) {
-        const selectedPolicy = activePolicies[0];
-        this.logger.info(`Using policy: ${selectedPolicy.name} (priority: ${selectedPolicy.metadata.priority})`);
-        return policyLoader.formatPolicyForAI(selectedPolicy);
+    if (!policyLoader) {
+      return null;
+    }
+
+    const activePolicies = policyLoader.getActivePolicies();
+    if (activePolicies.length === 0) {
+      this.logger.warn('No active policies found, using default policy');
+      return null;
+    }
+
+    // コンテキストベースのポリシー選択ロジック
+    const selectedPolicy = this.selectBestMatchingPolicy(context, activePolicies);
+    
+    if (selectedPolicy) {
+      this.logger.info(`Selected policy: ${selectedPolicy.name} (priority: ${selectedPolicy.metadata.priority}) based on context`, {
+        agent: context.agent,
+        action: context.action,
+        resource: context.resource,
+        matchReason: this.getMatchReason(context, selectedPolicy)
+      });
+      
+      // フォーマット済みポリシーテキストを取得
+      const formattedPolicy = policyLoader.formatPolicyForAI(selectedPolicy);
+      
+      // デバッグ用にフォーマット済みポリシーの一部をログ出力
+      this.logger.debug('Formatted policy for AI:', {
+        policyId: selectedPolicy.id,
+        policyName: selectedPolicy.name,
+        policyPreview: formattedPolicy.substring(0, 200) + '...'
+      });
+      
+      return formattedPolicy;
+    }
+
+    // フォールバック: 優先度が最も高いポリシーを使用
+    const fallbackPolicy = activePolicies[0];
+    this.logger.info(`Using fallback policy: ${fallbackPolicy.name} (priority: ${fallbackPolicy.metadata.priority})`);
+    return policyLoader.formatPolicyForAI(fallbackPolicy);
+  }
+
+  /**
+   * コンテキストに最も適したポリシーを選択
+   */
+  private selectBestMatchingPolicy(
+    context: DecisionContext,
+    policies: any[]
+  ): any | null {
+    // 0. 開発ディレクトリの判定（最優先）
+    if (this.isDevelopDirectory(context.resource)) {
+      const devPolicy = policies.find(p => 
+        p.id === 'dev-permissive-policy' ||
+        p.metadata.tags?.includes('develop-directory')
+      );
+      if (devPolicy) {
+        this.logger.info('Using development policy for ~/Develop directory access');
+        return devPolicy;
       }
     }
     
-    // デフォルトポリシーの選択ロジック
+    // 1. 時間ベースの選択
+    const currentHour = new Date().getHours();
+    const isAfterHours = currentHour < 8 || currentHour >= 18;
+    
+    if (isAfterHours) {
+      const afterHoursPolicy = policies.find(p => 
+        p.id === 'after-hours-policy' || 
+        p.metadata.tags?.includes('after-hours')
+      );
+      if (afterHoursPolicy) return afterHoursPolicy;
+    }
+
+    // 2. エージェントベースの選択
+    if (context.agent === 'claude-desktop' || context.agent === 'mcp-client') {
+      const claudePolicy = policies.find(p => 
+        p.id === 'claude-desktop-policy' ||
+        p.metadata.tags?.includes('claude-desktop')
+      );
+      if (claudePolicy) return claudePolicy;
+    }
+
+    // 3. アクション/リソースベースの選択
+    const { action, resource } = context;
+    
+    // 高リスク操作の判定
+    const isHighRiskAction = this.isHighRiskAction(action, resource);
+    if (isHighRiskAction) {
+      const highRiskPolicy = policies.find(p => 
+        p.id === 'high-risk-operations-policy' ||
+        p.metadata.tags?.includes('high-risk')
+      );
+      if (highRiskPolicy) return highRiskPolicy;
+    }
+
+    // ツール実行の判定
+    if (action === 'tools/call' || resource.startsWith('tool:')) {
+      const toolPolicy = policies.find(p => 
+        p.id === 'tool-control-policy' ||
+        p.metadata.tags?.includes('tools') ||
+        p.metadata.tags?.includes('mcp')
+      );
+      if (toolPolicy) return toolPolicy;
+    }
+
+    // ファイルシステムアクセスの判定
+    if (this.isFileSystemAccess(action, resource)) {
+      const filePolicy = policies.find(p => 
+        p.id === 'file-system-policy' ||
+        p.metadata.tags?.includes('files') ||
+        p.metadata.tags?.includes('filesystem')
+      );
+      if (filePolicy) return filePolicy;
+    }
+
+    // 顧客データアクセスの判定
+    if (this.isCustomerDataAccess(resource)) {
+      const customerPolicy = policies.find(p => 
+        p.id === 'customer-data-policy' ||
+        p.metadata.tags?.includes('customer-data')
+      );
+      if (customerPolicy) return customerPolicy;
+    }
+
+    // メールアクセスの判定
+    if (resource.includes('gmail') || resource.includes('email')) {
+      const emailPolicy = policies.find(p => 
+        p.id === 'email-access-policy' ||
+        p.metadata.tags?.includes('email')
+      );
+      if (emailPolicy) return emailPolicy;
+    }
+
+    // 開発環境の判定
+    if (context.environment?.isDevelopment || process.env.NODE_ENV === 'development') {
+      const devPolicy = policies.find(p => 
+        p.id === 'dev-permissive-policy' ||
+        p.metadata.tags?.includes('development')
+      );
+      if (devPolicy) return devPolicy;
+    }
+
     return null;
+  }
+
+  /**
+   * ポリシー選択理由の取得
+   */
+  private getMatchReason(context: DecisionContext, policy: any): string {
+    const reasons: string[] = [];
+
+    // 開発ポリシー
+    if (policy.id === 'dev-permissive-policy' || policy.metadata.tags?.includes('develop-directory')) {
+      if (this.isDevelopDirectory(context.resource)) {
+        reasons.push('~/Develop directory access - permissive policy');
+      } else {
+        reasons.push('development mode - permissive policy');
+      }
+    }
+
+    // 時間ベース
+    const currentHour = new Date().getHours();
+    if ((currentHour < 8 || currentHour >= 18) && 
+        (policy.id === 'after-hours-policy' || policy.metadata.tags?.includes('after-hours'))) {
+      reasons.push('after-hours access');
+    }
+
+    // エージェントベース
+    if ((context.agent === 'claude-desktop' || context.agent === 'mcp-client') &&
+        (policy.id === 'claude-desktop-policy' || policy.metadata.tags?.includes('claude-desktop'))) {
+      reasons.push('Claude Desktop agent');
+    }
+
+    // リスクベース
+    if (this.isHighRiskAction(context.action, context.resource) &&
+        (policy.id === 'high-risk-operations-policy' || policy.metadata.tags?.includes('high-risk'))) {
+      reasons.push('high-risk operation');
+    }
+
+    // リソースタイプベース
+    if (context.resource.includes('gmail') || context.resource.includes('email')) {
+      reasons.push('email resource access');
+    } else if (this.isFileSystemAccess(context.action, context.resource)) {
+      reasons.push('file system access');
+    } else if (context.action === 'tools/call') {
+      reasons.push('tool execution');
+    }
+
+    return reasons.length > 0 ? reasons.join(', ') : 'default selection';
+  }
+
+  /**
+   * 高リスクアクションの判定
+   */
+  private isHighRiskAction(action: string, resource: string): boolean {
+    const highRiskPatterns = [
+      /delete|remove|destroy/i,
+      /admin|root|sudo/i,
+      /system|config/i,
+      /database|db/i,
+      /credential|password|key/i,
+      /exec|execute|bash|shell|cmd/i
+    ];
+
+    return highRiskPatterns.some(pattern => 
+      pattern.test(action) || pattern.test(resource)
+    );
+  }
+
+  /**
+   * ファイルシステムアクセスの判定
+   */
+  private isFileSystemAccess(action: string, resource: string): boolean {
+    const filePatterns = [
+      /^(Read|Write|Edit|Delete|Create)$/,
+      /file|dir|path|folder/i,
+      /\.txt|\.json|\.xml|\.csv|\.log/i
+    ];
+
+    return filePatterns.some(pattern => 
+      pattern.test(action) || pattern.test(resource)
+    );
+  }
+
+  /**
+   * 顧客データアクセスの判定
+   */
+  private isCustomerDataAccess(resource: string): boolean {
+    const customerPatterns = [
+      /customer|client|user/i,
+      /personal|private/i,
+      /pii|gdpr/i
+    ];
+
+    return customerPatterns.some(pattern => pattern.test(resource));
+  }
+
+  /**
+   * 開発ディレクトリアクセスの判定
+   */
+  private isDevelopDirectory(resource: string): boolean {
+    // リソースパスを正規化
+    const normalizedPath = resource.replace(/^file:\/\//, '').replace(/^\//, '');
+    
+    // ホームディレクトリのパスパターン
+    const homeDir = process.env.HOME || '/Users/shingo';
+    const developPaths = [
+      `${homeDir}/Develop/`,
+      '/Users/shingo/Develop/',
+      'Develop/',
+      '~/Develop/'
+    ];
+    
+    // history-mcp などの開発関連ツールも含める
+    const developTools = [
+      'history-mcp',
+      'conversation-mcp',
+      'aegis-',
+      'filesystem__',  // filesystem MCPツール
+      'execution-server__'  // execution MCPツール
+    ];
+    
+    // パスチェック
+    const isInDevelopDir = developPaths.some(path => 
+      resource.includes(path) || normalizedPath.startsWith(path.replace('~/', ''))
+    );
+    
+    // ツールチェック
+    const isDevelopTool = developTools.some(tool => resource.includes(tool));
+    
+    const result = isInDevelopDir || isDevelopTool;
+    
+    // デバッグログ追加
+    this.logger.debug('isDevelopDirectory check:', {
+      resource,
+      normalizedPath,
+      isInDevelopDir,
+      isDevelopTool,
+      result
+    });
+    
+    return result;
   }
 
   /**

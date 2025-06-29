@@ -98,6 +98,17 @@ export class AIJudgmentEngine {
       // 2. ポリシー分析プロンプト生成
       const analysisPrompt = this.buildAnalysisPrompt(naturalLanguagePolicy, context);
       
+      // デバッグ: プロンプト内容の一部をログ出力
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] Context for decision:', {
+          agent: context.agent,
+          action: context.action,
+          resource: context.resource,
+          purpose: context.purpose,
+          policyPreview: naturalLanguagePolicy.substring(0, 100) + '...'
+        });
+      }
+      
       // 3. AI判定実行
       if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
         console.error('[AI Judgment] Executing AI decision...');
@@ -106,6 +117,17 @@ export class AIJudgmentEngine {
       
       // 4. 結果パース・検証
       const decision = this.parseAndValidateDecision(rawResponse);
+      
+      // デバッグ: AI判定結果をログ出力
+      if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+        console.error('[AI Judgment] Decision result:', {
+          decision: decision.decision,
+          reason: decision.reason.substring(0, 200) + '...',
+          confidence: decision.confidence,
+          constraints: decision.constraints,
+          obligations: decision.obligations
+        });
+      }
       
       // 5. キャッシュ保存
       this.decisionCache.set(cacheKey, decision);

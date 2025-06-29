@@ -123,7 +123,9 @@ export class PolicyAdministrator implements PolicyManagementAPI {
    * アクティブなポリシーを取得（設定ファイル優先）
    */
   getActivePoliciesFromConfig(): PolicyDefinition[] {
-    return this.policyLoader.getActivePolicies();
+    return this.policyLoader.getAllPolicies()
+      .filter(policy => policy.status === 'active')
+      .sort((a, b) => b.metadata.priority - a.metadata.priority);
   }
 
   /**

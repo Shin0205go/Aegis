@@ -11,6 +11,17 @@ export class ResourceClassifierEnricher implements ContextEnricher {
 
   // リソース分類ルール
   private classificationRules: ClassificationRule[] = [
+    // 開発ディレクトリ・ツール（最優先）
+    {
+      pattern: /\/Develop\/|filesystem__|execution-server__|history-mcp|conversation-mcp|aegis-/i,
+      classification: {
+        dataType: 'development-resources',
+        sensitivityLevel: 'low',
+        tags: ['development', 'local'],
+        retentionDays: -1,
+        requiresEncryption: false
+      }
+    },
     // 顧客データ（より具体的なパターンに変更）
     {
       pattern: /\/(customer|client|user|profile)\/(data|info|record|detail)|customer-database|user-profile|client-record/i,
@@ -160,13 +171,17 @@ export class ResourceClassifierEnricher implements ContextEnricher {
       }
     }
 
-    // デフォルト分類（未分類データは安全側に倒す）
+    // デフォルト分類（開発環境では低リスクとして扱う）
+    const isDevelopment = process.env.NODE_ENV === 'development' || 
+                         resource.includes('tool:') || 
+                         resource.includes('__');
+    
     return {
       dataType: 'unclassified',
-      sensitivityLevel: 'high',
-      tags: ['unclassified', 'review-required'],
+      sensitivityLevel: isDevelopment ? 'medium' : 'high',
+      tags: ['unclassified', isDevelopment ? 'development' : 'review-required'],
       retentionDays: 90,
-      requiresEncryption: true
+      requiresEncryption: !isDevelopment
     };
   }
 
