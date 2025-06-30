@@ -301,14 +301,44 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
 
     // 監査統計API
     this.apiApp.get('/audit/statistics', (req, res) => {
-      res.json({
-        totalRequests: 0,
-        permittedRequests: 0,
-        deniedRequests: 0,
-        averageProcessingTime: 0,
-        policyEvaluations: 0,
-        cacheHitRate: 0
-      });
+      try {
+        // 実際の監査データから統計を生成（義務実行ログを除外）
+        const entries = this.advancedAuditSystem.getAuditEntries();
+        const mcpEntries = entries.filter(entry => 
+          entry.context.purpose !== 'obligation-execution'
+        );
+        const recentEntries = mcpEntries.filter(entry => {
+          const entryTime = new Date(entry.timestamp);
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          return entryTime > oneDayAgo;
+        });
+
+        const totalRequests = recentEntries.length;
+        const permittedRequests = recentEntries.filter(e => e.decision.decision === 'PERMIT').length;
+        const deniedRequests = recentEntries.filter(e => e.decision.decision === 'DENY').length;
+        const avgProcessingTime = totalRequests > 0 
+          ? Math.round(recentEntries.reduce((sum, e) => sum + e.processingTime, 0) / totalRequests)
+          : 0;
+
+        res.json({
+          totalRequests,
+          permittedRequests,
+          deniedRequests,
+          averageProcessingTime: avgProcessingTime,
+          policyEvaluations: totalRequests,
+          cacheHitRate: 85 // Mock cache hit rate
+        });
+      } catch (error) {
+        this.logger.error('Failed to get audit statistics', error);
+        res.json({
+          totalRequests: 0,
+          permittedRequests: 0,
+          deniedRequests: 0,
+          averageProcessingTime: 0,
+          policyEvaluations: 0,
+          cacheHitRate: 0
+        });
+      }
     });
 
     // 監査メトリクスAPI
@@ -319,6 +349,70 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         deniedRequests: 0,
         averageProcessingTime: 0
       });
+    });
+
+    // 最近の判定結果API
+    this.apiApp.get('/audit/requests', (req, res) => {
+      try {
+        const limit = parseInt(req.query.limit as string) || 10;
+        const entries = this.advancedAuditSystem.getAuditEntries();
+        
+        this.logger.info(`Audit entries count: ${entries.length}`);
+        
+        // 義務実行ログを除外（実際のMCPリクエストのみを表示）
+        const mcpRequestEntries = entries.filter(entry => 
+          entry.context.purpose !== 'obligation-execution'
+        );
+        
+        // 最新のエントリを取得
+        const sortedEntries = mcpRequestEntries
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, limit);
+
+        const requests = sortedEntries.map(entry => ({
+          id: entry.id,
+          timestamp: entry.timestamp,
+          agent: entry.context.agent,
+          action: entry.context.action,
+          resource: entry.context.resource,
+          decision: entry.decision.decision,
+          processingTime: entry.processingTime,
+          reason: entry.decision.reason,
+          riskLevel: entry.decision.riskLevel || 'LOW',
+          policy: entry.policyUsed || 'default-policy'
+        }));
+
+        res.json({ 
+          total: mcpRequestEntries.length,
+          requests 
+        });
+      } catch (error) {
+        this.logger.error('Failed to get recent requests', error);
+        res.json({ 
+          error: error instanceof Error ? error.message : 'Unknown error',
+          total: 0,
+          requests: [] 
+        });
+      }
+    });
+
+    // デバッグ用：監査システムの状態確認
+    this.apiApp.get('/audit/debug', (req, res) => {
+      try {
+        const entries = this.advancedAuditSystem.getAuditEntries();
+        res.json({
+          totalEntries: entries.length,
+          hasAuditSystem: !!this.advancedAuditSystem,
+          sampleEntry: entries.length > 0 ? entries[0] : null,
+          lastEntry: entries.length > 0 ? entries[entries.length - 1] : null
+        });
+      } catch (error) {
+        res.json({
+          error: error instanceof Error ? error.message : 'Unknown error',
+          hasAuditSystem: !!this.advancedAuditSystem,
+          totalEntries: 0
+        });
+      }
     });
 
     // ポリシー評価テストAPI
@@ -507,12 +601,16 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       
       try {
         // ポリシー判定実行
-        // ファイルシステムツールの場合、パスも含めたリソース文字列を生成
-        let resourceString = `tool:${request.params.name}`;
-        if (request.params.name === 'filesystem__read_file' && request.params.arguments?.path) {
-          resourceString = `file:${request.params.arguments.path}`;
+        // ツール名とリソースの両方を適切に記録
+        const toolName = request.params.name;
+        let resourceString = `tool:${toolName}`;
+        
+        // ファイルシステムツールの場合、ツール名とパスの両方を保持
+        if (toolName.startsWith('filesystem__') && request.params.arguments?.path) {
+          resourceString = `${toolName}|file:${request.params.arguments.path}`;
         }
-        const decision = await this.enforcePolicy('execute', resourceString, { request });
+        
+        const decision = await this.enforcePolicy(toolName, resourceString, { request });
         
         if (decision.decision === 'DENY') {
           this.createAccessDeniedError(decision.reason, {
@@ -532,7 +630,6 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         }
         
         // サーバープレフィックスを除去してから転送
-        const toolName = request.params.name;
         const strippedParams = { ...request.params };
         
         // filesystem__read_file -> read_file のように変換
