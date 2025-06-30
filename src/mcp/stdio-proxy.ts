@@ -629,18 +629,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
           });
         }
         
-        // サーバープレフィックスを除去してから転送
-        const strippedParams = { ...request.params };
-        
-        // filesystem__read_file -> read_file のように変換
-        const prefixMatch = toolName.match(/^[^_]+__(.+)$/);
-        if (prefixMatch) {
-          strippedParams.name = prefixMatch[1];
-        }
-        
-        // 上流サーバーに転送
-        this.logger.debug('Forwarding to upstream with params:', strippedParams);
-        const result = await this.forwardToUpstream('tools/call', strippedParams);
+        // 上流サーバーに転送（プレフィックス付きの名前でルーティング）
+        // プレフィックス削除はstdio-router内で行われる
+        this.logger.debug('Forwarding to upstream with params:', request.params);
+        const result = await this.forwardToUpstream('tools/call', request.params);
         
         // history-mcpの結果の場合は詳細ログ
         if (request.params.name && request.params.name.startsWith('history-mcp__')) {

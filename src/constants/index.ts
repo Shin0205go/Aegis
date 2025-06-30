@@ -10,7 +10,7 @@ export const TIMEOUTS = {
   POLICY_DECISION_BATCH: 60000,  // 60秒（バッチ処理）
   
   // 上流サーバー
-  UPSTREAM_REQUEST: 15000,       // 15秒
+  UPSTREAM_REQUEST: 60000,       // 60秒（テスト用に延長）
   UPSTREAM_SERVER_INIT: 30000,   // 30秒（起動時）
   
   // 制約・義務実行

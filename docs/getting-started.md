@@ -47,7 +47,7 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 
 # LLM設定（オプション、デフォルト値あり）
 LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-5-sonnet-20241022
+LLM_MODEL=claude-opus-4-20250514
 
 # オプション設定
 PORT=3000
@@ -297,7 +297,7 @@ if (result.decision === 'PERMIT') {
 ```env
 # AI判定エンジン設定
 LLM_PROVIDER=anthropic      # 現在は 'anthropic' のみサポート
-LLM_MODEL=claude-3-5-sonnet-20241022  # 使用するモデル
+LLM_MODEL=claude-opus-4-20250514  # 使用するモデル
 ANTHROPIC_API_KEY=xxx       # Anthropic APIキー（必須）
 
 # サーバー設定

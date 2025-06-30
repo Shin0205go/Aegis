@@ -1,5 +1,11 @@
 # 自然言語ポリシーアーキテクチャ 詳細設計書
 
+## 🤖 AI判定エンジン設定
+
+AEGIS Policy Engineは、自然言語ポリシーの判定にClaude Opus 4（`claude-opus-4-20250514`）をデフォルトで使用します。これは最新かつ最も高性能なモデルで、複雑なポリシー判定に適しています。
+
+環境変数`LLM_MODEL`で変更可能ですが、ポリシー判定の精度を保つため、Opus 4の使用を推奨します。
+
 ## 📝 プロジェクトルール
 
 ### ファイル配置ルール
@@ -486,6 +492,10 @@ const unusualRequest = {
 |---------|------|------------|
 | `ANTHROPIC_API_KEY` | Anthropic Claude APIキー | - |
 | `OPENAI_API_KEY` | OpenAI APIキー | - |
+| `LLM_PROVIDER` | LLMプロバイダー（anthropic/openai/azure） | anthropic |
+| `LLM_MODEL` | 使用するLLMモデル | claude-opus-4-20250514 |
+| `LLM_MAX_TOKENS` | 最大トークン数 | 4096 |
+| `LLM_TEMPERATURE` | 生成温度（0-1） | 0.3 |
 | `AEGIS_AI_THRESHOLD` | AI判定の信頼度閾値 | 0.7 |
 | `MCP_PROXY_PORT` | MCPプロキシのポート番号 | 3000 |
 | `MCP_TRANSPORT` | トランスポートモード（stdio/http） | http |

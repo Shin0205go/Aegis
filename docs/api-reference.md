@@ -24,7 +24,7 @@ import { AnthropicLLM } from '@aegis/ai/anthropic-llm';
 // LLMインスタンス初期化
 const llm = new AnthropicLLM({
   provider: 'anthropic',
-  model: 'claude-3-5-sonnet-20241022',
+  model: 'claude-opus-4-20250514',
   apiKey: process.env.ANTHROPIC_API_KEY
 });
 

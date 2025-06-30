@@ -18,7 +18,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
 OPENAI_API_KEY=sk-xxxxx
 
 # モデル指定（オプション）
-LLM_MODEL=claude-3-opus-20240229  # デフォルト
+LLM_MODEL=claude-opus-4-20250514  # デフォルト
 # または
 LLM_MODEL=gpt-4-turbo-preview
 ```
@@ -219,7 +219,7 @@ NODE_ENV=development
 LOG_LEVEL=debug
 CACHE_ENABLED=false
 LLM_PROVIDER=openai  # コスト削減
-LLM_MODEL=gpt-3.5-turbo
+LLM_MODEL=gpt-4-turbo-preview
 AUDIT_LOG_PRETTY=true
 API_AUTH_ENABLED=false
 ```
@@ -232,7 +232,7 @@ LOG_LEVEL=info
 CACHE_ENABLED=true
 CACHE_TTL=300  # 5分
 LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-haiku-20240307  # 高速モデル
+LLM_MODEL=claude-opus-4-20250514  # 高精度モデル
 API_AUTH_ENABLED=true
 AUDIT_LOG_ENCRYPTION=true
 ```
@@ -245,7 +245,7 @@ LOG_LEVEL=warn
 CACHE_ENABLED=true
 CACHE_TTL=3600  # 1時間
 LLM_PROVIDER=anthropic
-LLM_MODEL=claude-3-opus-20240229  # 最高精度
+LLM_MODEL=claude-opus-4-20250514  # 最高精度
 API_AUTH_ENABLED=true
 HTTPS_ENABLED=true
 AUDIT_LOG_ENCRYPTION=true

@@ -21,9 +21,9 @@ export class Config {
 
       // LLM設定
       llm: {
-        provider: ((process.env.LLM_PROVIDER || 'openai') as 'openai' | 'anthropic' | 'azure'),
-        apiKey: this.getApiKey(overrides?.llm?.provider || process.env.LLM_PROVIDER || 'openai'),
-        model: process.env.LLM_MODEL || 'gpt-4',
+        provider: ((process.env.LLM_PROVIDER || 'anthropic') as 'openai' | 'anthropic' | 'azure'),
+        apiKey: this.getApiKey(overrides?.llm?.provider || process.env.LLM_PROVIDER || 'anthropic'),
+        model: process.env.LLM_MODEL || 'claude-opus-4-20250514',
         maxTokens: parseInt(process.env.LLM_MAX_TOKENS || '4096'),
         temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.3'),
         baseURL: process.env.LLM_BASE_URL

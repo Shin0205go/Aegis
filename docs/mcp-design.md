@@ -229,7 +229,7 @@ npm run start:mcp:http
       ],
       "env": {
         "LLM_PROVIDER": "openai",
-        "LLM_MODEL": "gpt-4",
+        "LLM_MODEL": "gpt-4-turbo-preview",
         "LOG_LEVEL": "info",
         "CACHE_ENABLED": "true",
         "CACHE_TTL": "3600"
@@ -251,7 +251,7 @@ npm run start:mcp:http
       ],
       "env": {
         "LLM_PROVIDER": "anthropic",
-        "LLM_MODEL": "claude-3-opus-20240229",
+        "LLM_MODEL": "claude-opus-4-20250514",
         "LOG_LEVEL": "debug"
       }
     }

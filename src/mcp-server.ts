@@ -332,8 +332,8 @@ Examples:
   node mcp-server.js --transport stdio
   
 
-  # Start with Anthropic Claude
-  node mcp-server.js --provider anthropic --model claude-3-opus-20240229
+  # Start with Anthropic Claude (default: Opus 4)
+  node mcp-server.js --provider anthropic --model claude-opus-4-20250514
 
   # Enable debug logging
   node mcp-server.js --debug

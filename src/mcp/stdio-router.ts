@@ -206,6 +206,11 @@ export class StdioRouter extends EventEmitter {
             
             // MCP標準の初期化ハンドシェイク
             const sendInitializeRequest = () => {
+              if (initialized || !server.process || !server.process.stdin) {
+                this.logger.debug(`Skipping initialize request for ${name}: initialized=${initialized}, process=${!!server.process}, stdin=${!!server.process?.stdin}`);
+                return;
+              }
+              
               const initRequest = {
                 jsonrpc: '2.0',
                 id: 0, // 初期化リクエストは常にID 0
@@ -246,7 +251,9 @@ export class StdioRouter extends EventEmitter {
                       method: 'initialized',
                       params: {}
                     };
-                    server.process!.stdin?.write(JSON.stringify(initializedNotification) + '\n');
+                    if (server.process && server.process.stdin) {
+                      server.process.stdin.write(JSON.stringify(initializedNotification) + '\n');
+                    }
                     
                     // ここで初めてconnectedをtrueにする
                     server.connected = true;
@@ -269,7 +276,11 @@ export class StdioRouter extends EventEmitter {
               this.on(`response-${initRequest.id}`, initResponseHandler);
               
               // 実際にリクエストを送信
-              server.process!.stdin?.write(JSON.stringify(initRequest) + '\n');
+              if (server.process && server.process.stdin) {
+                server.process.stdin.write(JSON.stringify(initRequest) + '\n');
+              } else {
+                this.logger.warn(`Cannot send initialize request to ${name}: process or stdin not available`);
+              }
             };
             
             // タイムアウト設定（10秒に延長）
