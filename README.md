@@ -75,7 +75,7 @@ AEGISは2つのトランスポートモードをサポートしています：
 - デフォルト: 3000
 
 詳細な手順は [導入ガイド](./docs/user-guide/getting-started.md) を参照してください。
-ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST_GUIDE.md) を参照してください。
+ODRLハイブリッド判定については [ODRLテストガイド](./docs/odrl-testing-guide.md) を参照してください。
 
 ## 📚 ドキュメント
 
@@ -104,7 +104,7 @@ ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST
 - [よくある質問](./docs/reference/faq.md)
 
 ### 🚀 [ODRLハイブリッドポリシーエンジン](./src/odrl/)
-- [ODRLテストガイド](./ODRL_TEST_GUIDE.md) - 今すぐテストを実行
+- [ODRLテストガイド](./docs/odrl-testing-guide.md) - 今すぐテストを実行
 - [実装ロジック詳解](./docs/ODRL_IMPLEMENTATION_LOGIC.md) - なぜODRLを導入したか
 - [判定フロー図解](./docs/ODRL_DECISION_FLOW.md) - 判定の詳細な流れ
 - [アーキテクチャ概要](./docs/ODRL_ARCHITECTURE_OVERVIEW.md) - システム全体構成

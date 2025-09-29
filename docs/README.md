@@ -45,7 +45,7 @@ AEGISを拡張・カスタマイズする開発者向けのガイドです。
 AIの過度な厳格さを解決する新しいハイブリッド判定システムです。
 
 - **[📚 ODRLドキュメントインデックス](./ODRL_INDEX.md)** - 全ODRLドキュメントへの統一アクセスポイント
-- **[ODRLテストガイド](../ODRL_TEST_GUIDE.md)** - 今すぐテストを実行する方法
+- **[ODRLテストガイド](./odrl-testing-guide.md)** - 今すぐテストを実行する方法
 - **[実装ロジック詳解](./ODRL_IMPLEMENTATION_LOGIC.md)** - なぜODRLを導入したか、どう動作するか
 - **[判定フロー図解](./ODRL_DECISION_FLOW.md)** - 判定の詳細な流れとパターン
 - **[アーキテクチャ概要](./ODRL_ARCHITECTURE_OVERVIEW.md)** - システム全体構成と設計

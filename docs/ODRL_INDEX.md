@@ -3,7 +3,7 @@
 ## 📚 ODRLドキュメント一覧
 
 ### 🚀 クイックスタート
-- **[ODRLテストガイド](../ODRL_TEST_GUIDE.md)** - 今すぐテストを実行したい方向け
+- **[ODRLテストガイド](./odrl-testing-guide.md)** - 今すぐテストを実行したい方向け
 
 ### 📖 概念とロジック
 - **[実装ロジック詳解](./ODRL_IMPLEMENTATION_LOGIC.md)** - なぜODRLを導入したか、内部動作の詳細
@@ -27,7 +27,7 @@
 ## 🎯 読む順序の推奨
 
 ### 初めての方
-1. [ODRLテストガイド](../ODRL_TEST_GUIDE.md) - まず動かしてみる
+1. [ODRLテストガイド](./odrl-testing-guide.md) - まず動かしてみる
 2. [実装ロジック詳解](./ODRL_IMPLEMENTATION_LOGIC.md) - なぜ必要か理解
 3. [デモ実行](../examples/odrl-demo.ts) - 具体例を確認
 
