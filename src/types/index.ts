@@ -243,12 +243,18 @@ export interface AEGISConfig {
   cache?: CacheConfig;
   mcpProxy: MCPProxyConfig;
   monitoring?: MonitoringConfig;
-  
+
   defaultPolicyStrictness?: 'low' | 'medium' | 'high' | 'strict';
   policyValidationEnabled?: boolean;
-  
+
   secretKey?: string;
   jwtSecret?: string;
+  security?: {
+    secretKey: string;
+    jwtSecret?: string;
+    teamEmails?: string[];
+  };
+  securityTeamEmails?: string[];
   
   // Additional fields for compatibility
   mcp?: {
