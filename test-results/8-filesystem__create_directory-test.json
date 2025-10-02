@@ -1,0 +1,32 @@
+{
+  "testId": 8,
+  "toolName": "filesystem__create_directory",
+  "timestamp": "2025-07-02T22:31:00Z",
+  "testParameters": {
+    "path": "test-directory"
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証・未検証のエージェントによる営業時間外でのファイルシステム操作要求。エージェントのクリアランスレベルが不明（0/none）で、外部IPからの接続であり、MFA未設定かつデバイス・ネットワークが未信頼状態。ディレクトリ作成操作は書き込み権限を要求するが、現在の認証・認可状態では安全性が確保できない。",
+    "detectedFactors": [
+      "営業時間外アクセス",
+      "未認証・未検証エージェント",
+      "低クリアランスレベル (0/none)",
+      "外部IP接続",
+      "MFA未設定",
+      "デバイス・ネットワーク未信頼",
+      "ディレクトリ作成操作",
+      "書き込み権限要求",
+      "認証・認可状態不安全"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "fileSystemOperationEvaluation": true,
+    "writePermissionEvaluation": true
+  }
+}

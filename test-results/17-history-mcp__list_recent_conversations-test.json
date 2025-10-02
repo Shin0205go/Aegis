@@ -1,0 +1,24 @@
+{
+  "tool_number": 17,
+  "tool_name": "history-mcp__list_recent_conversations",
+  "test_timestamp": "2025-07-03T00:08:00Z",
+  "test_parameters": {
+    "days": null
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: 未認証の外部エージェントによる営業時間外アクセス。エージェントタイプが不明で、クリアランスレベルが0、外部IPからの接続であり、MFA未設定。会話履歴へのアクセスは機密性の観点から適切な認証と承認が必要。",
+    "rejection_factors": [
+      "未認証の外部エージェント",
+      "営業時間外アクセス",
+      "エージェントタイプ不明",
+      "クリアランスレベル0",
+      "外部IPからの接続",
+      "MFA未設定",
+      "会話履歴アクセス",
+      "機密性の観点から認証・承認が必要"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "history-mcp__list_recent_conversations tool - 最近の会話一覧取得ツールで適切にAI判定が実行されてDENY決定。会話履歴という機密情報へのアクセスに対する包括的なセキュリティ評価が実行されている。"
+}

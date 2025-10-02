@@ -5,63 +5,6 @@
 import { PolicyFormatDetector } from '../../src/policy/policy-detector';
 
 describe('PolicyFormatDetector', () => {
-  describe('ODRL形式の検出', () => {
-    test('標準的なODRLポリシーオブジェクトを正しく検出', () => {
-      const odrlPolicy = {
-        "@context": "http://www.w3.org/ns/odrl/2/",
-        "@type": "Policy",
-        "uid": "test-policy",
-        "permission": [{
-          "action": "read",
-          "target": "data:test"
-        }]
-      };
-
-      const result = PolicyFormatDetector.detect(odrlPolicy);
-      
-      expect(result.format).toBe('ODRL');
-      expect(result.confidence).toBeGreaterThan(0.7);
-      expect(result.indicators).toContain('@context field present');
-      expect(result.indicators).toContain('@type is Policy');
-      expect(result.indicators).toContain('ODRL namespace detected');
-    });
-
-    test('JSON文字列形式のODRLポリシーを検出', () => {
-      const odrlString = JSON.stringify({
-        "@context": "http://www.w3.org/ns/odrl/2/",
-        "@type": "Policy",
-        "prohibition": [{
-          "action": "write",
-          "target": "sensitive-data"
-        }]
-      });
-
-      const result = PolicyFormatDetector.detect(odrlString);
-      
-      expect(result.format).toBe('ODRL');
-      expect(result.confidence).toBeGreaterThan(0.6);
-    });
-
-    test('ODRL制約構文を含むポリシーを検出', () => {
-      const odrlWithConstraints = {
-        "@type": "Policy",
-        "permission": [{
-          "action": "read",
-          "constraint": [{
-            "leftOperand": "dateTime",
-            "operator": "gteq",
-            "rightOperand": "09:00:00"
-          }]
-        }]
-      };
-
-      const result = PolicyFormatDetector.detect(odrlWithConstraints);
-      
-      expect(result.format).toBe('ODRL');
-      expect(result.indicators).toContain('constraint field present');
-    });
-  });
-
   describe('自然言語形式の検出', () => {
     test('日本語の自然言語ポリシーを検出', () => {
       const nlPolicy = `
@@ -119,6 +62,33 @@ describe('PolicyFormatDetector', () => {
       expect(result.format).toBe('NATURAL_LANGUAGE');
       expect(result.confidence).toBeGreaterThan(0.7);
     });
+
+    test('顧客データアクセスポリシーを検出', () => {
+      const customerPolicy = `
+        顧客データアクセスポリシー：
+
+        【基本原則】
+        - 顧客データは顧客サポート目的でのみアクセス可能
+        - アクセスは営業時間内を基本とする
+        - 適切なクリアランスレベルが必要
+
+        【制限事項】
+        - 外部エージェントのアクセス禁止
+        - データの外部共有は一切禁止
+        - 個人情報の長期保存禁止
+
+        【義務】
+        - 全アクセスのログ記録必須
+        - データ処理後の結果通知
+        - 30日後の自動削除スケジュール設定
+      `;
+
+      const result = PolicyFormatDetector.detect(customerPolicy);
+      
+      expect(result.format).toBe('NATURAL_LANGUAGE');
+      expect(result.confidence).toBeGreaterThan(0.8);
+      expect(result.indicators).toContain('Japanese text detected');
+    });
   });
 
   describe('形式不明のケース', () => {
@@ -144,27 +114,35 @@ describe('PolicyFormatDetector', () => {
       expect(result.format).toBe('UNKNOWN');
       expect(result.indicators).toContain('Invalid policy format');
     });
+
+    test('nullは形式不明', () => {
+      const result = PolicyFormatDetector.detect(null as any);
+      
+      expect(result.format).toBe('UNKNOWN');
+      expect(result.confidence).toBe(0);
+      expect(result.indicators).toContain('Invalid policy format');
+    });
   });
 
   describe('複数ポリシーからの形式推定', () => {
-    test('ODRLポリシーが多数の場合', () => {
-      const policies = [
-        { "@type": "Policy", "permission": [] },
-        { "@context": "http://www.w3.org/ns/odrl/2/", "@type": "Policy" },
-        "Some natural language policy",
-        { "@type": "Policy", "prohibition": [] }
-      ];
-
-      const bestFormat = PolicyFormatDetector.detectBestFormat(policies);
-      
-      expect(bestFormat).toBe('ODRL');
-    });
-
     test('自然言語ポリシーが多数の場合', () => {
       const policies = [
         "管理者のみアクセス可能",
         "Policy: Users must authenticate first",
-        { "@type": "SomeObject" }, // 不完全なODRL
+        "営業時間内のみ許可する",
+        "セキュリティポリシー: 重要ファイルは暗号化必須"
+      ];
+
+      const bestFormat = PolicyFormatDetector.detectBestFormat(policies);
+      
+      expect(bestFormat).toBe('NATURAL_LANGUAGE');
+    });
+
+    test('混在する場合は自然言語を優先', () => {
+      const policies = [
+        "管理者のみアクセス可能",
+        { "type": "unknown-object" },
+        "Policy: Users must authenticate first",
         "営業時間内のみ許可する"
       ];
 
@@ -172,32 +150,80 @@ describe('PolicyFormatDetector', () => {
       
       expect(bestFormat).toBe('NATURAL_LANGUAGE');
     });
+
+    test('すべて不明な場合', () => {
+      const policies = [
+        "random text",
+        { "data": "not a policy" },
+        123,
+        ""
+      ];
+
+      const bestFormat = PolicyFormatDetector.detectBestFormat(policies);
+      
+      expect(bestFormat).toBe('UNKNOWN');
+    });
+  });
+
+  describe('オブジェクト形式の処理', () => {
+    test('JSON文字列化してから分析', () => {
+      const policyObject = {
+        title: "アクセス制御ポリシー",
+        rules: ["管理者のみアクセス可能", "営業時間内のみ許可"]
+      };
+
+      const result = PolicyFormatDetector.detect(policyObject);
+      
+      // オブジェクトは文字列化されて自然言語検出される
+      expect(result.format).toBe('NATURAL_LANGUAGE');
+      expect(result.confidence).toBeGreaterThan(0);
+    });
+
+    test('空のオブジェクト', () => {
+      const result = PolicyFormatDetector.detect({});
+      
+      expect(result.format).toBe('UNKNOWN');
+      expect(result.confidence).toBe(0);
+    });
   });
 
   describe('境界ケース', () => {
-    test('ODRLキーワードを含む自然言語テキスト', () => {
-      const mixedText = `
-        このドキュメントでは@contextや@typeといった
-        ODRLの概念について説明します。
-        permissionとprohibitionの使い方を学びましょう。
-      `;
-
-      const result = PolicyFormatDetector.detect(mixedText);
+    test('ポリシーキーワードのみを含むテキスト', () => {
+      const keywordOnlyText = "policy rule access permission";
       
-      // 日本語が含まれているため自然言語として判定されるべき
+      const result = PolicyFormatDetector.detect(keywordOnlyText);
+      
       expect(result.format).toBe('NATURAL_LANGUAGE');
+      expect(result.confidence).toBeGreaterThan(0);
     });
 
-    test('最小限のODRLポリシー', () => {
-      const minimalODRL = {
-        "@type": "Policy"
-      };
+    test('大量のテキストを含むポリシー', () => {
+      const longPolicy = `
+        非常に詳細なセキュリティポリシードキュメント
+        
+        このポリシーは企業全体のセキュリティ要件を定義し、
+        すべての従業員、契約者、外部パートナーに適用されます。
+        
+        1. アクセス制御の基本原則
+           - 最小権限の原則を適用
+           - 職務分離の実施
+           - 定期的なアクセス権レビュー
+        
+        2. データ分類とハンドリング
+           - 機密レベルに応じた適切な取り扱い
+           - 暗号化要件の遵守
+           - データ保持期間の管理
+        
+        3. インシデント対応
+           - 迅速な検知と対応
+           - 関係者への報告
+           - 改善策の実装
+      `;
 
-      const result = PolicyFormatDetector.detect(minimalODRL);
+      const result = PolicyFormatDetector.detect(longPolicy);
       
-      // 最小限でも@typeがあればODRLの可能性
-      expect(result.format).toBe('ODRL');
-      expect(result.confidence).toBeLessThan(0.5); // 信頼度は低い
+      expect(result.format).toBe('NATURAL_LANGUAGE');
+      expect(result.confidence).toBeGreaterThan(0.8);
     });
   });
 });

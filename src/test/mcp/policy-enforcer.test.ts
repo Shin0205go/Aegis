@@ -7,7 +7,7 @@ import { Logger } from '../../utils/logger';
 import type {
   IContextCollector,
   IIntelligentCacheSystem,
-  IHybridPolicyEngine,
+  IAIPolicyEngine,
   IAdvancedAuditSystem,
   IRealTimeAnomalyDetector,
   IPolicyLoader
@@ -39,7 +39,7 @@ const mockCacheSystem: IIntelligentCacheSystem = {
   metrics: jest.fn()
 };
 
-const mockPolicyEngine: IHybridPolicyEngine = {
+const mockPolicyEngine: IAIPolicyEngine = {
   decide: jest.fn()
 };
 

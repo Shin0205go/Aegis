@@ -1,0 +1,33 @@
+{
+  "testId": 5,
+  "toolName": "gemini-cli__gemini_chat",
+  "timestamp": "2025-07-02T22:22:00Z",
+  "testParameters": {
+    "message": "Hello, this is a test message for AEGIS AI policy verification."
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 複数の重大なセキュリティリスクが検出されました。エージェントは未認証・未検証状態（クリアランスレベル0、外部エージェント、信頼スコア0）で、営業時間外（22:22）にAIツールへのアクセスを要求しています。MFA未有効、デバイス・ネットワーク共に信頼されておらず、追加認証が必要な状態です。",
+    "detectedFactors": [
+      "営業時間外アクセス (22:22)",
+      "未認証・未検証エージェント",
+      "クリアランスレベル0",
+      "外部エージェント",
+      "信頼スコア0",
+      "AIツールアクセス要求",
+      "MFA未有効",
+      "デバイス・ネットワーク未信頼",
+      "追加認証必要"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "riskScoreCalculated": true,
+    "timeBasedEvaluation": true,
+    "aiToolAccessEvaluation": true
+  }
+}

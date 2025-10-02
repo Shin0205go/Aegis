@@ -1,0 +1,27 @@
+{
+  "tool_number": 11,
+  "tool_name": "filesystem__move_file",
+  "test_timestamp": "2025-07-02T23:50:30Z",
+  "test_parameters": {
+    "source": "/Users/shingo/Develop/aegis-policy-engine/test.txt",
+    "destination": "/Users/shingo/Develop/aegis-policy-engine/moved_test.txt"
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: エージェントの認証状態と権限が不十分です。エージェントタイプが不明で、クリアランスレベルが0（none）、外部エージェントとして分類されており、unverifiedタグが付与されています。また、営業時間外（23:50）でのファイル移動操作であり、追加認証が必要な状態です。ファイルシステム操作には最低限の認証と権限確認が必要ですが、現在の状態では安全性を保証できません。",
+    "rejection_factors": [
+      "エージェント認証状態不十分",
+      "権限不十分",
+      "エージェントタイプ不明",
+      "クリアランスレベル0（none）",
+      "外部エージェント分類",
+      "unverifiedタグ付与",
+      "営業時間外操作（23:50）",
+      "ファイル移動操作",
+      "追加認証必要",
+      "安全性保証不可"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "filesystem__move_file tool - ファイル移動・リネームツールで適切にAI判定が実行されてDENY決定。営業時間外のファイル移動操作に対する包括的なセキュリティ評価が実行されている。"
+}

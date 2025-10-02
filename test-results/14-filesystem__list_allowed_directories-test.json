@@ -1,0 +1,21 @@
+{
+  "tool_number": 14,
+  "tool_name": "filesystem__list_allowed_directories",
+  "test_timestamp": "2025-07-02T23:56:15Z",
+  "test_parameters": {},
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: エージェントのクリアランスレベルが不明（none）で、外部IPからの未認証アクセスであり、営業時間外のアクセスのため、ファイルシステムディレクトリ一覧の取得を許可できません。セキュリティポリシーに基づき、認証済みエージェントのみがファイルシステムリソースにアクセス可能です。",
+    "rejection_factors": [
+      "クリアランスレベル不明（none）",
+      "外部IPからのアクセス",
+      "未認証アクセス",
+      "営業時間外アクセス",
+      "ファイルシステムディレクトリ一覧取得",
+      "セキュリティポリシー",
+      "認証済みエージェントのみアクセス可能"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "filesystem__list_allowed_directories tool - ディレクトリ一覧取得ツールで適切にAI判定が実行されてDENY決定。ファイルシステムリソースアクセスに対する包括的なセキュリティポリシーが適用されている。全11個のfilesystemツールのAI判定テスト完了。"
+}

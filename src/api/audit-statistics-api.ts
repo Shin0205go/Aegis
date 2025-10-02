@@ -1,5 +1,5 @@
 /**
- * Enhanced Audit Statistics API for ODRL Hybrid Engine
+ * Enhanced Audit Statistics API for AI Policy Engine
  */
 
 import { Router, Request, Response } from 'express';
@@ -10,25 +10,17 @@ export interface AuditStatistics {
   totalDecisions: number;
   changeFromLastPeriod: number;
   engineBreakdown: {
-    odrl: number;
     ai: number;
-    hybrid: number;
   };
   performance: {
-    odrl: EnginePerformance;
     ai: EnginePerformance;
-    hybrid: EnginePerformance;
   };
   outcomes: {
-    odrl: OutcomeStats;
     ai: OutcomeStats;
-    hybrid: OutcomeStats;
   };
   timeline: {
     labels: string[];
-    odrl: number[];
     ai: number[];
-    hybrid: number[];
   };
 }
 
@@ -38,8 +30,6 @@ interface EnginePerformance {
   avgConfidence: number;
   cacheHitRate?: number;
   estimatedCost?: number;
-  odrlFirstHit?: number;
-  costSavings?: number;
 }
 
 interface OutcomeStats {
@@ -157,31 +147,23 @@ function calculateStatistics(
     ? ((totalDecisions - previousTotal) / previousTotal) * 100 
     : 0;
 
-  // Engine breakdown
+  // Engine breakdown (AI only)
   const engineBreakdown = {
-    odrl: entries.filter(e => e.metadata?.engine === 'ODRL').length,
-    ai: entries.filter(e => e.metadata?.engine === 'AI').length,
-    hybrid: entries.filter(e => e.metadata?.engine === 'Hybrid').length
+    ai: entries.filter(e => e.metadata?.engine === 'AI' || !e.metadata?.engine).length
   };
 
   // Performance metrics by engine
   const performance = {
-    odrl: calculateEnginePerformance(entries.filter(e => e.metadata?.engine === 'ODRL')),
-    ai: calculateEnginePerformance(entries.filter(e => e.metadata?.engine === 'AI')),
-    hybrid: calculateEnginePerformance(entries.filter(e => e.metadata?.engine === 'Hybrid'))
+    ai: calculateEnginePerformance(entries.filter(e => e.metadata?.engine === 'AI' || !e.metadata?.engine))
   };
 
   // Add specific metrics
-  performance.odrl.cacheHitRate = calculateCacheHitRate(entries.filter(e => e.metadata?.engine === 'ODRL'));
-  performance.ai.estimatedCost = calculateAICost(entries.filter(e => e.metadata?.engine === 'AI'));
-  performance.hybrid.odrlFirstHit = calculateODRLFirstHit(entries.filter(e => e.metadata?.engine === 'Hybrid'));
-  performance.hybrid.costSavings = calculateCostSavings(entries);
+  performance.ai.estimatedCost = calculateAICost(entries.filter(e => e.metadata?.engine === 'AI' || !e.metadata?.engine));
+  performance.ai.cacheHitRate = calculateCacheHitRate(entries.filter(e => e.metadata?.engine === 'AI' || !e.metadata?.engine));
 
   // Outcomes by engine
   const outcomes = {
-    odrl: calculateOutcomes(entries.filter(e => e.metadata?.engine === 'ODRL')),
-    ai: calculateOutcomes(entries.filter(e => e.metadata?.engine === 'AI')),
-    hybrid: calculateOutcomes(entries.filter(e => e.metadata?.engine === 'Hybrid'))
+    ai: calculateOutcomes(entries.filter(e => e.metadata?.engine === 'AI' || !e.metadata?.engine))
   };
 
   // Timeline data
@@ -237,49 +219,19 @@ function calculateAICost(entries: any[]): number {
   return entries.length * 0.001;
 }
 
-function calculateODRLFirstHit(entries: any[]): number {
-  if (entries.length === 0) return 0;
-  const odrlFirst = entries.filter(e => e.metadata?.odrlFirst === true).length;
-  return Math.round((odrlFirst / entries.length) * 100);
-}
-
-function calculateCostSavings(entries: any[]): number {
-  const odrlEntries = entries.filter(e => e.metadata?.engine === 'ODRL');
-  const hybridODRLFirst = entries.filter(e => 
-    e.metadata?.engine === 'Hybrid' && e.metadata?.odrlFirst === true
-  );
-  
-  // Cost saved by not using AI
-  const savedCalls = odrlEntries.length + hybridODRLFirst.length;
-  return savedCalls * 0.001;
-}
 
 function generateTimeline(entries: any[], timeRange: string): any {
   const intervals = getTimeIntervals(timeRange);
   const labels = intervals.map(i => formatTimeLabel(i, timeRange));
   
-  const odrl = intervals.map(interval => 
-    entries.filter(e => 
-      e.metadata?.engine === 'ODRL' && 
-      isInInterval(e.timestamp, interval)
-    ).length
-  );
-  
   const ai = intervals.map(interval => 
     entries.filter(e => 
-      e.metadata?.engine === 'AI' && 
+      (e.metadata?.engine === 'AI' || !e.metadata?.engine) && 
       isInInterval(e.timestamp, interval)
     ).length
   );
   
-  const hybrid = intervals.map(interval => 
-    entries.filter(e => 
-      e.metadata?.engine === 'Hybrid' && 
-      isInInterval(e.timestamp, interval)
-    ).length
-  );
-  
-  return { labels, odrl, ai, hybrid };
+  return { labels, ai };
 }
 
 function getStartDate(timeRange: string): Date {

@@ -8,7 +8,6 @@ import cors from 'cors';
 import { MCPHttpPolicyProxy } from './mcp/http-proxy';
 import { AIJudgmentEngine } from './ai/judgment-engine';
 import { Logger } from './utils/logger';
-import { createODRLEndpoints } from './api/odrl-endpoints';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -26,7 +25,7 @@ async function startServer() {
       : null;
 
     if (!aiEngine) {
-      logger.warn('No AI provider configured - running in ODRL-only mode');
+      logger.warn('No AI provider configured - AI judgment disabled');
     }
 
     // Create MCP proxy
@@ -53,12 +52,7 @@ async function startServer() {
       logger.warn(`Web directory not found: ${webDir}`);
     }
 
-    // Add ODRL endpoints
-    const hybridEngine = (mcpProxy as any).hybridPolicyEngine;
-    if (hybridEngine) {
-      app.use('/api/odrl', createODRLEndpoints(hybridEngine));
-      logger.info('ODRL endpoints registered at /api/odrl');
-    }
+    // Legacy endpoints removed - AI-only policy engine
 
     // Root redirect
     app.get('/', (req: any, res: any) => {
@@ -79,7 +73,7 @@ async function startServer() {
 
     const port = parseInt(process.env.PORT || '3000');
     logger.info(`🚀 AEGIS Policy Engine running at http://localhost:${port}`);
-    logger.info(`📝 ODRL Form Builder available at http://localhost:${port}/odrl-policy-form.html`);
+    logger.info(`📝 Policy Management available at http://localhost:${port}/policy-form.html`);
     logger.info(`🏠 Management UI available at http://localhost:${port}/`);
 
   } catch (error) {

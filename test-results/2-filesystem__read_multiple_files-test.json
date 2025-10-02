@@ -1,0 +1,30 @@
+{
+  "testId": 2,
+  "toolName": "filesystem__read_multiple_files",
+  "timestamp": "2025-07-02T22:17:00Z",
+  "testParameters": {
+    "paths": ["README.md", "package.json"]
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証の外部エージェントによる営業時間外でのファイルシステムアクセス要求。エージェントのクリアランスレベルが不明（0）で、外部IPからの接続であり、MFA未設定かつデバイス信頼度が低い状態。README.mdとpackage.jsonは開発リソースとして分類されているが、認証されていないエージェントには読み取り権限を付与できない。",
+    "detectedFactors": [
+      "営業時間外アクセス",
+      "未認証エージェント",
+      "低クリアランスレベル",
+      "外部IP接続",
+      "MFA未設定",
+      "低デバイス信頼度",
+      "複数ファイル同時アクセス",
+      "開発リソース分類"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "multipleResourcesEvaluated": true
+  }
+}

@@ -17,8 +17,6 @@ import * as path from 'path';
 import * as os from 'os';
 import express from 'express';
 import cors from 'cors';
-import { HybridPolicyEngine } from './policy/hybrid-policy-engine.js';
-import { createODRLEndpoints } from './api/odrl-endpoints.js';
 
 // 環境変数読み込み
 dotenv.config();
@@ -41,7 +39,7 @@ async function startMCPServer(transport: 'stdio' | 'http' | 'api-only' = 'stdio'
     let useAI = true;
     
     if (!config.llm.apiKey) {
-      logger.warn('⚠️  AIのAPIキーが設定されていません。ODRLポリシーのみで動作します。');
+      logger.warn('⚠️  AIのAPIキーが設定されていません。AI判定が無効化されます。');
       logger.warn('   AI判定を有効にするには、環境変数 OPENAI_API_KEY または ANTHROPIC_API_KEY を設定してください。');
       useAI = false;
     } else {

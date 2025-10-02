@@ -1,0 +1,24 @@
+{
+  "tool_number": 18,
+  "tool_name": "history-mcp__get_conversation",
+  "test_timestamp": "2025-07-03T00:10:15Z",
+  "test_parameters": {
+    "filename": "test-conversation.json"
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: 未認証の外部エージェントによる営業時間外アクセス。エージェントタイプが不明で、クリアランスレベルが0（none）、外部IPからの接続であり、MFA未有効、デバイス・ネットワーク共に信頼されていない状態。追加認証が必要とされているが実施されていない。",
+    "rejection_factors": [
+      "未認証の外部エージェント",
+      "営業時間外アクセス",
+      "エージェントタイプ不明",
+      "クリアランスレベル0（none）",
+      "外部IPからの接続",
+      "MFA未有効",
+      "デバイス・ネットワーク共に信頼されていない状態",
+      "追加認証必要だが実施されていない"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "history-mcp__get_conversation tool - 特定会話読み込みツールで適切にAI判定が実行されてDENY決定。history-mcp系ツール（4個）全てのテスト完了。全てでAI判定による包括的なセキュリティ評価が実行されている。"
+}

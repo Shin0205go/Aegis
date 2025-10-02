@@ -81,23 +81,23 @@ export interface IIntelligentCacheSystem {
 }
 
 // ============================================================================
-// Policy Engine Interface
+// AI Policy Engine Interface
 // ============================================================================
-export interface IHybridPolicyEngine {
+export interface IAIPolicyEngine {
   /**
-   * Make a policy decision
+   * Make a policy decision using AI judgment
    */
-  decide(context: DecisionContext, policy: string | null): Promise<PolicyDecision>;
+  decide(context: DecisionContext, policy?: string): Promise<PolicyDecision>;
   
   /**
-   * Validate a policy
+   * Clear decision cache
    */
-  validatePolicy(policy: string): Promise<boolean>;
+  clearCache(): void;
   
   /**
-   * Get decision confidence threshold
+   * Get AI engine instance
    */
-  getConfidenceThreshold(): number;
+  getAIEngine(): any;
 }
 
 // ============================================================================

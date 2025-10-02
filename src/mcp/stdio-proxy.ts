@@ -198,7 +198,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         status: 'healthy',
         version: '1.0.0',
         mode: 'stdio',
-        policies: this.hybridPolicyEngine.getPolicies().length,
+        policies: this.policyLoader.getAllPolicies().length,
         aiEnabled: !!this.judgmentEngine,
       });
     });
@@ -244,18 +244,11 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         const policyId = await policyLoader.createPolicy(req.body);
         
-        // HybridPolicyEngineにも追加
+        // AIPolicyEngineのキャッシュクリア
         const policy = policyLoader.getPolicy(policyId);
         if (policy) {
           const policyText = typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy);
-          this.hybridPolicyEngine.addPolicy({
-            uid: `aegis:policy:${policyId}`,
-            '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-            '@type': 'Policy',
-            profile: 'https://aegis.example.com/odrl/profile',
-            permission: [],
-            naturalLanguageSource: policyText
-          });
+          this.aiPolicyEngine.clearCache();
         }
 
         res.status(201).json({ success: true, id: policyId, message: 'Policy created' });
@@ -271,8 +264,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         await policyLoader.updatePolicy(req.params.id, req.body);
         
-        // HybridPolicyEngineのキャッシュクリア
-        this.hybridPolicyEngine.clearCache();
+        // AIPolicyEngineのキャッシュクリア
+        this.aiPolicyEngine.clearCache();
         
         res.json({ success: true, message: `Policy ${req.params.id} updated` });
       } catch (error) {
@@ -288,8 +281,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         await policyLoader.deletePolicy(req.params.id);
         
-        // HybridPolicyEngineのキャッシュクリア
-        this.hybridPolicyEngine.clearCache();
+        // AIPolicyEngineのキャッシュクリア
+        this.aiPolicyEngine.clearCache();
         
         res.json({ success: true, message: `Policy ${req.params.id} deleted` });
       } catch (error) {
@@ -432,16 +425,10 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
           return res.status(404).json({ error: 'Policy not found' });
         }
         
-        // HybridPolicyEngineで評価実行
+        // AIPolicyEngineで評価実行
         const startTime = Date.now();
-        const decision = await this.hybridPolicyEngine.decide(context, {
-          uid: `aegis:policy:${policyId}`,
-          '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-          '@type': 'Policy',
-          profile: 'https://aegis.example.com/odrl/profile',
-          permission: [],
-          naturalLanguageSource: typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy)
-        });
+        const policyText = typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy);
+        const decision = await this.aiPolicyEngine.decide(context, policyText);
         const processingTime = Date.now() - startTime;
         
         // 処理時間を追加
@@ -813,11 +800,11 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
       };
     }
     
-    // ハイブリッド判定実行にタイムアウトを設定
+    // AI判定実行にタイムアウトを設定
     const decision = await Promise.race([
-      this.hybridPolicyEngine.decide(enrichedContext, policy),
+      this.aiPolicyEngine.decide(enrichedContext, policy),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Hybrid policy judgment timeout')), TIMEOUTS.POLICY_DECISION);
+        setTimeout(() => reject(new Error('AI policy judgment timeout')), TIMEOUTS.POLICY_DECISION);
       })
     ]);
     

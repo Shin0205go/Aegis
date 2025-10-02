@@ -6,7 +6,7 @@
 
 - **🗣️ 自然言語ポリシー**: 複雑なXMLやJSONではなく、日本語の自然文でポリシーを記述
 - **🧠 AI判定エンジン**: LLMを活用したインテリジェントなアクセス制御判定
-- **🚀 ODRLハイブリッド判定**: ルールベース（ODRL）とAIを組み合わせた高速・柔軟な判定
+- **🚀 AI自然言語判定**: 自然言語ポリシーをAIが理解し柔軟な判定を実行
 - **🔍 自動コンテキスト収集**: エージェント、リソース、環境情報の自動収集・分析
 - **⚡ リアルタイム制御**: MCPプロキシによる透明なアクセス制御
 - **📊 統計・監視**: 包括的なアクセス分析とリアルタイム監視
@@ -29,9 +29,9 @@ node scripts/mcp-launcher.js
 # または stdio モードで起動（Claude Desktop用）
 node scripts/mcp-launcher.js stdio
 
-# ODRLハイブリッドエンジンのテスト
-npm run test:odrl:demo  # デモ実行
-npm run test:odrl:quick # クイックテスト
+# AI判定エンジンのテスト
+npm run test          # 全テスト実行
+npm run test:watch    # テスト監視モード
 ```
 
 ### MCP Inspector でのテスト
@@ -75,7 +75,7 @@ AEGISは2つのトランスポートモードをサポートしています：
 - デフォルト: 3000
 
 詳細な手順は [導入ガイド](./docs/user-guide/getting-started.md) を参照してください。
-ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST_GUIDE.md) を参照してください。
+AI判定エンジンの詳細については [開発者ガイド](./docs/developer-guide/) を参照してください。
 
 ## 📚 ドキュメント
 
@@ -103,12 +103,10 @@ ODRLハイブリッド判定については [ODRLテストガイド](./ODRL_TEST
 - [今後の計画](./docs/reference/roadmap.md)
 - [よくある質問](./docs/reference/faq.md)
 
-### 🚀 [ODRLハイブリッドポリシーエンジン](./src/odrl/)
-- [ODRLテストガイド](./ODRL_TEST_GUIDE.md) - 今すぐテストを実行
-- [実装ロジック詳解](./docs/ODRL_IMPLEMENTATION_LOGIC.md) - なぜODRLを導入したか
-- [判定フロー図解](./docs/ODRL_DECISION_FLOW.md) - 判定の詳細な流れ
-- [アーキテクチャ概要](./docs/ODRL_ARCHITECTURE_OVERVIEW.md) - システム全体構成
-- [ODRLテスト実践ガイド](./docs/odrl-testing-guide.md) - 包括的なテスト方法
+### 🚀 [AI自然言語ポリシーエンジン](./src/policy/)
+- [ポリシー記述ガイド](./docs/policy-writing-guide.md) - 自然言語ポリシーの書き方
+- [判定フロー詳解](./docs/architecture.md) - AI判定の詳細な流れ
+- [アーキテクチャ概要](./docs/developer-guide/architecture.md) - システム全体構成
 
 ## 🎯 AEGIS とは
 

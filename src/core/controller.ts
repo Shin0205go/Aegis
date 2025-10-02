@@ -24,13 +24,13 @@ import {
 } from '../context/index.js';
 import { PolicyAdministrator } from '../policies/administrator.js';
 import { PolicyConflictResolver, PolicyApplicabilityFilter } from '../policies/policy-resolver.js';
-import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
+import { AIPolicyEngine } from '../policy/ai-policy-engine.js';
 
 export class AEGISController {
   private config: AEGISConfig;
   private logger: Logger;
   private judgmentEngine: AIJudgmentEngine;
-  private hybridPolicyEngine: HybridPolicyEngine;
+  private aiPolicyEngine: AIPolicyEngine;
   // Removed old WebSocket proxy reference
   private contextCollector: ContextCollector;
   private policyAdmin: PolicyAdministrator;
@@ -53,10 +53,8 @@ export class AEGISController {
     }
     this.judgmentEngine = new AIJudgmentEngine(config.llm);
     
-    // ハイブリッドポリシーエンジン初期化
-    this.hybridPolicyEngine = new HybridPolicyEngine(this.judgmentEngine, {
-      useODRL: true,
-      useAI: true,
+    // AIポリシーエンジン初期化
+    this.aiPolicyEngine = new AIPolicyEngine(this.judgmentEngine, {
       aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'), // Lower AI confidence threshold to address overly strict decisions
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
@@ -156,7 +154,7 @@ export class AEGISController {
       const decisions = await Promise.all(
         applicablePolicies.map(async (policy) => {
           try {
-            const decision = await this.hybridPolicyEngine.decide(
+            const decision = await this.aiPolicyEngine.decide(
               enrichedContext,
               policy.policy
             );
@@ -520,85 +518,15 @@ export class AEGISController {
 
   // キャッシュクリア
   clearCache(): void {
-    this.hybridPolicyEngine.clearCache();
+    this.aiPolicyEngine.clearCache();
     this.logger.info('Decision cache cleared');
   }
 
-  // ODRL ポリシー管理
-  private validateODRLPolicy(policy: any): void {
-    if (!policy) {
-      throw new Error('Policy cannot be null or undefined');
-    }
-    
-    // Check required fields
-    if (!policy['@type'] || !['Policy', 'Set', 'Offer', 'Agreement'].includes(policy['@type'])) {
-      throw new Error('Invalid policy type. Must be one of: Policy, Set, Offer, Agreement');
-    }
-    
-    if (!policy.uid) {
-      throw new Error('Policy must have a uid');
-    }
-    
-    // Validate structure
-    const hasRules = policy.permission || policy.prohibition || policy.obligation;
-    if (!hasRules) {
-      throw new Error('Policy must have at least one rule (permission, prohibition, or obligation)');
-    }
-    
-    // Validate each rule
-    const allRules = [
-      ...(policy.permission || []),
-      ...(policy.prohibition || []),
-      ...(policy.obligation || [])
-    ];
-    
-    allRules.forEach((rule: any, index: number) => {
-      if (!rule.action) {
-        throw new Error(`Rule at index ${index} must have an action`);
-      }
-    });
-  }
-
-  addODRLPolicy(policyId: string, policy: any): void {
-    if (!policyId || typeof policyId !== 'string') {
-      throw new Error('Policy ID must be a non-empty string');
-    }
-    
-    this.validateODRLPolicy(policy);
-    
-    // Ensure cache invalidation
-    this.hybridPolicyEngine.clearCache();
-    
-    // Ensure policy has an ID
-    policy.uid = policyId;
-    this.hybridPolicyEngine.addPolicy(policy);
-    this.logger.info(`ODRL policy added: ${policyId}`);
-  }
-
-  removeODRLPolicy(policyId: string): boolean {
-    if (!policyId || typeof policyId !== 'string') {
-      throw new Error('Policy ID must be a non-empty string');
-    }
-    
-    const removed = this.hybridPolicyEngine.removePolicy(policyId);
-    if (removed) {
-      // Ensure cache invalidation
-      this.hybridPolicyEngine.clearCache();
-      this.logger.info(`ODRL policy removed: ${policyId}`);
-    } else {
-      this.logger.warn(`ODRL policy not found: ${policyId}`);
-    }
-    return removed;
-  }
-
-  listODRLPolicies(): Array<{ id: string; name: string }> {
-    const policies = this.hybridPolicyEngine.getPolicies();
-    return policies.map(p => ({ id: p.uid, name: p.profile || p.uid }));
-  }
+  // Legacy method removed - using AI-only policy engine
 
   // Engine statistics
   getEngineStats(): any {
-    // Stats not implemented in HybridPolicyEngine yet
+    // Stats not implemented in AIPolicyEngine yet
     return {
       totalDecisions: 0,
       permitRate: 0,

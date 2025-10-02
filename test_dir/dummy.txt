@@ -1,0 +1,3 @@
+This is a dummy file.
+It has some text.
+This is the new text.

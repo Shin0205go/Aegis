@@ -1,0 +1,30 @@
+{
+  "testId": 6,
+  "toolName": "filesystem__write_file",
+  "timestamp": "2025-07-02T22:25:00Z",
+  "testParameters": {
+    "path": "test-file.txt",
+    "content": "This is a test file for AEGIS AI policy verification testing."
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証エージェントによる営業時間外のファイル書き込み要求。エージェントのクリアランスレベルが不明（0）で、外部IPからの接続であり、MFA未設定。セキュリティポリシーに基づき、信頼できないエージェントによるファイルシステム操作は拒否されます。",
+    "detectedFactors": [
+      "営業時間外アクセス",
+      "未認証エージェント",
+      "低クリアランスレベル (0)",
+      "外部IP接続",
+      "MFA未設定",
+      "ファイル書き込み操作",
+      "信頼できないエージェント"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "fileSystemOperationEvaluation": true
+  }
+}

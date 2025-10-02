@@ -92,7 +92,6 @@ export const MONITORING = {
 export const POLICY = {
   DEFAULT_PRIORITY: 100,
   AI_CONFIDENCE_THRESHOLD: 0.7,
-  ODRL_NAMESPACE: 'https://aegis.example.com/odrl/',
 } as const;
 
 // 営業時間（デフォルト）

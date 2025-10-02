@@ -1,0 +1,24 @@
+{
+  "tool_number": 10,
+  "tool_name": "filesystem__directory_tree", 
+  "test_timestamp": "2025-07-02T23:47:15Z",
+  "test_parameters": {
+    "path": "/Users/shingo/Develop/aegis-policy-engine"
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: 未認証エージェントによる営業時間外のファイルシステムアクセス要求。エージェントタイプが不明で、クリアランスレベルが0（none）、外部IPからの接続であり、MFA未有効化。対象パスが開発プロジェクトディレクトリ（/Users/shingo/Develop/aegis-policy-engine）で、個人フォルダアクセスポリシーに抵触。",
+    "rejection_factors": [
+      "未認証エージェント",
+      "営業時間外アクセス",
+      "エージェントタイプ不明",
+      "クリアランスレベル0（none）",
+      "外部IPからの接続",
+      "MFA未有効化",
+      "開発プロジェクトディレクトリアクセス",
+      "個人フォルダアクセスポリシー抵触"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "filesystem__directory_tree tool - ディレクトリツリー構造取得ツールで適切にAI判定が実行されてDENY決定。営業時間外のセキュリティ要因が複数評価されて包括的なリスク分析が実行されている。"
+}

@@ -1,0 +1,26 @@
+{
+  "tool_number": 12,
+  "tool_name": "filesystem__search_files",
+  "test_timestamp": "2025-07-02T23:52:45Z",
+  "test_parameters": {
+    "path": "/Users/shingo/Develop/aegis-policy-engine",
+    "pattern": "*.json",
+    "excludePatterns": "[]"
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: 未認証エージェントによる営業時間外のファイルシステムアクセス要求。エージェントのクリアランスレベルが不明（0）で、外部IPからの接続であり、MFA未設定。対象パスが開発リソースディレクトリであるが、適切な認証と権限確認が必要。",
+    "rejection_factors": [
+      "未認証エージェント",
+      "営業時間外アクセス",
+      "ファイルシステムアクセス要求",
+      "クリアランスレベル不明（0）",
+      "外部IPからの接続",
+      "MFA未設定",
+      "開発リソースディレクトリアクセス",
+      "認証・権限確認不足"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "filesystem__search_files tool - ファイル検索ツールで適切にAI判定が実行されてDENY決定。営業時間外でのセキュリティ要因が包括的に評価されている。"
+}

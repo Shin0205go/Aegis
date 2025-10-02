@@ -274,10 +274,6 @@
             color: #234e52;
         }
 
-        .policy-type.odrl {
-            background: #ebf8ff;
-            color: #2c5282;
-        }
 
         /* ヘルプテキスト */
         .help-text {
@@ -353,9 +349,6 @@
             </button>
             <button class="tab" onclick="switchTab('natural')">
                 💬 自然言語エディタ
-            </button>
-            <button class="tab" onclick="switchTab('odrl')">
-                📝 ODRLフォーム
             </button>
             <button class="tab" onclick="switchTab('test')">
                 🧪 APIテスト
@@ -468,10 +461,6 @@
             </div>
         </div>
 
-        <!-- ODRLフォームタブ -->
-        <div id="odrlTab" class="tab-content">
-            <iframe src="/odrl-policy-form.html" style="width: 100%; height: 800px; border: none; border-radius: 12px;"></iframe>
-        </div>
 
         <!-- APIテストタブ -->
         <div id="testTab" class="tab-content">
@@ -563,15 +552,13 @@
                 btn.classList.toggle('active', 
                     (tab === 'list' && index === 0) ||
                     (tab === 'natural' && index === 1) ||
-                    (tab === 'odrl' && index === 2) ||
-                    (tab === 'test' && index === 3)
+                    (tab === 'test' && index === 2)
                 );
             });
             
             // タブコンテンツの表示切り替え
             document.getElementById('listTab').classList.toggle('active', tab === 'list');
             document.getElementById('naturalTab').classList.toggle('active', tab === 'natural');
-            document.getElementById('odrlTab').classList.toggle('active', tab === 'odrl');
             document.getElementById('testTab').classList.toggle('active', tab === 'test');
             
             // タブごとの初期化処理
@@ -612,15 +599,14 @@
             }
             
             content.innerHTML = policies.map(policy => {
-                const isNL = typeof policy.policy === 'object'; // JSONオブジェクトの場合は自然言語ポリシー
                 const policyName = policy.name || policy.id;
                 
                 return `
                     <div class="policy-item" onclick="selectPolicy('${policy.id}')">
                         <div class="policy-header">
                             <div class="policy-name">${policyName}</div>
-                            <span class="policy-type ${isNL ? 'nl' : 'odrl'}">
-                                ${isNL ? '自然言語' : 'ODRL'}
+                            <span class="policy-type nl">
+                                自然言語
                             </span>
                         </div>
                         <div style="color: #718096; font-size: 14px;">
@@ -661,20 +647,23 @@
             event.stopPropagation();
             const policy = policies.find(p => p.id === policyId);
             
+            // 自然言語ポリシーの編集
+            switchTab('natural');
+            document.getElementById('nlPolicyId').value = policy.id;
+            document.getElementById('nlDescription').value = policy.description || '';
+            
+            // ポリシー内容を取得
+            let policyText = '';
             if (typeof policy.policy === 'object') {
-                // 自然言語ポリシー（JSONオブジェクト形式）の編集
-                switchTab('natural');
-                document.getElementById('nlPolicyId').value = policy.id;
-                document.getElementById('nlDescription').value = policy.description || '';
-                // JSONオブジェクトを自然言語形式に変換して表示
-                const nlText = convertPolicyObjectToText(policy.policy);
-                document.getElementById('nlPolicyText').value = nlText;
-                previewNaturalLanguagePolicy();
+                // JSONオブジェクトを自然言語形式に変換
+                policyText = convertPolicyObjectToText(policy.policy);
             } else {
-                // ODRLフォームに切り替え
-                alert('ODRLポリシーの編集はODRLフォームタブで行ってください');
-                switchTab('odrl');
+                // 文字列の場合はそのまま使用
+                policyText = policy.policy || '';
             }
+            
+            document.getElementById('nlPolicyText').value = policyText;
+            previewNaturalLanguagePolicy();
         }
 
         // ポリシーテスト
@@ -710,12 +699,8 @@
 
         // 新規ポリシー作成
         function createNewPolicy() {
-            if (confirm('自然言語でポリシーを作成しますか？\n\n「いいえ」を選択するとODRLフォームが開きます。')) {
-                switchTab('natural');
-                clearNaturalLanguageForm();
-            } else {
-                switchTab('odrl');
-            }
+            switchTab('natural');
+            clearNaturalLanguageForm();
         }
 
         // 自然言語ポリシーの保存

@@ -25,7 +25,6 @@ import type {
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
 import { createAuditEndpoints } from '../api/audit-endpoints.js';
-import { createODRLEndpoints } from '../api/odrl-endpoints.js';
 import { StdioRouter, MCPServerConfig } from './stdio-router.js';
 import { MCPPolicyProxyBase } from './base-proxy.js';
 import { 
@@ -334,7 +333,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
     }
     
     // ハイブリッドポリシーエンジンで判定実行
-    const decision = await this.hybridPolicyEngine.decide(enrichedContext, policy);
+    const decision = await this.aiPolicyEngine.decide(enrichedContext, policy);
     
     const result = {
       ...decision,
@@ -513,7 +512,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
     }
     this.policies.set(name, policy);
     // Clear cache when natural language policies are updated
-    this.hybridPolicyEngine.clearCache();
+    this.aiPolicyEngine.clearCache();
     this.logger.info(`Policy updated: ${name}`);
   }
 
@@ -634,17 +633,10 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         const policyId = await policyLoader.createPolicy(req.body);
         
-        // HybridPolicyEngineにも追加
+        // AIPolicyEngineのキャッシュクリア
         const policy = policyLoader.getPolicy(policyId);
         if (policy) {
-          this.hybridPolicyEngine.addPolicy({
-            uid: `aegis:policy:${policyId}`,
-            '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-            '@type': 'Policy',
-            profile: 'https://aegis.example.com/odrl/profile',
-            permission: [],
-            naturalLanguageSource: typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy)
-          });
+          this.aiPolicyEngine.clearCache();
         }
 
         res.status(201).json({ success: true, id: policyId, message: 'Policy created' });
@@ -659,8 +651,8 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         await policyLoader.updatePolicy(req.params.id, req.body);
         
-        // HybridPolicyEngineのキャッシュクリア
-        this.hybridPolicyEngine.clearCache();
+        // AIPolicyEngineのキャッシュクリア
+        this.aiPolicyEngine.clearCache();
         
         res.json({ success: true, message: `Policy ${req.params.id} updated` });
       } catch (error) {
@@ -675,8 +667,8 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
         const { policyLoader } = await import('../policies/policy-loader.js');
         await policyLoader.deletePolicy(req.params.id);
         
-        // HybridPolicyEngineのキャッシュクリア
-        this.hybridPolicyEngine.clearCache();
+        // AIPolicyEngineのキャッシュクリア
+        this.aiPolicyEngine.clearCache();
         
         res.json({ success: true, message: `Policy ${req.params.id} deleted` });
       } catch (error) {
@@ -708,7 +700,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
           });
         }
         
-        this.hybridPolicyEngine.clearCache();
+        this.aiPolicyEngine.clearCache();
         res.json({ success: true, message: `Policy ${req.params.name} updated` });
       } catch (error) {
         this.logger.error('Failed to update policy (legacy):', error);
@@ -728,9 +720,7 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
     const statsRouter = createAuditStatisticsAPI(this.advancedAuditSystem);
     this.app.use('/audit', statsRouter);
     
-    // ODRL Policy APIエンドポイントを追加
-    const odrlRouter = createODRLEndpoints(this.hybridPolicyEngine);
-    this.app.use('/odrl', odrlRouter);
+    // Legacy endpoints removed - AI-only policy engine
     
     // HTTPトランスポートを初期化
     const transport = new StreamableHTTPServerTransport({
@@ -768,7 +758,6 @@ export class MCPHttpPolicyProxy extends MCPPolicyProxyBase {
         this.logger.info(`🔗 Health check: http://localhost:${port}/health`);
         this.logger.info(`📋 Policy Management API: http://localhost:${port}/policies`);
         this.logger.info(`📊 Audit API: http://localhost:${port}/audit`);
-        this.logger.info(`🔐 ODRL API: http://localhost:${port}/odrl`);
         
         // サーバーインスタンスを保存
         (this as any).httpServer = server;

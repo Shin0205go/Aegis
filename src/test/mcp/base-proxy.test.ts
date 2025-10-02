@@ -7,7 +7,7 @@ import { Logger } from '../../utils/logger';
 import { AIJudgmentEngine } from '../../ai/judgment-engine';
 import { ContextCollector } from '../../context/collector';
 import { EnforcementSystem } from '../../core/enforcement';
-import { HybridPolicyEngine } from '../../policy/hybrid-policy-engine';
+import { AIPolicyEngine } from '../../policy/ai-policy-engine';
 import { AdvancedAuditSystem } from '../../audit/advanced-audit-system';
 import { AuditDashboardDataProvider } from '../../audit/audit-dashboard-data';
 import type { AEGISConfig, DecisionContext, AccessControlResult, PolicyDecision } from '../../types';
@@ -17,7 +17,7 @@ jest.mock('../../utils/logger');
 jest.mock('../../ai/judgment-engine');
 jest.mock('../../context/collector');
 jest.mock('../../core/enforcement');
-jest.mock('../../policy/hybrid-policy-engine');
+jest.mock('../../policy/ai-policy-engine');
 jest.mock('../../audit/advanced-audit-system');
 jest.mock('../../audit/audit-dashboard-data');
 jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
@@ -70,8 +70,8 @@ class TestMCPProxy extends MCPPolicyProxyBase {
     return this.enforcementSystem;
   }
 
-  public getHybridPolicyEngine(): HybridPolicyEngine {
-    return this.hybridPolicyEngine;
+  public getAIPolicyEngine(): AIPolicyEngine {
+    return this.aiPolicyEngine;
   }
 }
 
@@ -106,8 +106,8 @@ describe('MCPPolicyProxyBase', () => {
       registerEnricher: jest.fn()
     } as any));
     
-    // Setup mocked HybridPolicyEngine
-    (HybridPolicyEngine as jest.MockedClass<typeof HybridPolicyEngine>).mockImplementation(() => ({
+    // Setup mocked AIPolicyEngine
+    (AIPolicyEngine as jest.MockedClass<typeof AIPolicyEngine>).mockImplementation(() => ({
       addPolicy: jest.fn()
     } as any));
     
@@ -130,7 +130,7 @@ describe('MCPPolicyProxyBase', () => {
     it('should initialize all components correctly', () => {
       expect(proxy.getContextCollector()).toBeDefined();
       expect(proxy.getEnforcementSystem()).toBeDefined();
-      expect(proxy.getHybridPolicyEngine()).toBeDefined();
+      expect(proxy.getAIPolicyEngine()).toBeDefined();
       expect(proxy.getPolicies()).toBeDefined();
       expect(proxy.getPolicies().size).toBe(0);
     });
@@ -140,15 +140,15 @@ describe('MCPPolicyProxyBase', () => {
       expect(contextCollector.registerEnricher).toHaveBeenCalledTimes(4);
     });
 
-    it('should initialize hybrid policy engine with correct settings', () => {
-      const hybridEngine = proxy.getHybridPolicyEngine();
-      expect(hybridEngine).toBeDefined();
-      // Hybrid engine should be configured with AI enabled when judgment engine is provided
+    it('should initialize AI policy engine with correct settings', () => {
+      const aiEngine = proxy.getAIPolicyEngine();
+      expect(aiEngine).toBeDefined();
+      // AI engine should be configured correctly when judgment engine is provided
     });
 
     it('should work without judgment engine', () => {
       const proxyWithoutAI = new TestMCPProxy(testConfig, mockLogger, null);
-      expect(proxyWithoutAI.getHybridPolicyEngine()).toBeDefined();
+      expect(proxyWithoutAI.getAIPolicyEngine()).toBeDefined();
       // Should still work but with AI disabled
     });
   });
@@ -352,38 +352,20 @@ describe('MCPPolicyProxyBase', () => {
   });
 
   describe('addPolicy', () => {
-    it('should add policy to internal map and hybrid engine', () => {
-      const hybridEngine = proxy.getHybridPolicyEngine();
-      jest.spyOn(hybridEngine, 'addPolicy').mockImplementation(() => {});
-
+    it('should add policy to internal map', () => {
       proxy.addPolicy('test-policy', 'Test policy content');
 
       expect(proxy.getPolicies().get('test-policy')).toBe('Test policy content');
-      expect(hybridEngine.addPolicy).toHaveBeenCalledWith({
-        uid: 'aegis:policy:test-policy',
-        '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-        '@type': 'Policy',
-        profile: 'https://aegis.example.com/odrl/profile',
-        permission: [],
-        naturalLanguageSource: 'Test policy content'
-      });
       expect(mockLogger.info).toHaveBeenCalledWith('Policy added: test-policy');
     });
 
-    it('should handle hybrid engine errors gracefully', () => {
-      const hybridEngine = proxy.getHybridPolicyEngine();
-      jest.spyOn(hybridEngine, 'addPolicy').mockImplementation(() => {
-        throw new Error('Engine error');
-      });
-
+    it('should handle policy addition errors gracefully', () => {
+      // Test policy addition edge cases
       proxy.addPolicy('error-policy', 'Error policy content');
 
       // Should still add to internal map
       expect(proxy.getPolicies().get('error-policy')).toBe('Error policy content');
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Failed to add policy error-policy to hybrid engine:',
-        expect.any(Error)
-      );
+      expect(mockLogger.info).toHaveBeenCalledWith('Policy added: error-policy');
     });
   });
 

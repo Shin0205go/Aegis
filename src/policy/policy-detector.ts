@@ -2,7 +2,7 @@
 // AEGIS - ポリシー形式自動検出
 // ============================================================================
 
-export type PolicyFormat = 'ODRL' | 'NATURAL_LANGUAGE' | 'UNKNOWN';
+export type PolicyFormat = 'NATURAL_LANGUAGE' | 'UNKNOWN';
 
 export interface PolicyDetectionResult {
   format: PolicyFormat;
@@ -15,14 +15,14 @@ export class PolicyFormatDetector {
    * ポリシーの形式を自動検出
    */
   static detect(policy: string | object): PolicyDetectionResult {
-    // オブジェクトの場合はODRL
-    if (typeof policy === 'object' && policy !== null) {
-      return this.detectFromObject(policy);
-    }
-
     // 文字列の場合は内容を分析
     if (typeof policy === 'string') {
       return this.detectFromString(policy);
+    }
+
+    // オブジェクトの場合は文字列化して分析
+    if (typeof policy === 'object' && policy !== null) {
+      return this.detectFromString(JSON.stringify(policy));
     }
 
     return {
@@ -32,58 +32,6 @@ export class PolicyFormatDetector {
     };
   }
 
-  /**
-   * オブジェクト形式からの検出
-   */
-  private static detectFromObject(policy: object): PolicyDetectionResult {
-    const indicators: string[] = [];
-    let odrlScore = 0;
-
-    // naturalLanguageSourceフィールドの存在をチェック（ハイブリッド形式）
-    if ('naturalLanguageSource' in policy && (policy as any).naturalLanguageSource) {
-      indicators.push('naturalLanguageSource field present');
-      // naturalLanguageSourceがある場合は自然言語として扱う
-      const nlResult = this.detectFromString((policy as any).naturalLanguageSource);
-      nlResult.indicators.unshift('Embedded in ODRL structure');
-      return nlResult;
-    }
-
-    // ODRL必須フィールドをチェック
-    if ('@context' in policy) {
-      indicators.push('@context field present');
-      odrlScore += 2;
-    }
-
-    if ('@type' in policy && (policy as any)['@type'] === 'Policy') {
-      indicators.push('@type is Policy');
-      odrlScore += 2;
-    }
-
-    // ODRL標準フィールド
-    const odrlFields = ['uid', 'permission', 'prohibition', 'obligation', 'target', 'action'];
-    for (const field of odrlFields) {
-      if (field in policy) {
-        indicators.push(`${field} field present`);
-        odrlScore += 1;
-      }
-    }
-
-    // ODRL名前空間
-    const policyStr = JSON.stringify(policy);
-    if (policyStr.includes('http://www.w3.org/ns/odrl/2/')) {
-      indicators.push('ODRL namespace detected');
-      odrlScore += 3;
-    }
-
-    // 信頼度計算
-    const confidence = Math.min(odrlScore / 10, 1.0);
-
-    return {
-      format: confidence > 0.5 ? 'ODRL' : 'UNKNOWN',
-      confidence,
-      indicators
-    };
-  }
 
   /**
    * 文字列形式からの検出
@@ -91,17 +39,6 @@ export class PolicyFormatDetector {
   private static detectFromString(policy: string): PolicyDetectionResult {
     const indicators: string[] = [];
     
-    // まずJSONとして解析を試みる
-    try {
-      const parsed = JSON.parse(policy);
-      const objectResult = this.detectFromObject(parsed);
-      if (objectResult.format === 'ODRL') {
-        return objectResult;
-      }
-    } catch {
-      // JSONではない - 自然言語の可能性
-    }
-
     // 自然言語のインジケーター
     let nlScore = 0;
 
@@ -130,30 +67,8 @@ export class PolicyFormatDetector {
       }
     }
 
-    // ODRL形式の痕跡をチェック（文字列内）
-    let odrlScore = 0;
-    const odrlPatterns = [
-      { pattern: /@context|@type|uid/, name: 'ODRL keywords' },
-      { pattern: /"permission"|"prohibition"|"obligation"/, name: 'ODRL rule types' },
-      { pattern: /http:\/\/www\.w3\.org\/ns\/odrl/, name: 'ODRL namespace' },
-      { pattern: /"leftOperand"|"rightOperand"|"operator"/, name: 'ODRL constraint syntax' }
-    ];
-
-    for (const { pattern, name } of odrlPatterns) {
-      if (pattern.test(policy)) {
-        indicators.push(name);
-        odrlScore += 2;
-      }
-    }
-
     // 形式判定
-    if (odrlScore > nlScore) {
-      return {
-        format: 'ODRL',
-        confidence: Math.min(odrlScore / 8, 1.0),
-        indicators
-      };
-    } else if (nlScore > 0) {
+    if (nlScore > 0) {
       return {
         format: 'NATURAL_LANGUAGE',
         confidence: Math.min(nlScore / 8, 1.0),

@@ -1,0 +1,25 @@
+{
+  "tool_number": 16,
+  "tool_name": "history-mcp__search_conversations",
+  "test_timestamp": "2025-07-03T00:05:45Z",
+  "test_parameters": {
+    "query": "AEGIS AI判定テスト",
+    "limit": null
+  },
+  "ai_judgment_result": {
+    "decision": "DENY",
+    "error_message": "MCP error -32603: Access denied: 外部エージェントによる営業時間外アクセス。エージェントタイプが不明で、クリアランスレベルが0（none）、外部IPからの接続、MFA未有効、デバイス・ネットワークが未信頼状態。追加認証が必要とされているが実施されていない。",
+    "rejection_factors": [
+      "外部エージェント",
+      "営業時間外アクセス",
+      "エージェントタイプ不明",
+      "クリアランスレベル0（none）",
+      "外部IPからの接続",
+      "MFA未有効",
+      "デバイス・ネットワーク未信頼状態",
+      "追加認証必要だが実施されていない"
+    ]
+  },
+  "ai_judgment_confirmed": true,
+  "notes": "history-mcp__search_conversations tool - 会話検索ツールで適切にAI判定が実行されてDENY決定。営業時間外アクセスと認証・信頼度の包括的な評価が実行されている。"
+}

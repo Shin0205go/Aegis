@@ -33,7 +33,11 @@
       "metadata": {
         "createdAt": "2025-06-27",
         "createdBy": "dev",
-        "tags": ["development", "permissive", "develop-directory"],
+        "tags": [
+          "development",
+          "permissive",
+          "develop-directory"
+        ],
         "priority": 1000
       }
     },
@@ -67,14 +71,17 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "admin",
-        "tags": ["filesystem", "claude-desktop"],
+        "tags": [
+          "filesystem",
+          "claude-desktop"
+        ],
         "priority": 100
       }
     },
     {
       "id": "strict-security-policy",
       "name": "厳格セキュリティポリシー",
-      "version": "1.0.0", 
+      "version": "1.0.0",
       "status": "inactive",
       "description": "厳格なセキュリティ制御（テスト用）",
       "policy": {
@@ -97,15 +104,18 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "security-team",
-        "tags": ["security", "strict"],
+        "tags": [
+          "security",
+          "strict"
+        ],
         "priority": 200
       }
     },
     {
-      "id": "permissive-policy", 
+      "id": "permissive-policy",
       "name": "寛容アクセスポリシー",
       "version": "1.0.0",
-      "status": "inactive", 
+      "status": "inactive",
       "description": "開発環境向けの寛容なアクセス制御",
       "policy": {
         "基本原則": [
@@ -115,7 +125,7 @@
         ],
         "アクセス許可": [
           "すべてのファイルシステム操作: 許可",
-          "コード実行: 許可", 
+          "コード実行: 許可",
           "設定ファイル変更: 許可"
         ],
         "制限事項": [
@@ -126,9 +136,12 @@
         ]
       },
       "metadata": {
-        "createdAt": "2024-01-15", 
+        "createdAt": "2024-01-15",
         "createdBy": "dev-team",
-        "tags": ["development", "permissive"],
+        "tags": [
+          "development",
+          "permissive"
+        ],
         "priority": 50
       }
     },
@@ -186,7 +199,11 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "system",
-        "tags": ["tools", "mcp", "risk-management"],
+        "tags": [
+          "tools",
+          "mcp",
+          "risk-management"
+        ],
         "priority": 150
       }
     },
@@ -225,7 +242,11 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "system",
-        "tags": ["files", "storage", "permissions"],
+        "tags": [
+          "files",
+          "storage",
+          "permissions"
+        ],
         "priority": 120
       }
     },
@@ -266,8 +287,85 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "system",
-        "tags": ["high-risk", "critical", "approval"],
+        "tags": [
+          "high-risk",
+          "critical",
+          "approval"
+        ],
         "priority": 200
+      }
+    },
+    {
+      "id": "history-mcp-policy",
+      "name": "会話履歴管理ポリシー",
+      "version": "1.0.0",
+      "status": "active",
+      "description": "history-mcpツールによる会話履歴の保存・検索・閲覧を制御",
+      "policy": {
+        "基本原則": [
+          "会話履歴は重要な知識資産として適切に管理",
+          "プライバシーとセキュリティを最優先",
+          "開発・学習目的での活用を促進",
+          "機密情報を含む会話は特別な管理が必要"
+        ],
+        "アクセス許可": {
+          "history-mcp__save_conversation": [
+            "開発関連の会話: 常に許可",
+            "技術的な議論・実装内容: 推奨",
+            "デバッグ・トラブルシューティング: 推奨",
+            "学習・知識共有目的: 許可"
+          ],
+          "history-mcp__search_conversations": [
+            "技術的なキーワード検索: 許可",
+            "過去の解決策検索: 推奨",
+            "エラー・問題の検索: 許可",
+            "最大検索結果数: 20件まで"
+          ],
+          "history-mcp__list_recent_conversations": [
+            "直近7日間の会話一覧: 許可",
+            "開発プロジェクト関連: 常に許可",
+            "定期的な振り返り用途: 推奨"
+          ],
+          "history-mcp__get_conversation": [
+            "自分が保存した会話: 常に許可",
+            "チーム共有の技術会話: 許可",
+            "学習・参照目的: 許可"
+          ]
+        },
+        "制限事項": [
+          "個人情報（氏名、メールアドレス、電話番号等）を含む会話の保存は慎重に",
+          "パスワード、APIキー、秘密鍵等の機密情報は保存前に自動マスク",
+          "金融情報、医療情報などの規制対象データは特別承認が必要",
+          "30日以上経過した会話の自動アーカイブ（アクセス頻度による）"
+        ],
+        "セキュリティ制御": [
+          "保存される会話内容の自動スキャンによる機密情報検出",
+          "検出された機密情報の自動マスキング（例: 'APIキー: ****'）",
+          "会話ファイルの暗号化保存（AES-256）",
+          "アクセスログの詳細記録（誰が、いつ、どの会話を）"
+        ],
+        "義務事項": [
+          "会話保存時のトピック分類必須",
+          "適切な要約の付与推奨",
+          "機密レベルの自動判定と適切なタグ付け",
+          "定期的なアクセス権限レビュー"
+        ],
+        "ベストプラクティス": [
+          "技術的な学びは積極的に保存して知識として蓄積",
+          "エラー解決の過程は詳細に記録して将来の参考に",
+          "コードレビューや設計議論は要約付きで保存",
+          "定期的に過去の会話を振り返り、パターンを発見"
+        ]
+      },
+      "metadata": {
+        "createdAt": "2025-07-01",
+        "createdBy": "system",
+        "tags": [
+          "history-mcp",
+          "conversation",
+          "knowledge-management"
+        ],
+        "priority": 130
       }
     },
     {
@@ -305,7 +403,11 @@
       "metadata": {
         "createdAt": "2024-01-15",
         "createdBy": "system",
-        "tags": ["default", "general", "baseline"],
+        "tags": [
+          "default",
+          "general",
+          "baseline"
+        ],
         "priority": 1
       }
     }

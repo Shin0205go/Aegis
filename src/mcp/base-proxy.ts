@@ -22,14 +22,14 @@ import {
 import { EnforcementSystem } from '../core/enforcement.js';
 import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
 import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
-import { HybridPolicyEngine } from '../policy/hybrid-policy-engine.js';
+import { AIPolicyEngine } from '../policy/ai-policy-engine.js';
 
 export abstract class MCPPolicyProxyBase {
   protected server: Server;
   protected config: AEGISConfig;
   protected logger: Logger;
   protected judgmentEngine: AIJudgmentEngine | null;
-  protected hybridPolicyEngine: HybridPolicyEngine;
+  protected aiPolicyEngine: AIPolicyEngine;
   protected contextCollector: ContextCollector;
   protected enforcementSystem: EnforcementSystem;
   
@@ -45,11 +45,11 @@ export abstract class MCPPolicyProxyBase {
     this.logger = logger;
     this.judgmentEngine = judgmentEngine;
     
-    // ハイブリッドポリシーエンジン初期化
-    // @ts-ignore - judgmentEngineがnullの場合も許可
-    this.hybridPolicyEngine = new HybridPolicyEngine(judgmentEngine, {
-      useODRL: true,
-      useAI: judgmentEngine !== null,
+    // AIポリシーエンジン初期化
+    if (!judgmentEngine) {
+      throw new Error('AIJudgmentEngine is required for AIPolicyEngine');
+    }
+    this.aiPolicyEngine = new AIPolicyEngine(judgmentEngine, {
       aiThreshold: parseFloat(process.env.AEGIS_AI_THRESHOLD || '0.7'),
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
@@ -211,19 +211,12 @@ export abstract class MCPPolicyProxyBase {
   addPolicy(name: string, policy: string): void {
     this.policies.set(name, policy);
     
-    // HybridPolicyEngineにも追加
+    // キャッシュをクリア
     try {
-      this.hybridPolicyEngine.addPolicy({
-        uid: `aegis:policy:${name}`,
-        '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-        '@type': 'Policy',
-        profile: 'https://aegis.example.com/odrl/profile',
-        permission: [],
-        naturalLanguageSource: policy
-      });
+      this.aiPolicyEngine.clearCache();
       this.logger.info(`Policy added: ${name}`);
     } catch (error) {
-      this.logger.error(`Failed to add policy ${name} to hybrid engine:`, error);
+      this.logger.error(`Failed to clear cache after adding policy ${name}:`, error);
     }
   }
 

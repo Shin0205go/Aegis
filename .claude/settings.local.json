@@ -41,7 +41,8 @@
       "Bash(pkill:*)",
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(curl:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }

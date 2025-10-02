@@ -25,6 +25,7 @@ export interface PolicyDefinition {
   version: string;
   status: 'active' | 'inactive' | 'draft';
   description?: string;
+  type?: 'natural-language' | 'xacml'; // ポリシータイプを追加
   policy: Record<string, any>;
   metadata: PolicyMetadata;
 }
@@ -89,6 +90,13 @@ export class PolicyLoader implements IPolicyLoader {
       .filter(policy => policy.status === 'active')
       .sort((a, b) => b.metadata.priority - a.metadata.priority)
       .map(policy => this.convertToLoadedPolicy(policy));
+  }
+
+  /**
+   * 自然言語ポリシーのみを取得（デフォルト）
+   */
+  getActiveNaturalLanguagePolicies(): LoadedPolicy[] {
+    return this.getActivePolicies();
   }
 
   getAllPolicies(): PolicyDefinition[] {

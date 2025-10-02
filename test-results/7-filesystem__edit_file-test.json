@@ -1,0 +1,33 @@
+{
+  "testId": 7,
+  "toolName": "filesystem__edit_file",
+  "timestamp": "2025-07-02T22:28:00Z",
+  "testParameters": {
+    "path": "README.md",
+    "edits": [{"oldText": "# AEGIS Policy Engine", "newText": "# AEGIS AI Policy Engine - Test Edit"}]
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証エージェントによる営業時間外でのファイル編集要求。エージェントのクリアランスレベルが不明（0）で、外部IPからの接続であり、MFA未設定。README.mdファイルの編集は開発リソースへのアクセスを伴うが、エージェントの身元確認と適切な権限付与が完了していない。",
+    "detectedFactors": [
+      "営業時間外アクセス",
+      "未認証エージェント",
+      "低クリアランスレベル (0)",
+      "外部IP接続",
+      "MFA未設定",
+      "開発リソースアクセス",
+      "README.mdファイル編集",
+      "身元確認未完了",
+      "権限付与未完了"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "fileEditOperationEvaluation": true,
+    "developmentResourceEvaluation": true
+  }
+}

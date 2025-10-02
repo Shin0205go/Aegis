@@ -11,7 +11,7 @@ import type {
 import type {
   IContextCollector,
   IIntelligentCacheSystem,
-  IHybridPolicyEngine,
+  IAIPolicyEngine,
   IAdvancedAuditSystem,
   IRealTimeAnomalyDetector,
   IPolicyLoader
@@ -24,7 +24,7 @@ export class PolicyEnforcer {
     private logger: Logger,
     private contextCollector: IContextCollector,
     private intelligentCacheSystem: IIntelligentCacheSystem | null,
-    private hybridPolicyEngine: IHybridPolicyEngine,
+    private aiPolicyEngine: IAIPolicyEngine,
     private advancedAuditSystem: IAdvancedAuditSystem,
     private realTimeAnomalyDetector: IRealTimeAnomalyDetector | null
   ) {}
@@ -424,7 +424,7 @@ export class PolicyEnforcer {
       setTimeout(() => reject(new Error('Policy decision timeout')), TIMEOUTS.POLICY_DECISION);
     });
     
-    const decisionPromise = this.hybridPolicyEngine.decide(context, policy);
+    const decisionPromise = this.aiPolicyEngine.decide(context, policy || undefined);
     
     return await Promise.race([decisionPromise, timeoutPromise]);
   }

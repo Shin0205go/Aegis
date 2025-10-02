@@ -378,7 +378,7 @@ interface PolicyManagementAPI {
 
 | 要素 | 従来のIDS | 今回の設計 |
 |------|-----------|------------|
-| **ポリシー記述** | XACML/ODRL (XML) | 自然言語 |
+| **ポリシー記述** | XACML等の専用言語 | 自然言語 |
 | **判定エンジン** | ルールエンジン | AI/LLM |
 | **統合方法** | アプリ改修必要 | MCPプロキシ (透明) |
 | **設定管理** | 技術者専用 | 誰でも編集可能 |
@@ -513,8 +513,6 @@ const unusualRequest = {
 | `/policies/:id` | PUT | ポリシー更新 |
 | `/policies/:id` | DELETE | ポリシー削除 |
 | `/api/audit/metrics` | GET | 監査メトリクス取得 |
-| `/odrl/policies` | GET | ODRLポリシー一覧 |
-| `/odrl/evaluate` | POST | ODRL評価実行 |
 
 ### 自動ポリシー選択ロジック
 

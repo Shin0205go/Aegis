@@ -1,0 +1,34 @@
+{
+  "testId": 4,
+  "toolName": "playwright__browser_navigate",
+  "timestamp": "2025-07-02T22:20:00Z",
+  "testParameters": {
+    "url": "https://example.com"
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 複数の重大なセキュリティリスクが検出されました。エージェントは未認証・未検証状態（クリアランスレベル0、外部エージェント、unverifiedタグ）で、営業時間外（22:20）にブラウザナビゲーション操作を要求しています。信頼スコア0、リスクスコア1の状態で、追加認証が必要とされているにも関わらず、MFA未有効、デバイス・ネットワーク共に未信頼状態です。",
+    "detectedFactors": [
+      "営業時間外アクセス (22:20)",
+      "未認証・未検証エージェント",
+      "クリアランスレベル0",
+      "外部エージェント",
+      "unverifiedタグ",
+      "信頼スコア0",
+      "リスクスコア1",
+      "ブラウザナビゲーション操作",
+      "MFA未有効",
+      "デバイス・ネットワーク未信頼"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "riskScoreCalculated": true,
+    "timeBasedEvaluation": true,
+    "operationTypeEvaluation": true
+  }
+}

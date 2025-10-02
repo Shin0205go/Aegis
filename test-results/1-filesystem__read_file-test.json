@@ -1,0 +1,27 @@
+{
+  "testId": 1,
+  "toolName": "filesystem__read_file",
+  "timestamp": "2025-07-02T22:15:00Z",
+  "testParameters": {
+    "path": "README.md"
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証エージェントによる営業時間外のファイルアクセス要求。エージェントのクリアランスレベルが0（none）で、外部IPからの接続であり、MFA未設定かつデバイス信頼度が低い状態。README.mdファイルは公開リソースだが、セキュリティポリシーに基づき適切な認証が必要。",
+    "detectedFactors": [
+      "営業時間外アクセス",
+      "未認証エージェント",
+      "低クリアランスレベル",
+      "外部IP接続",
+      "MFA未設定",
+      "低デバイス信頼度"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true
+  }
+}

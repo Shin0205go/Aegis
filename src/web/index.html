@@ -145,7 +145,7 @@
     <div class="container">
         <div class="header">
             <h1>🛡️ AEGIS Policy Engine</h1>
-            <p>AIとODRLを組み合わせた次世代ポリシー制御システム</p>
+            <p>自然言語AIによる次世代ポリシー制御システム</p>
         </div>
 
         <div class="status-section">
@@ -174,7 +174,7 @@
             <a href="/policy-management.html" class="nav-card policy-management">
                 <div class="icon">📋</div>
                 <h2>ポリシー管理</h2>
-                <p>ポリシーの作成・編集・テスト（自然言語/ODRL/API）</p>
+                <p>ポリシーの作成・編集・テスト（自然言語/API）</p>
             </a>
 
             <a href="/audit-dashboard-enhanced.html" class="nav-card audit-dashboard">
@@ -194,9 +194,9 @@
         async function loadStats() {
             try {
                 // Get policy count
-                const policiesRes = await fetch('/api/odrl/policies');
+                const policiesRes = await fetch('/policies');
                 const policies = await policiesRes.json();
-                document.getElementById('policyCount').textContent = policies.count || '0';
+                document.getElementById('policyCount').textContent = (policies.policies || []).length.toString();
 
                 // Get audit metrics
                 const metricsRes = await fetch('/api/audit/metrics');

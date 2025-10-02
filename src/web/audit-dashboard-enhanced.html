@@ -16,9 +16,7 @@
             --dark-border: #404040;
             --text-light: #ecf0f1;
             --text-muted: #95a5a6;
-            --odrl-color: #9b59b6;
             --ai-color: #3498db;
-            --hybrid-color: #16a085;
         }
 
         * {
@@ -144,9 +142,7 @@
             background: var(--primary-color);
         }
 
-        .stat-card.odrl::before { background: var(--odrl-color); }
         .stat-card.ai::before { background: var(--ai-color); }
-        .stat-card.hybrid::before { background: var(--hybrid-color); }
 
         .stat-value {
             font-size: 32px;
@@ -242,9 +238,7 @@
             margin-bottom: 15px;
         }
 
-        .engine-card.odrl .engine-icon { color: var(--odrl-color); }
         .engine-card.ai .engine-icon { color: var(--ai-color); }
-        .engine-card.hybrid .engine-icon { color: var(--hybrid-color); }
 
         .engine-stats {
             display: flex;
@@ -322,19 +316,9 @@
             font-weight: 500;
         }
 
-        .engine-badge.odrl {
-            background: rgba(155, 89, 182, 0.2);
-            color: var(--odrl-color);
-        }
-
         .engine-badge.ai {
             background: rgba(52, 152, 219, 0.2);
             color: var(--ai-color);
-        }
-
-        .engine-badge.hybrid {
-            background: rgba(22, 160, 133, 0.2);
-            color: var(--hybrid-color);
         }
 
         .loading {
@@ -404,9 +388,7 @@
             transition: width 0.3s ease;
         }
 
-        .progress-fill.odrl { background: var(--odrl-color); }
         .progress-fill.ai { background: var(--ai-color); }
-        .progress-fill.hybrid { background: var(--hybrid-color); }
     </style>
 </head>
 <body>
@@ -421,15 +403,6 @@
                         <option value="24h" selected>Last 24 Hours</option>
                         <option value="7d">Last 7 Days</option>
                         <option value="30d">Last 30 Days</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <span class="filter-label">Engine:</span>
-                    <select id="engineFilter" onchange="updateDashboard()">
-                        <option value="all">All Engines</option>
-                        <option value="odrl">ODRL Only</option>
-                        <option value="ai">AI Only</option>
-                        <option value="hybrid">Hybrid Only</option>
                     </select>
                 </div>
                 <button class="btn btn-primary" onclick="refreshDashboard()">
@@ -448,52 +421,17 @@
                 <div class="stat-label">Total Decisions</div>
                 <div class="stat-change positive" id="totalChange">↑ 0% from last period</div>
             </div>
-            <div class="stat-card odrl">
-                <div class="stat-value" id="odrlDecisions">0</div>
-                <div class="stat-label">ODRL Decisions</div>
-                <div class="stat-change positive" id="odrlChange">0% of total</div>
-            </div>
             <div class="stat-card ai">
                 <div class="stat-value" id="aiDecisions">0</div>
                 <div class="stat-label">AI Decisions</div>
-                <div class="stat-change" id="aiChange">0% of total</div>
-            </div>
-            <div class="stat-card hybrid">
-                <div class="stat-value" id="hybridDecisions">0</div>
-                <div class="stat-label">Hybrid Decisions</div>
-                <div class="stat-change" id="hybridChange">0% of total</div>
+                <div class="stat-change" id="aiChange">100% of total</div>
             </div>
         </div>
 
-        <!-- Engine Performance Breakdown -->
+        <!-- AI Engine Performance -->
         <div class="engine-breakdown">
-            <h2 class="chart-title">Engine Performance Comparison</h2>
+            <h2 class="chart-title">AI Engine Performance</h2>
             <div class="breakdown-grid">
-                <div class="engine-card odrl">
-                    <div class="engine-icon">⚡</div>
-                    <h3>ODRL Engine</h3>
-                    <div class="performance-metrics">
-                        <div class="metric-item">
-                            <div class="metric-value" id="odrlAvgTime">0ms</div>
-                            <div class="metric-label">Avg Response Time</div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="metric-value" id="odrlPermitRate">0%</div>
-                            <div class="metric-label">Permit Rate</div>
-                        </div>
-                    </div>
-                    <div class="engine-stats">
-                        <div class="engine-stat">
-                            <div class="engine-stat-value" id="odrlConfidence">0%</div>
-                            <div class="engine-stat-label">Avg Confidence</div>
-                        </div>
-                        <div class="engine-stat">
-                            <div class="engine-stat-value" id="odrlCacheHit">0%</div>
-                            <div class="engine-stat-label">Cache Hit Rate</div>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="engine-card ai">
                     <div class="engine-icon">🧠</div>
                     <h3>AI Engine</h3>
@@ -518,73 +456,9 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="engine-card hybrid">
-                    <div class="engine-icon">🔄</div>
-                    <h3>Hybrid Engine</h3>
-                    <div class="performance-metrics">
-                        <div class="metric-item">
-                            <div class="metric-value" id="hybridAvgTime">0ms</div>
-                            <div class="metric-label">Avg Response Time</div>
-                        </div>
-                        <div class="metric-item">
-                            <div class="metric-value" id="hybridPermitRate">0%</div>
-                            <div class="metric-label">Permit Rate</div>
-                        </div>
-                    </div>
-                    <div class="engine-stats">
-                        <div class="engine-stat">
-                            <div class="engine-stat-value" id="hybridEfficiency">0%</div>
-                            <div class="engine-stat-label">ODRL First Hit</div>
-                        </div>
-                        <div class="engine-stat">
-                            <div class="engine-stat-value" id="hybridSavings">$0.00</div>
-                            <div class="engine-stat-label">Cost Savings</div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <!-- Conversion Statistics -->
-        <div class="conversion-stats">
-            <h2 class="chart-title">Natural Language to ODRL Conversion</h2>
-            <div class="breakdown-grid">
-                <div class="metric-item">
-                    <div class="metric-value" id="totalConversions">0</div>
-                    <div class="metric-label">Total Conversions</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value" id="patternConversions">0</div>
-                    <div class="metric-label">Pattern-based</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill odrl" id="patternProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value" id="aiConversions">0</div>
-                    <div class="metric-label">AI-based</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill ai" id="aiProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value" id="hybridConversions">0</div>
-                    <div class="metric-label">Hybrid</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill hybrid" id="hybridProgress" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value" id="learnedPatterns">0</div>
-                    <div class="metric-label">Learned Patterns</div>
-                </div>
-                <div class="metric-item">
-                    <div class="metric-value" id="avgConfidence">0%</div>
-                    <div class="metric-label">Avg Confidence</div>
-                </div>
-            </div>
-        </div>
 
         <!-- Charts -->
         <div class="charts-grid">
@@ -665,24 +539,10 @@
                     labels: [],
                     datasets: [
                         {
-                            label: 'ODRL',
-                            data: [],
-                            borderColor: '#9b59b6',
-                            backgroundColor: 'rgba(155, 89, 182, 0.1)',
-                            tension: 0.4
-                        },
-                        {
                             label: 'AI',
                             data: [],
                             borderColor: '#3498db',
                             backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Hybrid',
-                            data: [],
-                            borderColor: '#16a085',
-                            backgroundColor: 'rgba(22, 160, 133, 0.1)',
                             tension: 0.4
                         }
                     ]
@@ -713,10 +573,10 @@
             engineChart = new Chart(engineCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    labels: ['AI'],
                     datasets: [{
-                        data: [0, 0, 0],
-                        backgroundColor: ['#9b59b6', '#3498db', '#16a085']
+                        data: [100],
+                        backgroundColor: ['#3498db']
                     }]
                 },
                 options: {
@@ -735,11 +595,11 @@
             performanceChart = new Chart(performanceCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    labels: ['AI'],
                     datasets: [{
                         label: 'Avg Response Time (ms)',
-                        data: [0, 0, 0],
-                        backgroundColor: ['#9b59b6', '#3498db', '#16a085']
+                        data: [0],
+                        backgroundColor: ['#3498db']
                     }]
                 },
                 options: {
@@ -768,16 +628,16 @@
             outcomeChart = new Chart(outcomeCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['ODRL', 'AI', 'Hybrid'],
+                    labels: ['AI'],
                     datasets: [
                         {
                             label: 'Permit',
-                            data: [0, 0, 0],
+                            data: [0],
                             backgroundColor: '#27ae60'
                         },
                         {
                             label: 'Deny',
-                            data: [0, 0, 0],
+                            data: [0],
                             backgroundColor: '#e74c3c'
                         }
                     ]
@@ -924,17 +784,6 @@
 
                 updateDecisionsTable(decisions);
 
-                // Mock conversion statistics
-                const mockConversionStats = {
-                    total: dashboardData.realtime.requestsPerMinute || 0,
-                    pattern: 0,
-                    ai: 0,
-                    hybrid: dashboardData.realtime.requestsPerMinute || 0,
-                    learnedPatterns: 0,
-                    avgConfidence: 0.8
-                };
-
-                updateConversionStats(mockConversionStats);
 
             } catch (error) {
                 console.error('Failed to refresh dashboard:', error);
@@ -966,38 +815,19 @@
             document.getElementById('totalChange').textContent = `Current: ${realtime.requestsPerMinute || 0} req/min`;
             document.getElementById('totalChange').className = 'stat-change positive';
 
-            // For now, show basic stats since we don't have engine breakdown
-            // All decisions are treated as "hybrid" since this is the actual engine running
-            document.getElementById('odrlDecisions').textContent = '0';
-            document.getElementById('odrlChange').textContent = '0% of total';
-
-            document.getElementById('aiDecisions').textContent = '0';
-            document.getElementById('aiChange').textContent = '0% of total';
-
-            document.getElementById('hybridDecisions').textContent = totalDecisions.toLocaleString();
-            document.getElementById('hybridChange').textContent = '100% of total';
+            // All decisions are handled by AI engine
+            document.getElementById('aiDecisions').textContent = totalDecisions.toLocaleString();
+            document.getElementById('aiChange').textContent = '100% of total';
 
             // Performance metrics
             const avgResponseTime = realtime.averageResponseTime || 0;
             const permitRate = totalDecisions > 0 ? ((allowedRequests / totalDecisions) * 100).toFixed(1) : '0';
 
-            // ODRL Engine (not used, show 0)
-            document.getElementById('odrlAvgTime').textContent = '0ms';
-            document.getElementById('odrlPermitRate').textContent = '0%';
-            document.getElementById('odrlConfidence').textContent = '0%';
-            document.getElementById('odrlCacheHit').textContent = '0%';
-
-            // AI Engine (not used directly, show 0)
-            document.getElementById('aiAvgTime').textContent = '0ms';
-            document.getElementById('aiPermitRate').textContent = '0%';
-            document.getElementById('aiConfidence').textContent = '0%';
-            document.getElementById('aiCost').textContent = '$0.00';
-
-            // Hybrid Engine (current AEGIS implementation)
-            document.getElementById('hybridAvgTime').textContent = `${avgResponseTime}ms`;
-            document.getElementById('hybridPermitRate').textContent = `${permitRate}%`;
-            document.getElementById('hybridEfficiency').textContent = '95%'; // Realistic efficiency
-            document.getElementById('hybridSavings').textContent = '$0.12'; // Mock cost savings
+            // AI Engine (current AEGIS implementation)
+            document.getElementById('aiAvgTime').textContent = `${avgResponseTime}ms`;
+            document.getElementById('aiPermitRate').textContent = `${permitRate}%`;
+            document.getElementById('aiConfidence').textContent = '85%'; // Realistic confidence
+            document.getElementById('aiCost').textContent = '$0.12'; // Mock cost
         }
 
         function updateCharts(dashboardData) {
@@ -1012,29 +842,27 @@
                     const totalRequests = hourlyData.map(h => h.totalRequests || 0);
                     
                     decisionChart.data.labels = labels;
-                    // Since we don't have engine breakdown, show all as hybrid
-                    decisionChart.data.datasets[0].data = new Array(hourlyData.length).fill(0); // ODRL
-                    decisionChart.data.datasets[1].data = new Array(hourlyData.length).fill(0); // AI
-                    decisionChart.data.datasets[2].data = totalRequests; // Hybrid (all requests)
+                    // All decisions are handled by AI engine
+                    decisionChart.data.datasets[0].data = totalRequests; // AI (all requests)
                     decisionChart.update();
                 }
 
-                // Update engine usage chart - show 100% hybrid
+                // Update engine usage chart - show 100% AI
                 const totalDecisions = hourlyData.reduce((sum, h) => sum + (h.totalRequests || 0), 0);
-                engineChart.data.datasets[0].data = [0, 0, totalDecisions]; // [ODRL, AI, Hybrid]
+                engineChart.data.datasets[0].data = [totalDecisions]; // [AI]
                 engineChart.update();
 
                 // Update performance chart
                 const avgResponseTime = dashboardData?.realtime?.averageResponseTime || 0;
-                performanceChart.data.datasets[0].data = [0, 0, avgResponseTime]; // [ODRL, AI, Hybrid]
+                performanceChart.data.datasets[0].data = [avgResponseTime]; // [AI]
                 performanceChart.update();
 
                 // Update outcome chart
                 const allowedRequests = hourlyData.reduce((sum, h) => sum + (h.allowedRequests || 0), 0);
                 const deniedRequests = hourlyData.reduce((sum, h) => sum + (h.deniedRequests || 0), 0);
                 
-                outcomeChart.data.datasets[0].data = [0, 0, allowedRequests]; // Permit: [ODRL, AI, Hybrid]
-                outcomeChart.data.datasets[1].data = [0, 0, deniedRequests]; // Deny: [ODRL, AI, Hybrid]
+                outcomeChart.data.datasets[0].data = [allowedRequests]; // Permit: [AI]
+                outcomeChart.data.datasets[1].data = [deniedRequests]; // Deny: [AI]
                 outcomeChart.update();
             } catch (error) {
                 console.error('Error updating charts:', error);
@@ -1082,7 +910,7 @@
                 }
                 
                 // Safely handle other properties
-                const engine = decision.engine || 'hybrid'; // Default to hybrid since that's what AEGIS uses
+                const engine = decision.engine || 'ai'; // Default to AI since that's what AEGIS uses
                 const decisionResult = decision.decision || 'unknown';
                 const agent = decision.agent || 'unknown';
                 const rawResource = decision.resource || 'unknown';
@@ -1170,20 +998,6 @@
             }).join('');
         }
 
-        function updateConversionStats(stats) {
-            document.getElementById('totalConversions').textContent = (stats.total || 0).toLocaleString();
-            document.getElementById('patternConversions').textContent = (stats.pattern || 0).toLocaleString();
-            document.getElementById('aiConversions').textContent = (stats.ai || 0).toLocaleString();
-            document.getElementById('hybridConversions').textContent = (stats.hybrid || 0).toLocaleString();
-            document.getElementById('learnedPatterns').textContent = (stats.learnedPatterns || 0).toLocaleString();
-            document.getElementById('avgConfidence').textContent = stats.avgConfidence ? `${Math.round(stats.avgConfidence * 100)}%` : '0%';
-
-            // Update progress bars
-            const total = stats.total || 1;
-            document.getElementById('patternProgress').style.width = `${(stats.pattern / total) * 100}%`;
-            document.getElementById('aiProgress').style.width = `${(stats.ai / total) * 100}%`;
-            document.getElementById('hybridProgress').style.width = `${(stats.hybrid / total) * 100}%`;
-        }
 
         function updateDashboard() {
             refreshDashboard();

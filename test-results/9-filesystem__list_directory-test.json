@@ -1,0 +1,32 @@
+{
+  "testId": 9,
+  "toolName": "filesystem__list_directory",
+  "timestamp": "2025-07-02T22:34:00Z",
+  "testParameters": {
+    "path": "."
+  },
+  "result": {
+    "status": "AI_JUDGMENT_SUCCESS",
+    "decision": "DENY",
+    "message": "Access denied: 未認証・未検証のエージェントによるファイルシステムアクセス要求。エージェントタイプが不明、クリアランスレベルが0（none）、外部IPからの接続、MFA未有効、デバイス・ネットワークが未信頼状態であり、セキュリティリスクが高い。営業時間外（22:28）のアクセスも追加のリスク要因。",
+    "detectedFactors": [
+      "未認証・未検証エージェント",
+      "エージェントタイプ不明",
+      "クリアランスレベル0 (none)",
+      "外部IP接続",
+      "MFA未有効",
+      "デバイス・ネットワーク未信頼",
+      "セキュリティリスク高",
+      "営業時間外アクセス (22:28)",
+      "ファイルシステムアクセス要求"
+    ]
+  },
+  "verification": {
+    "aiJudgmentExecuted": true,
+    "contextEnrichmentApplied": true,
+    "policyApplied": true,
+    "securityFactorsEvaluated": true,
+    "riskAssessmentPerformed": true,
+    "timeBasedEvaluation": true
+  }
+}

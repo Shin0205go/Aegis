@@ -8,8 +8,7 @@ import cors from 'cors';
 import * as path from 'path';
 import { Logger } from './utils/logger';
 import { AIJudgmentEngine } from './ai/judgment-engine';
-import { HybridPolicyEngine } from './policy/hybrid-policy-engine';
-import { createODRLEndpoints } from './api/odrl-endpoints';
+import { AIPolicyEngine } from './policy/ai-policy-engine';
 import { policyLoader } from './policies/policy-loader.js';
 
 const logger = new Logger('simple-server');
@@ -28,12 +27,11 @@ const aiEngine = process.env.ANTHROPIC_API_KEY
     })
   : null;
 
-// Initialize Hybrid Policy Engine
-const hybridEngine = new HybridPolicyEngine(aiEngine as any, {
-  useODRL: true,
-  useAI: !!aiEngine,
-  autoDetectFormat: true,
-});
+// Initialize AI Policy Engine
+const aiPolicyEngine = aiEngine ? new AIPolicyEngine(aiEngine, {
+  aiThreshold: 0.7,
+  cacheEnabled: true,
+}) : null;
 
 // Load policies from configuration
 async function loadPolicies() {
@@ -41,28 +39,10 @@ async function loadPolicies() {
     await policyLoader.loadPolicies();
     const policies = policyLoader.getAllPolicies();
     
-    policies.forEach(policy => {
-      try {
-        const policyText = typeof policy.policy === 'string' 
-          ? policy.policy 
-          : JSON.stringify(policy.policy);
-        
-        hybridEngine.addPolicy({
-          uid: `aegis:policy:${policy.id}`,
-          '@context': ['http://www.w3.org/ns/odrl/2/', 'https://aegis.example.com/odrl/'],
-          '@type': 'Policy',
-          profile: 'https://aegis.example.com/odrl/profile',
-          permission: [],
-          naturalLanguageSource: policyText,
-          metadata: {
-            description: policy.description,
-          },
-        });
-        logger.info(`Loaded policy: ${policy.id}`);
-      } catch (error) {
-        logger.error(`Failed to load policy ${policy.id}:`, error);
-      }
-    });
+    logger.info(`Loaded ${policies.length} policies from configuration`);
+    if (aiPolicyEngine) {
+      aiPolicyEngine.clearCache();
+    }
   } catch (error) {
     logger.error('Failed to load policies from configuration:', error);
   }
@@ -82,29 +62,30 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     version: '1.0.0',
-    policies: hybridEngine.getPolicies().length,
+    policies: policyLoader.getAllPolicies().length,
     aiEnabled: !!aiEngine,
   });
 });
-
-// ODRL API
-app.use('/api/odrl', createODRLEndpoints(hybridEngine));
 
 // Simple policy test endpoint
 app.post('/api/test/evaluate', async (req, res) => {
   try {
     const { context, policyId } = req.body;
     
+    if (!aiPolicyEngine) {
+      return res.status(503).json({ error: 'AI engine not available' });
+    }
+    
     // Find policy
-    const policies = hybridEngine.getPolicies();
-    const policy = policies.find(p => p.uid === `aegis:policy:${policyId}` || p.uid === policyId);
+    const policy = policyLoader.getPolicy(policyId);
     
     if (!policy) {
       return res.status(404).json({ error: 'Policy not found' });
     }
     
     // Evaluate
-    const decision = await hybridEngine.decide(context, policy);
+    const policyText = typeof policy.policy === 'string' ? policy.policy : JSON.stringify(policy.policy);
+    const decision = await aiPolicyEngine.decide(context, policyText);
     
     res.json(decision);
   } catch (error) {
@@ -131,7 +112,7 @@ async function startServer() {
   const PORT = parseInt(process.env.PORT || '3000');
   app.listen(PORT, () => {
     logger.info(`🚀 AEGIS Simple Server running at http://localhost:${PORT}`);
-    logger.info(`📝 ODRL Form Builder: http://localhost:${PORT}/odrl-policy-form.html`);
+    logger.info(`📝 Policy Management: http://localhost:${PORT}/policy-form.html`);
     logger.info(`🏠 Management UI: http://localhost:${PORT}/`);
     logger.info(`✅ Health check: http://localhost:${PORT}/health`);
   });
