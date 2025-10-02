@@ -1,0 +1,312 @@
+openapi: 3.0.3
+info:
+  title: AEGIS Audit Export API
+  description: 監査ログのエクスポート機能（CSV、JSON、PDF）を提供するAPI
+  version: 1.0.0
+  contact:
+    name: AEGIS Team
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+
+paths:
+  /audit/export:
+    post:
+      summary: エクスポートリクエストの作成
+      description: フィルタ条件と形式を指定してエクスポートリクエストを作成。非同期で処理される。
+      operationId: createExportRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequestCreate'
+      responses:
+        '202':
+          description: リクエスト受付成功（非同期処理）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRequestResponse'
+        '400':
+          description: 不正なリクエストボディ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/export/{requestId}:
+    get:
+      summary: エクスポートリクエストのステータス取得
+      description: 指定されたリクエストIDのエクスポート進捗状況を取得
+      operationId: getExportStatus
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: ステータス取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportRequest'
+        '404':
+          description: エクスポートリクエストが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/export/{requestId}/download:
+    get:
+      summary: エクスポートファイルのダウンロード
+      description: 完了したエクスポートファイルをダウンロード
+      operationId: downloadExportFile
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: ファイルダウンロード成功
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: エクスポートファイルが見つからない、または未完了
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: エクスポートファイルが期限切れ（削除済み）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/export/list:
+    get:
+      summary: エクスポートリクエスト一覧の取得
+      description: 過去のエクスポートリクエストを一覧表示
+      operationId: listExportRequests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+          description: ステータスでフィルタ
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: 一覧取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExportRequest'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ExportRequestCreate:
+      type: object
+      required:
+        - format
+      properties:
+        format:
+          type: string
+          enum: [csv, json, pdf]
+          description: エクスポート形式
+        filters:
+          $ref: '#/components/schemas/AuditFilter'
+        requestedBy:
+          type: string
+          description: リクエスト元ユーザー/エージェント
+
+    AuditFilter:
+      type: object
+      properties:
+        dateRange:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        agentIds:
+          type: array
+          items:
+            type: string
+        policyNames:
+          type: array
+          items:
+            type: string
+        decisions:
+          type: array
+          items:
+            type: string
+            enum: [PERMIT, DENY, INDETERMINATE]
+        outcomes:
+          type: array
+          items:
+            type: string
+            enum: [SUCCESS, FAILURE, ERROR]
+        keywords:
+          type: string
+          maxLength: 1000
+        minConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        maxConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    ExportRequest:
+      type: object
+      required:
+        - requestId
+        - format
+        - filters
+        - requestedAt
+        - status
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        format:
+          type: string
+          enum: [csv, json, pdf]
+        filters:
+          $ref: '#/components/schemas/AuditFilter'
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+        downloadUrl:
+          type: string
+          format: uri
+          description: ファイルダウンロードURL（完了時のみ）
+        error:
+          type: string
+          description: エラーメッセージ（失敗時のみ）
+        metadata:
+          type: object
+          properties:
+            totalRecords:
+              type: integer
+              description: エクスポート対象レコード数
+            fileSizeBytes:
+              type: integer
+              description: ファイルサイズ（バイト）
+            processingTimeMs:
+              type: integer
+              description: 処理時間（ミリ秒）
+
+    ExportRequestResponse:
+      type: object
+      required:
+        - requestId
+        - status
+        - message
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [PENDING, PROCESSING]
+        message:
+          type: string
+        estimatedCompletionTime:
+          type: string
+          format: date-time
+          description: 推定完了時刻（任意）
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

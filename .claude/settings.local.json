@@ -42,7 +42,14 @@
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(curl:*)",
       "Bash(git commit:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(git push:*)",
+      "Bash(.specify/scripts/bash/check-prerequisites.sh:*)",
+      "Bash(git checkout:*)",
+      "SlashCommand(/specify 監査・レポート機能の強化: 監査ログのデータベース永続化、レポートダッシュボードの強化、エクスポート機能（CSV、JSON、PDF）、フィルタリング・検索機能、統計サマリー表示を実装する)",
+      "Bash(.specify/scripts/bash/create-new-feature.sh:*)",
+      "SlashCommand(/plan)",
+      "Bash(.specify/scripts/bash/setup-plan.sh:*)"
     ],
     "deny": []
   }

@@ -1,0 +1,344 @@
+openapi: 3.0.3
+info:
+  title: AEGIS Audit Dashboard API
+  description: 監査ダッシュボード用の統計サマリーAPI
+  version: 1.0.0
+  contact:
+    name: AEGIS Team
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+
+paths:
+  /audit/statistics:
+    get:
+      summary: 統計サマリーの取得
+      description: 指定期間の監査ログ統計サマリーを取得
+      operationId: getAuditStatistics
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: 開始日時 (ISO 8601)
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: 終了日時 (ISO 8601)
+        - name: groupBy
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+          description: グループ化単位
+      responses:
+        '200':
+          description: 統計サマリー取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatisticsSummary'
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/statistics/policies:
+    get:
+      summary: ポリシー別統計の取得
+      description: ポリシーごとの利用統計を取得
+      operationId: getPolicyStatistics
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 取得件数（上位N件）
+      responses:
+        '200':
+          description: ポリシー別統計取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PolicyStats'
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/statistics/agents:
+    get:
+      summary: エージェント別統計の取得
+      description: エージェントごとの利用統計を取得
+      operationId: getAgentStatistics
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: 取得件数（上位N件）
+      responses:
+        '200':
+          description: エージェント別統計取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AgentStats'
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/filters/available:
+    get:
+      summary: 利用可能なフィルタ値の取得
+      description: フィルタリング用の利用可能な値リストを取得
+      operationId: getAvailableFilters
+      responses:
+        '200':
+          description: フィルタ値取得成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agentIds:
+                    type: array
+                    items:
+                      type: string
+                    description: 存在するエージェントIDリスト
+                  policyNames:
+                    type: array
+                    items:
+                      type: string
+                    description: 存在するポリシー名リスト
+                  dateRange:
+                    type: object
+                    properties:
+                      min:
+                        type: string
+                        format: date-time
+                        description: 最古のログ日時
+                      max:
+                        type: string
+                        format: date-time
+                        description: 最新のログ日時
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    StatisticsSummary:
+      type: object
+      required:
+        - timeRange
+        - totalRequests
+        - permitCount
+        - denyCount
+        - indeterminateCount
+        - successCount
+        - failureCount
+        - errorCount
+        - avgProcessingTime
+        - avgConfidence
+      properties:
+        timeRange:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+        totalRequests:
+          type: integer
+          minimum: 0
+        permitCount:
+          type: integer
+          minimum: 0
+        denyCount:
+          type: integer
+          minimum: 0
+        indeterminateCount:
+          type: integer
+          minimum: 0
+        successCount:
+          type: integer
+          minimum: 0
+        failureCount:
+          type: integer
+          minimum: 0
+        errorCount:
+          type: integer
+          minimum: 0
+        avgProcessingTime:
+          type: number
+          minimum: 0
+          description: 平均処理時間（ミリ秒）
+        avgConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 平均信頼度
+        policyBreakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/PolicyStats'
+        agentBreakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentStats'
+        hourlyDistribution:
+          type: object
+          additionalProperties:
+            type: integer
+          description: 時間別分布（"00"〜"23" → count）
+        riskDistribution:
+          type: object
+          properties:
+            low:
+              type: integer
+              description: 低リスク（confidence >= 0.8）
+            medium:
+              type: integer
+              description: 中リスク（0.5 <= confidence < 0.8）
+            high:
+              type: integer
+              description: 高リスク（confidence < 0.5）
+
+    PolicyStats:
+      type: object
+      required:
+        - policyName
+        - requestCount
+        - permitRate
+        - avgProcessingTime
+      properties:
+        policyName:
+          type: string
+        requestCount:
+          type: integer
+          minimum: 0
+        permitRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 許可率
+        avgProcessingTime:
+          type: number
+          minimum: 0
+          description: 平均処理時間（ミリ秒）
+
+    AgentStats:
+      type: object
+      required:
+        - agentId
+        - requestCount
+        - successRate
+        - avgConfidence
+      properties:
+        agentId:
+          type: string
+        requestCount:
+          type: integer
+          minimum: 0
+        successRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 成功率
+        avgConfidence:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 平均信頼度
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true

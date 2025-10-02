@@ -1,0 +1,344 @@
+openapi: 3.0.3
+info:
+  title: AEGIS Audit Storage API
+  description: 監査ログの永続化、検索、フィルタリング機能を提供するAPI
+  version: 1.0.0
+  contact:
+    name: AEGIS Team
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+
+paths:
+  /audit/logs:
+    get:
+      summary: 監査ログの検索・取得
+      description: フィルタ条件に基づいて監査ログを検索し、ページネーション付きで返却
+      operationId: getAuditLogs
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 開始日時 (ISO 8601)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 終了日時 (ISO 8601)
+        - name: agentIds
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: エージェントIDリスト（カンマ区切り）
+        - name: policyNames
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          description: ポリシー名リスト（カンマ区切り）
+        - name: decisions
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [PERMIT, DENY, INDETERMINATE]
+          description: 判定結果フィルタ
+        - name: outcomes
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [SUCCESS, FAILURE, ERROR]
+          description: 実行結果フィルタ
+        - name: keywords
+          in: query
+          schema:
+            type: string
+            maxLength: 1000
+          description: 全文検索キーワード
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 100
+          description: 取得件数
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: オフセット
+        - name: orderBy
+          in: query
+          schema:
+            type: string
+            enum: [timestamp, processingTime, confidence]
+            default: timestamp
+        - name: orderDir
+          in: query
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+      responses:
+        '200':
+          description: 検索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogsResponse'
+        '400':
+          description: 不正なリクエストパラメータ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: 監査ログの作成
+      description: 新しい監査ログエントリを永続化
+      operationId: createAuditLog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditEntry'
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  message:
+                    type: string
+        '400':
+          description: 不正なリクエストボディ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /audit/logs/{id}:
+    get:
+      summary: 特定の監査ログ取得
+      description: IDを指定して監査ログエントリを取得
+      operationId: getAuditLogById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 取得成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntry'
+        '404':
+          description: 監査ログが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: 監査ログの削除
+      description: 指定されたIDの監査ログを削除（管理者のみ）
+      operationId: deleteAuditLog
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          description: 監査ログが見つからない
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 権限不足
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: サーバーエラー
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    AuditLogsResponse:
+      type: object
+      required:
+        - entries
+        - pagination
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              description: 総件数
+            limit:
+              type: integer
+              description: 1ページあたりの件数
+            offset:
+              type: integer
+              description: オフセット
+            hasMore:
+              type: boolean
+              description: 次のページが存在するか
+
+    AuditEntry:
+      type: object
+      required:
+        - id
+        - timestamp
+        - context
+        - decision
+        - policyUsed
+        - processingTime
+        - outcome
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        context:
+          $ref: '#/components/schemas/DecisionContext'
+        decision:
+          $ref: '#/components/schemas/PolicyDecision'
+        policyUsed:
+          type: string
+        processingTime:
+          type: integer
+          minimum: 0
+          description: 処理時間（ミリ秒）
+        outcome:
+          type: string
+          enum: [SUCCESS, FAILURE, ERROR]
+        metadata:
+          type: object
+          additionalProperties: true
+
+    DecisionContext:
+      type: object
+      required:
+        - agent
+        - action
+        - resource
+        - time
+        - environment
+      properties:
+        agent:
+          type: string
+        action:
+          type: string
+        resource:
+          type: string
+        purpose:
+          type: string
+        time:
+          type: string
+          format: date-time
+        location:
+          type: string
+        environment:
+          type: object
+          additionalProperties: true
+
+    PolicyDecision:
+      type: object
+      required:
+        - decision
+        - reason
+        - confidence
+      properties:
+        decision:
+          type: string
+          enum: [PERMIT, DENY, INDETERMINATE]
+        reason:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        constraints:
+          type: array
+          items:
+            type: string
+        obligations:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
