@@ -16,14 +16,14 @@
 3. Generate tasks by category ✓
    → Setup: 3 tasks
    → Tests: 11 tasks (contract tests, integration tests)
-   → Core: 15 tasks (types, storage, export, API)
+   → Core: 16 tasks (types, storage, export, API, auth middleware)
    → Integration: 4 tasks (DB integration, dashboard)
    → Polish: 5 tasks (unit tests, performance, docs)
 4. Apply task rules ✓
    → Parallel tasks marked [P] (different files)
    → Sequential tasks (same file modifications)
    → TDD order enforced
-5. Number tasks sequentially (T001-T038) ✓
+5. Number tasks sequentially (T001-T039) ✓
 6. Generate dependency graph ✓
 7. Parallel execution examples ✓
 8. Validation ✓
@@ -281,6 +281,17 @@ mkdir -p data data/exports
 **Dependencies**: T012 (テスト失敗確認), T017
 **Test**: `npm test -- audit-dashboard-api.test.ts` → 全テスト成功
 
+### T024a: 権限チェックミドルウェアの実装
+**File**: `src/api/audit-auth-middleware.ts`
+**Description**: 監査API用の認証・認可ミドルウェア
+- ロールベースアクセス制御（RBAC）実装
+- 削除操作（DELETE）は管理者ロールのみ許可
+- 読み取り操作は監査担当者以上のロール許可
+- 認可失敗時は403 Forbiddenを返却
+- 既存のポリシーエンジンとの統合
+**Dependencies**: T022, T023, T024
+**Test**: 権限なしユーザーのアクセス拒否を確認
+
 ---
 
 ## Phase 3.4: Integration & Enhancement
@@ -441,10 +452,11 @@ API Layer:
 T010, T017 → T022
 T011, T021 → T023
 T012, T017 → T024
+T022, T023, T024 → T024a
 
 Integration:
 T017 → T025
-T022, T023, T024 → T026 → T027
+T024a → T026 → T027
 T028 (independent)
 
 Polish:
@@ -521,7 +533,7 @@ Task: "Create export performance test in tests/performance/audit-export-performa
 
 ---
 
-**Total Tasks**: 38
+**Total Tasks**: 39
 **Estimated Duration**: 3-4 days (with parallel execution)
 **Test Coverage Goal**: > 80%
 
