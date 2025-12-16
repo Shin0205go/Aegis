@@ -1,127 +1,59 @@
-# AEGIS - Natural Language Policy Enforcement System 🛡️
+# AEGIS - AI Data Guardian 🛡️
 
-> AIエージェントの自然言語ポリシー制御を実現する、次世代のインテリジェント・ガバナンスシステム
+> ⚠️ **Status: Experimental / PoC**
+>
+> **Model Context Protocol (MCP)** を活用した、AI向けデータ保護ファイアウォールの実験実装です。
+> コンセプト実証用のため、本番環境での利用は推奨されません。
 
-## ✨ 主要な特徴
+![Status](https://img.shields.io/badge/Status-Experimental%20PoC-orange) ![License](https://img.shields.io/badge/License-MIT-blue)
 
-- **🗣️ 自然言語ポリシー**: 複雑なXMLやJSONではなく、日本語の自然文でポリシーを記述
-- **🧠 AI判定エンジン**: LLMを活用したインテリジェントなアクセス制御判定
-- **🚀 AI自然言語判定**: 自然言語ポリシーをAIが理解し柔軟な判定を実行
-- **🔍 自動コンテキスト収集**: エージェント、リソース、環境情報の自動収集・分析
-- **⚡ リアルタイム制御**: MCPプロキシによる透明なアクセス制御
-- **📊 統計・監視**: 包括的なアクセス分析とリアルタイム監視
-- **⚖️ ガバナンス統制**: 企業レベルのポリシーガバナンスと執行管理
-- **🔧 ユニバーサル制御**: あらゆるMCPツールを自然言語で動的に制御
+**Aegis（イージス）**は、AIエージェントとあなたのデータの間に立ち、情報の流出を防ぐ「盾」です。
+「給与は見せない」「GPSは曖昧にする」といった**自然言語のルール**に基づいて、AIへのデータ提供を動的に制御します。
 
+## 🏗️ 仕組み (Architecture)
+
+TBD
+
+## ✨ 特徴
+• 🗣️ 言葉でルール記述: 「個人情報は隠して」「要約だけ渡して」など、自然言語でポリシーを設定可能。
+• 🧠 AIによる検閲: ルールに基づいて、AIがリクエスト内容を動的に判定・マスキングします。
+• 🔌 MCP対応: Claude DesktopなどのMCP対応クライアントでそのまま利用可能。
 ## 🚀 クイックスタート
-
-```bash
-# インストール
+### 1. インストール & ビルド
+```
+git clone [https://github.com/Shin0205go/Aegis.git](https://github.com/Shin0205go/Aegis.git)
+cd Aegis
 npm install && npm run build
-
-# 環境設定
-cp .env.example .env
-# ANTHROPIC_API_KEY または OPENAI_API_KEY を設定
-
-# AEGIS起動（HTTPモード: MCP機能 + Web UI）
-node scripts/mcp-launcher.js
-
-# または stdio モードで起動（Claude Desktop用）
-node scripts/mcp-launcher.js stdio
-
-# AI判定エンジンのテスト
-npm run test          # 全テスト実行
-npm run test:watch    # テスト監視モード
 ```
 
-### MCP Inspector でのテスト
-
-MCP Inspector を使用して AEGIS Policy Engine の動作をインタラクティブにテストできます：
-
+### 2. 環境設定
+APIキー（Anthropic または OpenAI）を設定します。
 ```bash
-# テストスクリプトを実行
-cd test/mcp-inspector && ./test-with-inspector.sh
-
-# またはプロジェクトルートから直接実行
-npx @modelcontextprotocol/inspector node dist/src/mcp-server.js
+cp .env.example .env
+# .env内の API_KEY を書き換えてください
 ```
 
-詳細は [MCP Inspector セットアップガイド](docs/guides/mcp-inspector-setup.md) を参照してください。
+### 3. 起動
+**Claude Desktop で使う場合 (stdioモード):**
+```bash
+node scripts/mcp-launcher.js stdio
+```
 
-## 🔌 トランスポートモード
+**Webアプリ等から使う場合 (HTTPモード):**
+```bash
+node scripts/mcp-launcher.js
+# Server running on port 3000
+```
 
-AEGISは2つのトランスポートモードをサポートしています：
-
-### stdioモード（Claude Desktop統合用）
-- **用途**: Claude Desktopとの統合
-- **通信**: 標準入出力（stdio）経由のJSON-RPC
-- **管理UI**: http://localhost:3000 で別途提供
-- **起動方法**: `node mcp-launcher.js stdio`
-
-### HTTPモード（Webアプリケーション統合用）
-- **用途**: Claude.ai、Webアプリケーション、リモートアクセス
-- **通信**: Streamable HTTP（単一エンドポイントでPOST/GET/DELETEに対応）
-- **MCPエンドポイント**: `http://localhost:3000/mcp/messages`
-  - POST: JSON-RPCリクエスト送信
-  - GET: SSEストリーム確立（Server-Sent Events）
-  - DELETE: セッション終了
-- **管理UI**: 同じポートで提供
-- **起動方法**: `node mcp-launcher.js` または `node mcp-launcher.js http`
-
-### ポート設定
-デフォルトポートは3000ですが、以下の環境変数で変更可能：
-- `AEGIS_MANAGEMENT_PORT`: 最優先（管理UIとMCPエンドポイント）
-- `MCP_PROXY_PORT`: 次優先
-- デフォルト: 3000
-
-詳細な手順は [導入ガイド](./docs/user-guide/getting-started.md) を参照してください。
-AI判定エンジンの詳細については [開発者ガイド](./docs/developer-guide/) を参照してください。
-
-## 📚 ドキュメント
-
-### 🏠 [ドキュメントホーム](./docs/)
-プロジェクト概要とガイド一覧
-
-### 📗 [ユーザーガイド](./docs/user-guide/)
-- [導入・初期設定](./docs/user-guide/getting-started.md)
-- [Claude Desktop統合](./docs/user-guide/claude-desktop-setup.md)
-- [ポリシー記述ガイド](./docs/user-guide/policy-writing.md)
-- [Web UI使用方法](./docs/user-guide/web-ui.md)
-
-### 📘 [管理者ガイド](./docs/admin-guide/)
-- [詳細設定](./docs/admin-guide/configuration.md)
-- [本番環境展開](./docs/admin-guide/deployment.md)
-- [監視・ログ管理](./docs/admin-guide/monitoring.md)
-
-### 📙 [開発者ガイド](./docs/developer-guide/)
-- [システムアーキテクチャ](./docs/developer-guide/architecture.md)
-- [API リファレンス](./docs/developer-guide/api-reference.md)
-- [開発・テスト](./docs/developer-guide/development.md)
-
-### 📕 [リファレンス](./docs/reference/)
-- [変更履歴](./docs/reference/changelog.md)
-- [今後の計画](./docs/reference/roadmap.md)
-- [よくある質問](./docs/reference/faq.md)
-
-### 🚀 [AI自然言語ポリシーエンジン](./src/policy/)
-- [ポリシー記述ガイド](./docs/policy-writing-guide.md) - 自然言語ポリシーの書き方
-- [判定フロー詳解](./docs/architecture.md) - AI判定の詳細な流れ
-- [アーキテクチャ概要](./docs/developer-guide/architecture.md) - システム全体構成
-
-## 🎯 AEGIS とは
-
-**AEGIS** (Agent Governance & Enforcement Intelligence System) は、古代ギリシャ神話のゼウスの盾の名前から取られています。現代のAI環境における「デジタルの盾」として、AIエージェントとデータリソースを保護します。
-
-詳細は [AEGISの紹介](./docs/introduction.md) を参照してください。
-
-## 🤝 コントリビューション
-
-コントリビューションを歓迎します！詳細は [CONTRIBUTING.md](./CONTRIBUTING.md) をご覧ください。
+## 🧪 テスト
+MCP Inspectorを使って挙動を確認できます。
+```bash
+./test/mcp-inspector/test-with-inspector.sh
+```
 
 ## 📄 ライセンス
-
-MIT License - 詳細は [LICENSE](./LICENSE) ファイルをご覧ください。
+MIT License
 
 ---
+**Built by Shingo Matsuo**
 
-**Built with ❤️ by the AEGIS Governance Team**
