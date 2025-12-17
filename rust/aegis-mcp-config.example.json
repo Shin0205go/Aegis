@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "aegis-rust": {
+      "command": "/home/user/Aegis/rust/target/debug/aegis-mcp",
+      "env": {
+        "RUST_LOG": "aegis_mcp=debug"
+      }
+    }
+  }
+}
