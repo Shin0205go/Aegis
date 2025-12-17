@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "aegis-proxy-typescript": {
+      "command": "node",
+      "args": [
+        "/home/user/Aegis/dist/src/mcp-server.js",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "LOG_LEVEL": "info",
+        "ANTHROPIC_API_KEY": "your-actual-api-key-here",
+        "LLM_PROVIDER": "anthropic",
+        "LLM_MODEL": "claude-sonnet-4-20250514",
+        "AEGIS_AI_THRESHOLD": "0.7"
+      }
+    }
+  }
+}
