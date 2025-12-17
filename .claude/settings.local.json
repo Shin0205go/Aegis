@@ -45,5 +45,18 @@
       "Bash(git pull:*)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/session-start-hook.sh"
+          }
+        ]
+      }
+    ]
   }
 }
