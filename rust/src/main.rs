@@ -97,20 +97,33 @@ impl AegisMcpServer {
             },
             Tool {
                 name: "check_policy".to_string(),
-                description: "Check a natural language policy (mock implementation)".to_string(),
+                description: "AI-powered natural language policy checker. Analyzes access requests against policies written in natural language and returns PERMIT/DENY/INDETERMINATE decisions.".to_string(),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
                         "policy": {
                             "type": "string",
-                            "description": "Natural language policy to check"
+                            "description": "Natural language policy to evaluate"
+                        },
+                        "agent": {
+                            "type": "string",
+                            "description": "Agent/user requesting access"
+                        },
+                        "action": {
+                            "type": "string",
+                            "description": "Action being requested (read, write, delete, execute, etc.)"
                         },
                         "resource": {
                             "type": "string",
-                            "description": "Resource to check against"
+                            "description": "Resource being accessed (file path, API endpoint, etc.)"
+                        },
+                        "context": {
+                            "type": "object",
+                            "description": "Additional context information (time, location, purpose, etc.)",
+                            "additionalProperties": true
                         }
                     },
-                    "required": ["policy", "resource"]
+                    "required": ["policy", "action", "resource"]
                 }),
             },
         ];
@@ -152,32 +165,68 @@ impl AegisMcpServer {
         }))
     }
 
-    /// Handle check_policy tool (mock implementation)
+    /// Handle check_policy tool
+    /// This tool is designed to be called by Claude Code, which acts as the AI judgment engine
     async fn handle_check_policy(&self, args: Value) -> Result<Value> {
+        // Extract parameters
         let policy = args["policy"]
             .as_str()
             .context("Missing policy")?;
+        let agent = args["agent"]
+            .as_str()
+            .unwrap_or("unknown-agent");
+        let action = args["action"]
+            .as_str()
+            .context("Missing action")?;
         let resource = args["resource"]
             .as_str()
             .context("Missing resource")?;
+        let context = args.get("context");
 
-        info!("Checking policy for resource: {}", resource);
-        debug!("Policy: {}", policy);
+        info!("Policy check request:");
+        info!("  Agent: {}", agent);
+        info!("  Action: {}", action);
+        info!("  Resource: {}", resource);
+        debug!("  Policy: {}", policy);
+        debug!("  Context: {:?}", context);
 
-        // Mock implementation: just log the policy and return a permit decision
-        let decision = "PERMIT";
-        let reason = format!(
-            "Mock policy check: allowing access to '{}' based on policy",
-            resource
+        // Build a comprehensive request for AI judgment
+        let mut prompt = format!(
+            "# Policy Evaluation Request\n\n\
+            Please analyze this access request against the given policy and return a JSON decision.\n\n\
+            ## Policy:\n```\n{}\n```\n\n\
+            ## Access Request:\n\
+            - **Agent**: {}\n\
+            - **Action**: {}\n\
+            - **Resource**: `{}`\n",
+            policy, agent, action, resource
         );
 
+        if let Some(ctx) = context {
+            prompt.push_str(&format!("\n## Additional Context:\n```json\n{}\n```\n",
+                serde_json::to_string_pretty(ctx).unwrap_or_default()));
+        }
+
+        prompt.push_str(
+            "\n## Required Response Format:\n\
+            Return a JSON object with the following structure:\n\
+            ```json\n\
+            {\n  \
+              \"decision\": \"PERMIT\" | \"DENY\" | \"INDETERMINATE\",\n  \
+              \"reason\": \"Detailed explanation of the decision\",\n  \
+              \"confidence\": 0.0-1.0,\n  \
+              \"constraints\": [\"optional array of constraints to apply\"],\n  \
+              \"obligations\": [\"optional array of obligations to execute\"]\n\
+            }\n\
+            ```\n\n\
+            Please evaluate the request carefully and return your decision."
+        );
+
+        // Return the formatted prompt for Claude Code to process
         Ok(serde_json::json!({
             "content": [{
                 "type": "text",
-                "text": format!(
-                    "✅ Policy Check Result:\n\nDecision: {}\nReason: {}\n\nPolicy: {}\nResource: {}",
-                    decision, reason, policy, resource
-                )
+                "text": prompt
             }]
         }))
     }
