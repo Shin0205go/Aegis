@@ -182,7 +182,7 @@ export class Config {
     }
 
     // ポート番号検証
-    if (!this.isValidPort(this.config.port)) {
+    if (this.config.port !== undefined && !this.isValidPort(this.config.port)) {
       this.config.port = SERVER.DEFAULT_PORT.HTTP;
       if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
         console.warn('[Config] Invalid port specified. Falling back to default port.');
@@ -190,14 +190,14 @@ export class Config {
     }
 
     // LLM設定の詳細検証
-    if (this.config.llm.maxTokens <= 0) {
+    if (this.config.llm && this.config.llm.maxTokens !== undefined && this.config.llm.maxTokens <= 0) {
       this.config.llm.maxTokens = DEFAULT_MAX_TOKENS;
       if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
         console.warn('[Config] Invalid maxTokens specified. Using default value.');
       }
     }
 
-    if (this.config.llm.temperature < 0 || this.config.llm.temperature > 1) {
+    if (this.config.llm && this.config.llm.temperature !== undefined && (this.config.llm.temperature < 0 || this.config.llm.temperature > 1)) {
       this.config.llm.temperature = DEFAULT_TEMPERATURE;
       if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
         console.warn('[Config] Temperature must be between 0 and 1. Using default value.');
@@ -205,7 +205,7 @@ export class Config {
     }
 
     // キャッシュ設定検証
-    if (this.config.cache.ttl <= 0) {
+    if (this.config.cache && this.config.cache.ttl !== undefined && this.config.cache.ttl <= 0) {
       this.config.cache.ttl = DEFAULT_CACHE_TTL;
       if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
         console.warn('[Config] Cache TTL must be greater than zero. Using default value.');
