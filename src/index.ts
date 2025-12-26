@@ -107,5 +107,34 @@ export {
   ErrorHandler
 } from './utils/errors.js';
 
+// 統一MCPアーキテクチャ
+export {
+  // 型定義
+  type UnifiedMCPConfig,
+  type UnifiedServerDefinition,
+  type UnifiedPromptDefinition,
+  type UnifiedResourceDefinition,
+  type VSCodeMCPConfig,
+  type GeminiCLIConfig,
+  type ClaudeConfig,
+  type GeneratedConfigs,
+  type ConfigGeneratorOptions,
+  type ConnectedClient,
+  type ClientCapabilities,
+  type GatewayStats,
+  type AgentsMdContent,
+  type MCPNotificationType,
+  type NotificationMessage,
+  type ResourceSubscription,
+
+  // コンポーネント
+  CrossPlatformConfigGenerator,
+  DynamicNotificationManager,
+  SemanticDelegationProvider,
+  AgentsMdLoader,
+  UnifiedGatewayServer,
+  type GatewayServerOptions
+} from './unified/index.js';
+
 // デフォルトエクスポート
 export default AEGIS;

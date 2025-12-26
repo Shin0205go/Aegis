@@ -1,18 +1,19 @@
 // ============================================================================
 // AEGIS - MCP Policy Enforcement Point 基底クラス
 // トランスポート共通のポリシー制御ロジック
+// 統一MCPアーキテクチャ対応
 // ============================================================================
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import type { 
-  DecisionContext, 
+import type {
+  DecisionContext,
   AccessControlResult,
   AEGISConfig,
-  PolicyDecision 
+  PolicyDecision
 } from '../types/index.js';
 import { AIJudgmentEngine } from '../ai/judgment-engine.js';
 import { Logger } from '../utils/logger.js';
-import { 
+import {
   ContextCollector,
   TimeBasedEnricher,
   AgentInfoEnricher,
@@ -24,6 +25,13 @@ import { AdvancedAuditSystem } from '../audit/advanced-audit-system.js';
 import { AuditDashboardDataProvider } from '../audit/audit-dashboard-data.js';
 import { AIPolicyEngine } from '../policy/ai-policy-engine.js';
 
+// 統一MCPアーキテクチャコンポーネント
+import {
+  DynamicNotificationManager,
+  SemanticDelegationProvider,
+  AgentsMdLoader
+} from '../unified/index.js';
+
 export abstract class MCPPolicyProxyBase {
   protected server: Server;
   protected config: AEGISConfig;
@@ -32,19 +40,24 @@ export abstract class MCPPolicyProxyBase {
   protected aiPolicyEngine: AIPolicyEngine;
   protected contextCollector: ContextCollector;
   protected enforcementSystem: EnforcementSystem;
-  
+
   // 高度な監査システム
   protected advancedAuditSystem: AdvancedAuditSystem;
   protected auditDashboardProvider: AuditDashboardDataProvider;
-  
+
   // ポリシー管理
   protected policies = new Map<string, string>();
+
+  // 統一MCPアーキテクチャコンポーネント
+  protected notificationManager: DynamicNotificationManager;
+  protected delegationProvider: SemanticDelegationProvider;
+  protected agentsMdLoader: AgentsMdLoader;
 
   constructor(config: AEGISConfig, logger: Logger, judgmentEngine: AIJudgmentEngine | null) {
     this.config = config;
     this.logger = logger;
     this.judgmentEngine = judgmentEngine;
-    
+
     // AIポリシーエンジン初期化
     if (!judgmentEngine) {
       throw new Error('AIJudgmentEngine is required for AIPolicyEngine');
@@ -54,21 +67,33 @@ export abstract class MCPPolicyProxyBase {
       cacheEnabled: true,
       cacheTTL: 300000 // 5分
     });
-    
+
     // コンテキストコレクター初期化
     this.contextCollector = new ContextCollector();
     this.setupContextEnrichers();
-    
+
     // 制約・義務実施システム初期化
     this.enforcementSystem = new EnforcementSystem();
-    
+
     // 高度な監査システム初期化
     this.advancedAuditSystem = new AdvancedAuditSystem();
-    
+
     this.auditDashboardProvider = new AuditDashboardDataProvider(
       this.advancedAuditSystem
     );
-    
+
+    // 統一MCPアーキテクチャコンポーネント初期化
+    this.notificationManager = new DynamicNotificationManager(this.logger);
+    this.delegationProvider = new SemanticDelegationProvider(
+      this.logger,
+      this.notificationManager
+    );
+    this.agentsMdLoader = new AgentsMdLoader(this.logger, this.delegationProvider);
+
+    // デフォルトのプロンプトとリソースを登録
+    this.delegationProvider.registerDefaultPrompts();
+    this.delegationProvider.registerDefaultResources();
+
     // MCPサーバー作成
     this.server = new Server(
       {
@@ -78,10 +103,15 @@ export abstract class MCPPolicyProxyBase {
       {
         capabilities: {
           resources: {
-            listChanged: true  // resources/listChanged通知をサポート
+            listChanged: true,  // resources/listChanged通知をサポート
+            subscribe: true     // リソースサブスクリプションをサポート
           },
-          tools: {},
-          prompts: {}
+          tools: {
+            listChanged: true   // tools/listChanged通知をサポート
+          },
+          prompts: {
+            listChanged: true   // prompts/listChanged通知をサポート
+          }
         }
       }
     );
@@ -231,6 +261,123 @@ export abstract class MCPPolicyProxyBase {
   } {
     return {
       audit: {} // 統計情報は現在未実装
+    };
+  }
+
+  // ============================================================================
+  // 統一MCPアーキテクチャ関連メソッド
+  // ============================================================================
+
+  /**
+   * 通知マネージャーを取得
+   */
+  getNotificationManager(): DynamicNotificationManager {
+    return this.notificationManager;
+  }
+
+  /**
+   * 委譲プロバイダーを取得
+   */
+  getDelegationProvider(): SemanticDelegationProvider {
+    return this.delegationProvider;
+  }
+
+  /**
+   * AGENTS.mdローダーを取得
+   */
+  getAgentsMdLoader(): AgentsMdLoader {
+    return this.agentsMdLoader;
+  }
+
+  /**
+   * AGENTS.mdを読み込み
+   */
+  async loadAgentsMd(projectDir?: string): Promise<void> {
+    await this.agentsMdLoader.loadAgentsMd(projectDir);
+    this.agentsMdLoader.registerAgentsMdPrompt();
+    this.logger.info('AGENTS.md loaded and registered');
+  }
+
+  /**
+   * ツールリスト変更を通知
+   */
+  async notifyToolsListChanged(): Promise<void> {
+    await this.notificationManager.notifyToolsListChanged();
+  }
+
+  /**
+   * リソースリスト変更を通知
+   */
+  async notifyResourcesListChanged(): Promise<void> {
+    await this.notificationManager.notifyResourcesListChanged();
+  }
+
+  /**
+   * プロンプトリスト変更を通知
+   */
+  async notifyPromptsListChanged(): Promise<void> {
+    await this.notificationManager.notifyPromptsListChanged();
+  }
+
+  /**
+   * 全リスト変更を通知
+   */
+  async notifyAllListsChanged(): Promise<void> {
+    await this.notificationManager.notifyAllChanged();
+  }
+
+  /**
+   * リソースを追加
+   */
+  addResource(
+    uri: string,
+    name: string,
+    content: string,
+    options: { description?: string; mimeType?: string } = {}
+  ): void {
+    this.delegationProvider.registerResource({
+      uri,
+      name,
+      description: options.description,
+      mimeType: options.mimeType || 'text/plain',
+      content
+    });
+  }
+
+  /**
+   * プロンプトを追加
+   */
+  addPrompt(
+    name: string,
+    description: string,
+    template: string,
+    options: {
+      arguments?: Array<{ name: string; description: string; required: boolean }>;
+      resourceRefs?: string[];
+    } = {}
+  ): void {
+    this.delegationProvider.registerPrompt({
+      name,
+      description,
+      template,
+      arguments: options.arguments?.map(a => ({
+        ...a,
+        type: 'string' as const
+      })),
+      resourceRefs: options.resourceRefs
+    });
+  }
+
+  /**
+   * 統一アーキテクチャの統計を取得
+   */
+  getUnifiedStats(): {
+    notifications: ReturnType<DynamicNotificationManager['getStats']>;
+    delegation: ReturnType<SemanticDelegationProvider['getStats']>;
+  } {
+    return {
+      notifications: this.notificationManager.getStats(),
+      delegation: this.delegationProvider.getStats()
     };
   }
 

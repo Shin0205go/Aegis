@@ -1,0 +1,256 @@
+# ============================================================================
+# AEGIS 統一MCP構成ファイル (マスター定義)
+#
+# このファイルから各プラットフォーム用の設定ファイルを自動生成できます：
+# - VS Code / GitHub Copilot: .vscode/mcp.json
+# - Gemini CLI: .gemini/settings.json
+# - Claude Desktop / Claude Code: claude_desktop_config.json
+#
+# 使用方法:
+#   1. このファイルをプロジェクトルートに mcp-config.yaml として保存
+#   2. AEGISの設定ジェネレーターを使用して各プラットフォーム用ファイルを生成
+# ============================================================================
+
+version: "1.0.0"
+
+# ============================================================================
+# MCPサーバー定義
+# ============================================================================
+servers:
+  # ファイルシステムサーバー
+  - name: "filesystem"
+    description: "ローカルファイルシステムへのアクセス"
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/path/to/allowed/directory"
+    envVars: []
+    transport: "stdio"
+    clients:
+      copilot: true
+      gemini: true
+      claude: true
+    healthCheck:
+      enabled: true
+      interval: 30000
+      timeout: 5000
+
+  # GitHub サーバー
+  - name: "github"
+    description: "GitHub API アクセス"
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-github"
+    envVars:
+      - "GITHUB_PERSONAL_ACCESS_TOKEN"
+    transport: "stdio"
+    clients:
+      copilot: true
+      gemini: true
+      claude: true
+    auth:
+      type: "env-var"
+      config:
+        varName: "GITHUB_PERSONAL_ACCESS_TOKEN"
+
+  # PostgreSQL サーバー
+  - name: "postgres"
+    description: "PostgreSQLデータベースアクセス"
+    command: "docker"
+    args:
+      - "run"
+      - "-i"
+      - "--rm"
+      - "-e"
+      - "POSTGRES_URL"
+      - "mcp/postgres"
+    envVars:
+      - "POSTGRES_URL"
+    transport: "stdio"
+    clients:
+      copilot: true
+      gemini: true
+      claude: true
+
+  # AEGISゲートウェイ (全ツールを集約)
+  - name: "aegis-gateway"
+    description: "AEGISポリシー制御ゲートウェイ"
+    command: "node"
+    args:
+      - "dist/src/mcp-server.js"
+      - "--transport"
+      - "stdio"
+    envVars:
+      - "ANTHROPIC_API_KEY"
+    transport: "stdio"
+    clients:
+      copilot: true
+      gemini: true
+      claude: true
+
+# ============================================================================
+# プロンプト定義 (意味論的委譲用)
+# ============================================================================
+prompts:
+  # システム初期化指示
+  - name: "system_instruction"
+    description: "エージェントの初期化指示を取得"
+    template: |
+      あなたはAEGISポリシーエンジンに接続されたアシスタントです。
+
+      以下のガイドラインに従ってください：
+
+      1. すべての操作はサーバー側のポリシーに従って制御されます
+      2. ツールの使用前に、必ず適切な権限があることを確認してください
+      3. センシティブなデータの取り扱いには注意してください
+      4. エラーが発生した場合は、明確なメッセージをユーザーに提供してください
+
+      @{aegis://guidelines}
+    resourceRefs:
+      - "aegis://guidelines"
+
+  # コードレビュープロンプト
+  - name: "code_review"
+    description: "コードレビューを実行"
+    template: |
+      以下のコードをレビューしてください：
+
+      ```{{language}}
+      {{code}}
+      ```
+
+      レビュー観点：
+      - コードの可読性
+      - パフォーマンス
+      - セキュリティ
+      - ベストプラクティスへの準拠
+
+      @{aegis://coding-guidelines}
+    arguments:
+      - name: "language"
+        description: "プログラミング言語"
+        required: true
+        type: "string"
+      - name: "code"
+        description: "レビュー対象のコード"
+        required: true
+        type: "string"
+    resourceRefs:
+      - "aegis://coding-guidelines"
+
+  # セキュリティ監査プロンプト
+  - name: "security_audit"
+    description: "セキュリティ監査を実行"
+    template: |
+      以下のコードに対してセキュリティ監査を実施してください：
+
+      {{code}}
+
+      チェック項目：
+      - インジェクション脆弱性 (SQL, XSS, コマンド)
+      - 認証・認可の問題
+      - 機密情報の漏洩リスク
+      - 暗号化の適切性
+
+      発見された問題を重要度順にリストアップし、修正案を提示してください。
+    arguments:
+      - name: "code"
+        description: "監査対象のコード"
+        required: true
+        type: "string"
+
+# ============================================================================
+# リソース定義
+# ============================================================================
+resources:
+  # システムガイドライン
+  - uri: "aegis://guidelines"
+    name: "システムガイドライン"
+    description: "エージェントが従うべき基本ガイドライン"
+    mimeType: "text/markdown"
+    content: |
+      # AEGIS システムガイドライン
+
+      ## セキュリティ
+
+      - センシティブなデータ（パスワード、APIキー、個人情報）を出力に含めないでください
+      - ファイル操作は許可されたディレクトリ内でのみ行ってください
+      - 外部サービスへの接続は承認されたものに限定してください
+
+      ## データ保護
+
+      - 顧客データは業務目的でのみアクセスしてください
+      - 不要なデータの長期保存は避けてください
+      - データの外部共有は厳禁です
+
+      ## 監査
+
+      - すべての操作は記録されます
+      - 異常なアクセスパターンは自動検出されます
+    subscription:
+      enabled: true
+      updateInterval: 60000
+
+  # コーディングガイドライン
+  - uri: "aegis://coding-guidelines"
+    name: "コーディングガイドライン"
+    description: "コード品質に関するガイドライン"
+    mimeType: "text/markdown"
+    content: |
+      # コーディングガイドライン
+
+      ## 一般原則
+
+      - DRY (Don't Repeat Yourself)
+      - KISS (Keep It Simple, Stupid)
+      - YAGNI (You Ain't Gonna Need It)
+
+      ## セキュリティ
+
+      - 入力値は常に検証する
+      - SQLインジェクション対策を行う
+      - XSS対策を行う
+
+      ## パフォーマンス
+
+      - N+1クエリを避ける
+      - 適切なインデックスを使用する
+      - キャッシュを活用する
+
+  # プロジェクト構成（動的生成）
+  - uri: "aegis://project-structure"
+    name: "プロジェクト構成"
+    description: "現在のプロジェクトのディレクトリ構成"
+    mimeType: "text/plain"
+    generator:
+      type: "file"
+      source: ".aegis/project-structure.txt"
+      cache:
+        enabled: true
+        ttl: 300
+
+# ============================================================================
+# グローバル設定
+# ============================================================================
+globalSettings:
+  # デフォルトのクライアント許可設定
+  defaultClients:
+    copilot: true
+    gemini: true
+    claude: true
+
+  # 環境変数のプレフィックス
+  envPrefix: "AEGIS_"
+
+  # ログ設定
+  logging:
+    level: "info"
+    format: "json"
+
+  # セキュリティ設定
+  security:
+    allowedOrigins:
+      - "http://localhost:*"
+    requireAuth: false
