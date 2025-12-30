@@ -1,559 +1,1021 @@
-# 自然言語ポリシーアーキテクチャ 詳細設計書
+# AEGIS プロジェクト開発ガイド
 
-## 🤖 AI判定エンジン設定
+**AEGIS - AI Data Guardian** のコードベース構造、開発ワークフロー、AIアシスタント向けの重要な規約をまとめたドキュメントです。
 
-AEGIS Policy Engineは、自然言語ポリシーの判定にClaude Opus 4（`claude-opus-4-20250514`）をデフォルトで使用します。これは最新かつ最も高性能なモデルで、複雑なポリシー判定に適しています。
+## 📋 目次
 
-環境変数`LLM_MODEL`で変更可能ですが、ポリシー判定の精度を保つため、Opus 4の使用を推奨します。
+1. [プロジェクト概要](#プロジェクト概要)
+2. [プロジェクトルール](#プロジェクトルール)
+3. [ディレクトリ構造](#ディレクトリ構造)
+4. [アーキテクチャ概要](#アーキテクチャ概要)
+5. [コンポーネント詳細](#コンポーネント詳細)
+6. [開発ワークフロー](#開発ワークフロー)
+7. [コーディング規約](#コーディング規約)
+8. [テスト方針](#テスト方針)
+9. [環境変数と設定](#環境変数と設定)
+10. [実装状況](#実装状況)
+
+---
+
+## 📌 プロジェクト概要
+
+**AEGIS（AI Data Guardian）** は、Model Context Protocol（MCP）を活用した、AIエージェント向けのデータ保護ファイアウォールです。
+
+### 🎯 コアコンセプト
+
+- **自然言語ポリシー**: XMLやJSONではなく、日本語の自然文でポリシーを記述
+- **AI判定エンジン**: Claude Opus 4を使用したインテリジェントなアクセス制御
+- **MCPプロキシ**: AI エージェントとデータソース間の透明な制御層
+- **動的制御**: コンテキストに基づくリアルタイム判定
+
+### ⚠️ プロジェクトステータス
+
+- **現状**: Experimental / Proof of Concept（実験実装・概念実証）
+- **本番利用**: 推奨されません
+- **目的**: 自然言語ポリシーベースのAIガバナンスの実現可能性を検証
+
+---
 
 ## 📝 プロジェクトルール
 
-### ファイル配置ルール
+### 1. ファイル配置ルール
 
-1. **ルートディレクトリのMDファイル制限**
-   - ルートディレクトリに配置できるMarkdownファイルは以下の3つのみ：
-     - `README.md` - プロジェクト概要
-     - `CONTRIBUTING.md` - コントリビューションガイド
-     - `CLAUDE.md` - このファイル（AIアシスタント用指示書）
-   - その他のドキュメントは`docs/`ディレクトリ以下に配置すること
+#### ルートディレクトリのMDファイル制限
+ルートディレクトリに配置できるMarkdownファイルは以下の3つのみ：
+- `README.md` - プロジェクト概要（簡潔に）
+- `CONTRIBUTING.md` - コントリビューションガイド
+- `CLAUDE.md` - このファイル（AIアシスタント用指示書）
 
-2. **テスト関連ファイル**
-   - すべてのテスト関連ファイルは`test/`ディレクトリ以下に配置
-   - ルートに`test-*`のようなファイルやディレクトリを作成しない
+**その他のドキュメントは必ず `docs/` ディレクトリ以下に配置**
 
-3. **設定ファイル**
-   - デプロイメント用設定は`deployment/`ディレクトリに配置
-   - ルートには必要最小限の設定ファイルのみ配置
+#### テスト関連ファイル
+- すべてのテストファイルは `test/` ディレクトリ以下に配置
+- ルートに `test-*` のようなファイルやディレクトリを作成しない
+- 例外: `test-stdio.js` のような一時的な手動テストスクリプトは許容されるが、定期的にクリーンアップすること
 
-4. **レポート・ドキュメント**
-   - テストカバレッジレポートなどは`docs/reports/`に配置
-   - ガイドドキュメントは`docs/guides/`に配置
+#### 設定ファイル
+- デプロイメント用設定は `deployment/` ディレクトリに配置
+- ルートには標準的な設定ファイルのみ配置（`package.json`, `tsconfig.json`, `.eslintrc.json` など）
 
-### コード品質ルール
+#### レポート・ドキュメント
+- テストカバレッジレポート → `docs/reports/`
+- ガイドドキュメント → `docs/guides/`
+- 管理者向けドキュメント → `docs/admin-guide/`
+- 開発者向けドキュメント → `docs/developer-guide/`
 
-1. **Phase番号の禁止**
-   - 「Phase 1」「Phase 2」などの開発フェーズ番号を使用しない
-   - 適切なアーキテクチャ用語（PEP、PDP、PIP、PAP）を使用する
+### 2. コード品質ルール
 
-2. **外部通信機能**
-   - メール送信、通知機能などの外部通信は当面実装しない
-   - モック実装（ログ出力のみ）で十分
+#### Phase番号の禁止
+- 「Phase 1」「Phase 2」などの開発フェーズ番号を使用しない
+- 適切なアーキテクチャ用語を使用する：
+  - **PEP** (Policy Enforcement Point) - ポリシー実行ポイント
+  - **PDP** (Policy Decision Point) - ポリシー判定ポイント
+  - **PIP** (Policy Information Point) - ポリシー情報ポイント
+  - **PAP** (Policy Administration Point) - ポリシー管理ポイント
 
-### TypeScriptプロジェクト構造
+#### 外部通信機能
+- メール送信、Slack通知などの外部通信は当面実装しない
+- モック実装（ログ出力のみ）で十分
+- 実装する場合は設定で無効化できるようにする
 
-1. **一般的なTypeScriptプロジェクト構造に従う**
-   ```
-   プロジェクトルート/
-   ├── src/                 # ソースコード
-   ├── test/                # テストファイル
-   ├── dist/                # ビルド出力 (gitignore)
-   ├── docs/                # ドキュメント
-   ├── scripts/             # ビルド・デプロイスクリプト
-   ├── .github/             # GitHub Actions等
-   ├── node_modules/        # 依存パッケージ (gitignore)
-   ├── package.json
-   ├── tsconfig.json
-   ├── .gitignore
-   ├── .eslintrc.json
-   ├── README.md
-   ├── CONTRIBUTING.md
-   └── CLAUDE.md
-   ```
+#### ODRL実装の廃止
+- ODRL（Open Digital Rights Language）実装は完全に削除済み
+- 自然言語ポリシーエンジンに一本化
+- ODRLに関連するコード・コメント・ドキュメントは全て削除すること
 
-2. **src/ディレクトリ構造**
-   - 機能別にモジュールを整理
-   - 各モジュールに`index.ts`でエクスポートを管理
-   - テストファイルは`*.test.ts`または`*.spec.ts`の命名規則
+---
 
-3. **標準的な設定ファイルのみルートに配置**
-   - `package.json`, `tsconfig.json`, `.gitignore`, `.eslintrc.json`等
-   - プロジェクト固有の設定ファイルは最小限に
+## 📂 ディレクトリ構造
+
+```
+Aegis/
+├── src/                          # ソースコード
+│   ├── ai/                       # AI判定エンジン
+│   │   ├── judgment-engine.ts   # メインの判定エンジン
+│   │   ├── llm-factory.ts       # LLMプロバイダー抽象化
+│   │   ├── anthropic-llm.ts     # Claude統合
+│   │   ├── openai-llm.ts        # OpenAI統合（未サポート）
+│   │   └── prompt-templates.ts  # プロンプトテンプレート
+│   │
+│   ├── core/                     # コアシステム
+│   │   ├── controller.ts         # メインコントローラー
+│   │   ├── enforcement.ts        # EnforcementSystem（制約・義務）
+│   │   ├── errors.ts             # エラー定義
+│   │   ├── constraints/          # 制約プロセッサ
+│   │   │   ├── manager.ts        # ConstraintProcessorManager
+│   │   │   ├── strategies.ts     # 制約ストラテジー
+│   │   │   ├── types.ts          # 制約型定義
+│   │   │   └── processors/       # 個別プロセッサ
+│   │   │       ├── data-anonymizer.ts   # データ匿名化
+│   │   │       ├── rate-limiter.ts      # レート制限
+│   │   │       └── geo-restrictor.ts    # 地理的制限
+│   │   └── obligations/          # 義務エグゼキューター
+│   │       ├── manager.ts        # ObligationExecutorManager
+│   │       ├── types.ts          # 義務型定義
+│   │       └── executors/        # 個別エグゼキューター
+│   │           ├── audit-logger.ts       # 監査ログ
+│   │           ├── notifier.ts           # 通知システム
+│   │           └── data-lifecycle.ts     # データライフサイクル
+│   │
+│   ├── mcp/                      # MCPプロキシ実装
+│   │   ├── base-proxy.ts         # プロキシ基底クラス
+│   │   ├── stdio-proxy.ts        # stdio トランスポート（Claude Desktop用）
+│   │   ├── http-proxy.ts         # HTTP トランスポート（Web用）
+│   │   ├── policy-enforcer.ts    # ポリシー実行ロジック
+│   │   ├── stdio-router.ts       # stdio ルーティング
+│   │   ├── tool-discovery.ts     # ツール検出
+│   │   └── dynamic-tool-discovery.ts  # 動的ツール検出
+│   │
+│   ├── policy/                   # ポリシーエンジン
+│   │   ├── ai-policy-engine.ts   # AIポリシー判定エンジン
+│   │   └── policy-detector.ts    # ポリシー検出器
+│   │
+│   ├── policies/                 # ポリシー管理（PAP）
+│   │   ├── administrator.ts      # ポリシー管理者
+│   │   ├── policy-loader.ts      # ポリシーローダー
+│   │   └── policy-resolver.ts    # ポリシー競合解決
+│   │
+│   ├── context/                  # コンテキスト収集（PIP）
+│   │   ├── collector.ts          # コンテキストコレクター
+│   │   ├── index.ts              # エクスポート
+│   │   └── enrichers/            # コンテキストエンリッチャー
+│   │       ├── index.ts
+│   │       ├── time-based.ts          # 時間ベース情報
+│   │       ├── agent-info.ts          # エージェント情報
+│   │       ├── resource-classifier.ts # リソース分類
+│   │       ├── security-info.ts       # セキュリティ情報
+│   │       └── data-lineage.ts        # データ系譜
+│   │
+│   ├── audit/                    # 監査システム
+│   │   ├── advanced-audit-system.ts        # 高度な監査システム
+│   │   ├── audit-dashboard-data.ts         # ダッシュボードデータ
+│   │   └── real-time-anomaly-detector.ts   # リアルタイム異常検知
+│   │
+│   ├── web/                      # Web UI
+│   │   ├── index.html                      # メインページ
+│   │   ├── policy-management.html          # ポリシー管理UI
+│   │   └── audit-dashboard-enhanced.html   # 監査ダッシュボード
+│   │
+│   ├── api/                      # REST API
+│   ├── schemas/                  # バリデーションスキーマ（Zod）
+│   ├── types/                    # TypeScript型定義
+│   ├── constants/                # 定数定義
+│   ├── performance/              # パフォーマンス測定
+│   ├── utils/                    # ユーティリティ
+│   │   ├── logger.ts             # ロガー
+│   │   ├── config.ts             # 設定管理
+│   │   └── errors.ts             # エラーハンドリング
+│   │
+│   ├── index.ts                  # メインエントリーポイント
+│   ├── mcp-server.ts             # MCPサーバーエントリーポイント
+│   ├── server.ts                 # HTTPサーバー
+│   └── simple-server.ts          # シンプルHTTPサーバー
+│
+├── test/                         # テストファイル
+│   ├── ai/                       # AI判定エンジンのテスト
+│   ├── integration/              # 統合テスト
+│   ├── e2e/                      # E2Eテスト
+│   ├── core/                     # コアシステムのテスト
+│   ├── mcp/                      # MCPプロキシのテスト
+│   ├── context/                  # コンテキスト収集のテスト
+│   └── setup.ts                  # テストセットアップ
+│
+├── docs/                         # ドキュメント
+│   ├── README.md                 # ドキュメントインデックス
+│   ├── user-guide/               # ユーザーガイド
+│   ├── admin-guide/              # 管理者ガイド
+│   ├── developer-guide/          # 開発者ガイド
+│   ├── guides/                   # 各種ガイド
+│   ├── reference/                # リファレンス
+│   └── reports/                  # テストレポート等
+│
+├── scripts/                      # スクリプト
+│   ├── mcp-launcher.js           # MCPサーバー起動スクリプト
+│   └── policies/                 # ポリシー管理スクリプト
+│
+├── policies/                     # ポリシー定義ファイル
+│   ├── policies.json             # メインポリシーファイル
+│   └── *.json                    # 個別ポリシーファイル
+│
+├── deployment/                   # デプロイメント設定
+├── .github/                      # GitHub Actions等
+├── .devcontainer/                # Dev Container設定
+├── .specify/                     # Specify AI設定
+│
+├── package.json                  # プロジェクト設定
+├── tsconfig.json                 # TypeScript設定
+├── jest.config.js                # Jestテスト設定
+├── .eslintrc.json                # ESLint設定
+├── .env.example                  # 環境変数サンプル
+├── README.md                     # プロジェクト概要
+├── CONTRIBUTING.md               # コントリビューションガイド
+└── CLAUDE.md                     # このファイル
+```
+
+### TypeScript パスエイリアス
+
+`tsconfig.json` で以下のパスエイリアスが設定されています：
+
+```json
+{
+  "@/*": ["./src/*"],
+  "@/core/*": ["./src/core/*"],
+  "@/ai/*": ["./src/ai/*"],
+  "@/context/*": ["./src/context/*"],
+  "@/mcp/*": ["./src/mcp/*"],
+  "@/policies/*": ["./src/policies/*"],
+  "@/monitoring/*": ["./src/monitoring/*"],
+  "@/utils/*": ["./src/utils/*"]
+}
+```
+
+コード内でこれらのエイリアスを使用してください。
+
+---
 
 ## 🎯 アーキテクチャ概要
 
-従来の複雑なIDSアーキテクチャを、自然言語ポリシー + MCPプロキシで簡素化した革新的な設計です。
+### 全体構成図
 
-```typescript
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                    AIエージェント層                          │
-├─────────────────────────────────────────────────────────────┤
-│           MCPクライアント（各種AIエージェント）                │
+│              (Claude Desktop, Web Apps, etc.)               │
 └─────────────────┬───────────────────────────────────────────┘
-                  │ MCPリクエスト
+                  │ MCP Protocol
                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │    PEP (Policy Enforcement Point) - MCPプロキシサーバー      │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
-│  │リクエスト    │ │判定エンジン  │ │制約・義務               │ │
-│  │インターセプト│ │呼び出し      │ │実行                     │ │
-│  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │EnforcementSystem: 高度な制約・義務処理（PEP機能）        │ │
-│  │- ConstraintProcessorManager                              │ │
-│  │- ObligationExecutorManager                               │ │
-│  │✅ MCPプロキシへの統合完了                               │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└─────────┬───────────────────┬───────────────────────────────┘
-          │                   │
-          ▼                   ▼
-┌─────────────────┐    ┌─────────────────────────────────────┐
-│PIP              │    │PDP                                  │
-│(Policy Info     │    │(Policy Decision Point)             │
-│Point)           │    │自然言語ポリシー判定エンジン          │
-│コンテキスト      │    │                                     │
-│情報収集・拡張    │    │┌─────────────┐ ┌─────────────────┐│
-│                 │    ││自然言語      │ │AI判定           ││
-│┌─────────────┐  │    ││ポリシー      │ │(LLM)            ││
-││エージェント  │  │    ││→システム     │ │                 ││
-││情報取得      │  │    ││プロンプト変換│ │PERMIT/DENY/     ││
-│└─────────────┘  │    │└─────────────┘ │INDETERMINATE    ││
-│┌─────────────┐  │    │                 └─────────────────┘│
-││リソース分類  │  │    │                                     │
-│└─────────────┘  │    └─────────────────────────────────────┘
-│┌─────────────┐  │                        ▲
-││時間・場所    │  │                        │
-││セキュリティ  │  │                        │
-│└─────────────┘  │    ┌─────────────────────────────────────┐
-└─────────────────┘    │PAP                                  │
-          │             │(Policy Administration Point)       │
-          │             │自然言語ポリシー管理                 │
-          │             │                                     │
-          │             │┌─────────────┐ ┌─────────────────┐│
-          │             ││ポリシー作成  │ │バージョン管理   ││
-          │             ││更新・削除    │ │メタデータ管理   ││
-          │             │└─────────────┘ └─────────────────┘│
-          │             │┌─────────────┐ ┌─────────────────┐│
-          │             ││ポリシー検証  │ │インポート/      ││
-          │             ││             │ │エクスポート     ││
-          │             │└─────────────┘ └─────────────────┘│
-          │             └─────────────────────────────────────┘
-          │                             │
-          ▼                             ▼
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ MCPStdioPolicyProxy / MCPHttpPolicyProxy             │   │
+│  │ - リクエストインターセプト                            │   │
+│  │ - PolicyEnforcer統合                                 │   │
+│  │ - ツール検出・ルーティング                            │   │
+│  └──────────────────────────────────────────────────────┘   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ EnforcementSystem: 制約・義務処理                     │   │
+│  │ - ConstraintProcessorManager                         │   │
+│  │   • DataAnonymizerProcessor (匿名化)                 │   │
+│  │   • RateLimiterProcessor (レート制限)                │   │
+│  │   • GeoRestrictorProcessor (地理的制限)              │   │
+│  │ - ObligationExecutorManager                          │   │
+│  │   • AuditLoggerExecutor (監査ログ)                   │   │
+│  │   • NotifierExecutor (通知)                          │   │
+│  │   • DataLifecycleExecutor (データ管理)               │   │
+│  │ ✅ MCPプロキシに完全統合済み                          │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────┬──────────────────┬────────────────────────────────┘
+          │                  │
+          ▼                  ▼
+┌──────────────────┐  ┌──────────────────────────────────────┐
+│ PIP              │  │ PDP (Policy Decision Point)          │
+│ ContextCollector │  │ AIJudgmentEngine + AIPolicyEngine    │
+│                  │  │                                       │
+│ - TimeBasedEnricher      │  │ ┌──────────────────────────┐ │
+│ - AgentInfoEnricher      │  │ │自然言語ポリシー          │ │
+│ - ResourceClassifier     │  │ │  ↓                       │ │
+│ - SecurityInfoEnricher   │  │ │システムプロンプト変換    │ │
+│ - DataLineageEnricher    │  │ │  ↓                       │ │
+└──────────────────┘  │ │AI判定 (Claude Opus 4)    │ │
+          │             │  │ │  ↓                       │ │
+          │             │  │ │PERMIT/DENY/INDETERMINATE │ │
+          │             │  │ └──────────────────────────┘ │
+          │             │  │                               │
+          │             │  │ キャッシュ・バッチ処理対応     │
+          │             │  └──────────────────────────────┘
+          │             │            ▲
+          │             │            │
+          │             │  ┌──────────────────────────────┐
+          │             │  │ PAP (Policy Administration)  │
+          │             └──│ PolicyAdministrator          │
+          │                │                              │
+          │                │ - ポリシーCRUD               │
+          │                │ - バージョン管理             │
+          │                │ - PolicyLoader               │
+          │                │ - PolicyConflictResolver     │
+          │                │ - PolicyApplicabilityFilter  │
+          │                └──────────────────────────────┘
+          │
+          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    上流MCPサーバー群                         │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
-│  │Gmail MCP    │ │Google Drive │ │その他各種MCPサーバー     │ │
-│  │サーバー     │ │MCPサーバー   │ │(Slack, Calendar, etc.)  │ │
-│  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
+│              上流MCPサーバー群（Upstream Servers）           │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
+│  │Filesystem   │ │Execution    │ │その他MCPサーバー     │   │
+│  │MCP Server   │ │MCP Server   │ │(Custom Servers)     │   │
+│  └─────────────┘ └─────────────┘ └─────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 コンポーネント詳細設計
+### データフロー
 
-### 1. PDP (Policy Decision Point) - AIによる判定エンジン
+```
+1. AIエージェント
+   ↓ MCPリクエスト (tools/call, resources/read, etc.)
 
-**役割**: 自然言語ポリシーを理解し、リクエストに対してPERMIT/DENY/INDETERMINATEを判定
+2. PEP (MCPプロキシ)
+   ├─① リクエスト受信
+   ├─② コンテキスト構築 → PIP呼び出し
+   ├─③ ポリシー選択
+   ├─④ キャッシュチェック
+   ├─⑤ PDP呼び出し → AI判定
+   ├─⑥ 判定結果処理
+   │   ├─ PERMIT → 制約適用 → 上流プロキシ → 義務実行
+   │   ├─ DENY → エラー返却
+   │   └─ INDETERMINATE → エラー返却
+   └─⑦ 監査ログ記録 & 異常検知
 
+   ↓ MCPレスポンス
+
+3. AIエージェント
+```
+
+---
+
+## 🔧 コンポーネント詳細
+
+### 1. PDP (Policy Decision Point) - AI判定エンジン
+
+**場所**: `src/ai/judgment-engine.ts`, `src/policy/ai-policy-engine.ts`
+
+**役割**: 自然言語ポリシーを理解し、コンテキストに基づいてアクセス可否を判定
+
+**主要クラス**:
+- `AIJudgmentEngine`: LLM統合とプロンプト管理
+- `AIPolicyEngine`: ポリシーベースの判定ロジック
+
+**主要機能**:
+- 自然言語ポリシー → システムプロンプト変換
+- AI判定実行（Claude Opus 4使用）
+- キャッシュ機能（重複判定の高速化）
+- バッチ処理対応
+- 信頼度スコア算出
+
+**インターフェース**:
 ```typescript
 interface PolicyDecision {
   decision: "PERMIT" | "DENY" | "INDETERMINATE";
-  reason: string;                    // 判定理由の詳細
-  confidence: number;                // 0-1の信頼度スコア
-  constraints?: string[];            // 適用すべき制約
-  obligations?: string[];            // 実行すべき義務
-  metadata?: any;                    // 追加情報
-}
-
-interface DecisionContext {
-  agent: string;                     // エージェントID
-  action: string;                    // 実行するアクション
-  resource: string;                  // アクセス対象リソース
-  purpose?: string;                  // アクセス目的
-  time: Date;                       // アクセス時刻
-  location?: string;                // アクセス場所
-  environment: Record<string, any>; // 環境情報
+  reason: string;
+  confidence: number;  // 0-1
+  constraints?: string[];
+  obligations?: string[];
+  metadata?: any;
 }
 ```
 
-**主要機能**:
-- **自然言語→システムプロンプト変換**: ポリシーを判定用プロンプトに変換
-- **AI判定実行**: LLMを使用してコンテキストベースの判定
-- **バッチ処理**: 複数リクエストの効率的な一括判定
-- **キャッシュ機能**: 同一判定のキャッシュによる高速化
+### 2. PEP (Policy Enforcement Point) - MCPプロキシ
 
-**判定プロセス**:
-1. 自然言語ポリシーをシステムプロンプトに変換
-2. コンテキスト情報とプロンプトをLLMに送信
-3. JSON形式の構造化された判定結果を取得
-4. 結果のパース・検証・キャッシュ
-
-### 2. PEP (Policy Enforcement Point) - MCPプロキシサーバー
+**場所**: `src/mcp/`
 
 **役割**: 全MCPリクエストをインターセプトし、ポリシー制御を透明に実行
 
+**主要クラス**:
+- `MCPStdioPolicyProxy`: Claude Desktop統合用（stdio）
+- `MCPHttpPolicyProxy`: Webアプリケーション統合用（HTTP）
+- `PolicyEnforcer`: ポリシー実行ロジック（責務分離）
+
+**主要機能**:
+- リクエストインターセプト
+- 動的ツール検出・ルーティング
+- 上流サーバーへのプロキシ
+- 制約・義務の適用
+- 監査ログ記録
+
+**対応MCPメソッド**:
+- `tools/call` - ツール実行制御
+- `tools/list` - ツール一覧取得
+- `resources/read` - リソース読み取り制御
+- `resources/list` - リソース一覧取得
+
+### 3. PIP (Policy Information Point) - コンテキスト収集
+
+**場所**: `src/context/`
+
+**役割**: 判定に必要な環境情報を自動収集・拡張
+
+**主要クラス**:
+- `ContextCollector`: エンリッチャー管理
+- 各種エンリッチャー（時間、エージェント、リソース、セキュリティ、データ系譜）
+
+**収集情報**:
+- 🕐 時間: 営業時間判定、タイムゾーン
+- 👤 エージェント: 種別、クリアランスレベル
+- 📁 リソース: データ種別、機密度
+- 🔒 セキュリティ: IP、リスクスコア
+- 🔗 データ系譜: 出所、加工履歴
+
+### 4. PAP (Policy Administration Point) - ポリシー管理
+
+**場所**: `src/policies/`
+
+**役割**: 自然言語ポリシーのライフサイクル管理
+
+**主要クラス**:
+- `PolicyAdministrator`: ポリシーCRUD操作
+- `PolicyLoader`: ポリシーファイル読み込み
+- `PolicyConflictResolver`: ポリシー競合解決
+- `PolicyApplicabilityFilter`: ポリシー適用フィルタリング
+
+**主要機能**:
+- ポリシー作成・更新・削除
+- バージョン管理
+- メタデータ管理（タグ、優先度）
+- ポリシー検証
+- インポート/エクスポート
+
+### 5. EnforcementSystem - 制約・義務処理
+
+**場所**: `src/core/enforcement.ts`, `src/core/constraints/`, `src/core/obligations/`
+
+**役割**: 判定結果に基づく制約適用と義務実行
+
+**制約プロセッサ**:
+- `DataAnonymizerProcessor`: データ匿名化（マスク、トークン化、ハッシュ化）
+- `RateLimiterProcessor`: レート制限（時間窓、キャッシュ）
+- `GeoRestrictorProcessor`: 地理的制限（IPベース）
+
+**義務エグゼキューター**:
+- `AuditLoggerExecutor`: 監査ログ（暗号化、複数フォーマット）
+- `NotifierExecutor`: 通知システム（マルチチャンネル）
+- `DataLifecycleExecutor`: データライフサイクル管理
+
+### 6. 監査システム
+
+**場所**: `src/audit/`
+
+**主要コンポーネント**:
+- `AdvancedAuditSystem`: 高度な監査システム
+- `RealTimeAnomalyDetector`: リアルタイム異常検知
+- `AuditDashboardData`: ダッシュボードデータ生成
+
+**機能**:
+- 全アクセスの完全ログ記録
+- 異常パターン検出
+- 統計・メトリクス生成
+- Web UIでのビジュアライゼーション
+
+---
+
+## 💻 開発ワークフロー
+
+### 開発環境セットアップ
+
+```bash
+# リポジトリクローン
+git clone https://github.com/Shin0205go/Aegis.git
+cd Aegis
+
+# 依存関係インストール
+npm install
+
+# 環境変数設定
+cp .env.example .env
+# .envを編集してANTHROPIC_API_KEYを設定
+
+# ビルド
+npm run build
+
+# 開発モード起動（ホットリロード）
+npm run dev
+
+# MCPサーバー起動
+npm run start:mcp:http  # HTTPモード
+npm run start:mcp:stdio # stdioモード
+```
+
+### 利用可能なスクリプト
+
+| スクリプト | 説明 |
+|-----------|------|
+| `npm run dev` | 開発モード起動（tsx watch） |
+| `npm run build` | TypeScriptコンパイル |
+| `npm test` | ユニットテスト実行 |
+| `npm run test:watch` | テスト監視モード |
+| `npm run test:coverage` | カバレッジ付きテスト |
+| `npm run test:e2e` | E2Eテスト実行 |
+| `npm run test:all` | 全テスト実行 |
+| `npm run lint` | ESLint実行 |
+| `npm run format` | Prettier実行 |
+| `npm run start` | プロダクションモード起動 |
+| `npm run start:mcp` | MCPサーバー起動（デフォルト） |
+| `npm run start:mcp:stdio` | MCPサーバー（stdioモード） |
+| `npm run start:mcp:http` | MCPサーバー（HTTPモード） |
+| `npm run clean` | dist/ディレクトリ削除 |
+
+### Git ブランチ戦略
+
+- `main` - 安定版（プロダクション相当）
+- `develop` - 開発用統合ブランチ
+- `feature/*` - 新機能開発
+- `fix/*` - バグ修正
+- `refactor/*` - リファクタリング
+- `docs/*` - ドキュメント更新
+
+### コミットメッセージ規約
+
+Conventional Commits に従います：
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+**Type:**
+- `feat`: 新機能
+- `fix`: バグ修正
+- `refactor`: リファクタリング
+- `docs`: ドキュメント
+- `test`: テスト追加・修正
+- `chore`: ビルド・補助ツール
+- `perf`: パフォーマンス改善
+- `style`: コードスタイル（フォーマット）
+
+**例:**
+```
+feat(mcp): stdioプロキシにツール検出機能を追加
+
+動的にツールを検出し、プレフィックス付きでルーティングする機能を実装。
+これにより、複数のMCPサーバーを透過的に統合できるようになった。
+
+Closes #123
+```
+
+---
+
+## 📐 コーディング規約
+
+### TypeScript スタイル
+
+#### 1. 型安全性
+- `any` の使用を最小限に（やむを得ない場合のみ）
+- 可能な限り厳密な型を定義
+- `unknown` を `any` の代わりに検討
+- `strict: true` 設定を遵守
+
 ```typescript
-class MCPPolicyEnforcementPoint {
-  // MCPサーバーとして動作し、リクエストを制御
-  private server: MCPServer;
-  
-  // 制御対象のMCPメソッド
-  setupRequestHandlers() {
-    this.server.setRequestHandler("resources/read", this.enforceResourceAccess);
-    this.server.setRequestHandler("tools/call", this.enforceToolExecution);
-    this.server.setRequestHandler("resources/list", this.enforceResourceListing);
+// ❌ Bad
+function process(data: any) {
+  return data.value;
+}
+
+// ✅ Good
+interface DataInput {
+  value: string;
+}
+function process(data: DataInput): string {
+  return data.value;
+}
+```
+
+#### 2. インターフェース vs Type
+- 拡張可能な構造 → `interface`
+- ユニオン型・条件型 → `type`
+- 一貫性を保つ
+
+```typescript
+// ✅ Interface for extensibility
+interface PolicyMetadata {
+  id: string;
+  name: string;
+}
+
+// ✅ Type for unions
+type Decision = "PERMIT" | "DENY" | "INDETERMINATE";
+```
+
+#### 3. 非同期処理
+- `async/await` を優先（Promise chainよりも）
+- エラーハンドリングを必ず実装
+- タイムアウト処理を考慮
+
+```typescript
+// ✅ Good
+async function fetchPolicy(id: string): Promise<Policy> {
+  try {
+    const policy = await policyLoader.load(id);
+    return policy;
+  } catch (error) {
+    logger.error('Failed to load policy:', error);
+    throw new PolicyNotFoundError(id);
   }
 }
 ```
 
-**主要機能**:
-- **透明プロキシ**: エージェントから見て通常のMCPサーバーとして動作
-- **リクエストインターセプト**: 全MCPリクエストの事前チェック
-- **制約適用**: データ匿名化、時間制限、ログ記録等
-- **義務実行**: 通知送信、削除スケジュール、レポート生成
-- **監査ログ**: 全アクセスの詳細ログ記録
-
-**制御フロー**:
-1. MCPリクエスト受信
-2. コンテキスト構築 & PIP呼び出し
-3. 適用ポリシー選択
-4. PDP判定実行
-5. 判定結果に基づく処理分岐
-6. 制約・義務の実行
-   - PEP新システム（EnforcementSystem）を優先的に使用
-   - エラー時はレガシーシステムにフォールバック
-7. 上流サーバーへプロキシ
-8. レスポンス処理 & 返却
-9. 義務の非同期実行（監査ログ、通知等）
-
-### 3. PIP (Policy Information Point) - コンテキスト情報収集
-
-**役割**: 判定に必要な環境情報を収集・拡張
+#### 4. エラーハンドリング
+- カスタムエラークラスを使用（`src/utils/errors.ts`）
+- エラーメッセージは明確に
+- スタックトレースを保持
 
 ```typescript
-interface ContextEnricher {
-  name: string;
-  enrich(context: DecisionContext): Promise<Record<string, any>>;
+import { PolicyViolationError, ErrorCodes } from '@/utils/errors';
+
+if (!isAuthorized) {
+  throw new PolicyViolationError(
+    'Access denied by policy',
+    ErrorCodes.POLICY_VIOLATION,
+    { policyId, reason }
+  );
 }
 ```
 
-**情報収集カテゴリ**:
+### ファイル構造規約
 
-#### 🕐 時間ベース情報
-- 営業時間判定
-- 曜日・時間帯
-- タイムゾーン情報
+#### 1. ファイル命名
+- ケバブケース: `policy-enforcer.ts`
+- テストファイル: `*.test.ts` または `*.spec.ts`
+- 型定義ファイル: `types.ts` または `*-types.ts`
 
-#### 👤 エージェント情報
-- エージェント種別・部署
-- クリアランスレベル
-- 作成日・最終活動時刻
-
-#### 📁 リソース分類
-- データ種別（顧客・財務・一般）
-- 機密度レベル
-- 所有者・タグ情報
-
-#### 🔒 セキュリティ情報
-- 接続IP・VPN判定
-- リスクスコア算出
-- 過去の失敗試行
-
-#### 🔗 データ系譜
-- データの出所・加工履歴
-- 依存リソース
-- アクセス履歴
-
-### 4. PAP (Policy Administration Point) - ポリシー管理
-
-**役割**: 自然言語ポリシーのライフサイクル管理
+#### 2. インポート順序
+1. 外部パッケージ
+2. 内部モジュール（パスエイリアス使用）
+3. 相対パス
+4. 型インポート（`import type`）
 
 ```typescript
-interface PolicyMetadata {
-  id: string;
-  name: string;
-  description: string;
-  version: string;              // セマンティックバージョニング
-  createdAt: Date;
-  createdBy: string;
-  lastModified: Date;
-  lastModifiedBy: string;
-  tags: string[];
-  status: "draft" | "active" | "deprecated";
+// 1. 外部パッケージ
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import express from 'express';
+
+// 2. 内部モジュール
+import { Logger } from '@/utils/logger';
+import { AIPolicyEngine } from '@/policy/ai-policy-engine';
+
+// 3. 相対パス
+import { PolicyEnforcer } from './policy-enforcer.js';
+
+// 4. 型インポート
+import type { DecisionContext, PolicyDecision } from '@/types';
+```
+
+#### 3. エクスポート規約
+- デフォルトエクスポートは最小限に
+- 名前付きエクスポートを優先
+- `index.ts` でモジュール単位のエクスポートを集約
+
+```typescript
+// src/mcp/index.ts
+export { MCPStdioPolicyProxy } from './stdio-proxy.js';
+export { MCPHttpPolicyProxy } from './http-proxy.js';
+export { PolicyEnforcer } from './policy-enforcer.js';
+```
+
+### コメント規約
+
+#### 1. ドキュメントコメント（JSDoc）
+- クラス・関数の前に記述
+- パラメータと戻り値を説明
+- 使用例を含める（複雑な場合）
+
+```typescript
+/**
+ * 自然言語ポリシーに基づいてアクセス制御判定を実行
+ *
+ * @param context - 判定コンテキスト（エージェント、アクション、リソース等）
+ * @param policy - 適用するポリシー（自然言語）
+ * @returns 判定結果（PERMIT/DENY/INDETERMINATE）
+ * @throws {LLMError} AI判定に失敗した場合
+ *
+ * @example
+ * ```typescript
+ * const decision = await judge(context, policy);
+ * if (decision.decision === 'PERMIT') {
+ *   // アクセス許可
+ * }
+ * ```
+ */
+async function judge(
+  context: DecisionContext,
+  policy: string
+): Promise<PolicyDecision> {
+  // 実装
 }
 ```
 
-**主要機能**:
-- **ポリシー作成・更新・削除**: 完全なCRUD操作
-- **バージョン管理**: セマンティックバージョニング + 履歴管理
-- **メタデータ管理**: タグ・説明・ステータス管理
-- **ポリシー検証**: AI判定による事前検証
-- **インポート/エクスポート**: ポリシーの移行・バックアップ
-
-## 📊 データフロー詳細
-
-### リクエスト処理フロー
+#### 2. インラインコメント
+- 複雑なロジックの説明
+- なぜそうするのか（What ではなく Why）
+- TODO/FIXME は課題管理システムと連携
 
 ```typescript
-1. AIエージェント
-   ↓ MCPリクエスト
-2. PEP (MCPプロキシサーバー)
-   ├── コンテキスト構築
-   ├── PIP呼び出し → 情報拡張
-   ├── ポリシー選択
-   ├── PDP呼び出し → AI判定
-   ├── 判定結果処理
-   │   ├── PERMIT → 制約・義務実行 → 上流プロキシ
-   │   ├── DENY → エラー返却
-   │   └── INDETERMINATE → エラー返却
-   └── 監査ログ記録
-   ↓ レスポンス
-3. AIエージェント
+// ✅ Good: 理由を説明
+// 営業時間外はデフォルトでDENYとする（セキュリティポリシー要件）
+if (!isBusinessHours) {
+  return { decision: 'DENY', reason: 'Outside business hours' };
+}
+
+// ❌ Bad: 自明なことの説明
+// iをインクリメント
+i++;
 ```
 
-### ポリシー適用例
+### ロギング規約
 
-**顧客データアクセス時**:
+#### ログレベル
+- `error`: エラー・例外（要対応）
+- `warn`: 警告（注意が必要だが動作は継続）
+- `info`: 重要な情報（起動、停止、ポリシー適用）
+- `debug`: デバッグ情報（開発時のみ）
+
 ```typescript
-const customerPolicy = `
-顧客データアクセスポリシー：
+// ✅ Good
+logger.info('Policy enforced', {
+  agent: context.agent,
+  action: context.action,
+  decision: decision.decision,
+  policyId: policy.id
+});
 
-【基本原則】
-- 顧客データは顧客サポート目的でのみアクセス可能
-- アクセスは営業時間内を基本とする
-- 適切なクリアランスレベルが必要
+logger.error('AI judgment failed', {
+  error: error.message,
+  context: context,
+  retryCount: 3
+});
+```
 
-【制限事項】  
-- 外部エージェントのアクセス禁止
-- データの外部共有は一切禁止
-- 個人情報の長期保存禁止
+---
 
-【義務】
-- 全アクセスのログ記録必須
-- データ処理後の結果通知
-- 30日後の自動削除スケジュール設定
-`;
+## 🧪 テスト方針
 
-// 実際の判定結果例
-const decision = {
-  decision: "PERMIT",
-  reason: "営業時間内の顧客サポートエージェントによる正当なアクセス",
-  confidence: 0.95,
-  constraints: ["個人情報の匿名化", "外部共有禁止"],
-  obligations: ["アクセスログ記録", "30日後削除スケジュール設定"]
+### テスト構成
+
+```
+test/
+├── ai/                    # AI判定エンジンのテスト
+├── core/                  # コアシステムのテスト
+├── mcp/                   # MCPプロキシのテスト
+├── context/               # コンテキスト収集のテスト
+├── integration/           # 統合テスト
+├── e2e/                   # E2Eテスト
+└── setup.ts               # テスト共通設定
+```
+
+### テスト種別
+
+#### 1. ユニットテスト
+- 個別のクラス・関数をテスト
+- モックを活用
+- カバレッジ目標: 80%以上
+
+```typescript
+// test/ai/judgment-engine.test.ts
+describe('AIJudgmentEngine', () => {
+  it('should return PERMIT for allowed actions', async () => {
+    const engine = new AIJudgmentEngine(mockConfig);
+    const decision = await engine.judge(context, policy);
+    expect(decision.decision).toBe('PERMIT');
+  });
+});
+```
+
+#### 2. 統合テスト
+- 複数コンポーネントの連携をテスト
+- 実際のファイルシステム・外部API使用
+
+```typescript
+// test/integration/mcp-enforcement.test.ts
+describe('MCP Enforcement Integration', () => {
+  it('should enforce policy on tool execution', async () => {
+    const proxy = new MCPStdioPolicyProxy(config);
+    const result = await proxy.handleToolCall(toolRequest);
+    expect(result.allowed).toBe(false);
+  });
+});
+```
+
+#### 3. E2Eテスト
+- エンドツーエンドのシナリオテスト
+- 実際のMCPクライアントとの通信
+
+#### 4. MCP Inspector テスト
+手動テスト用：
+
+```bash
+cd test/mcp-inspector
+./test-with-inspector.sh
+```
+
+### テスト実行
+
+```bash
+# 全ユニットテスト
+npm test
+
+# 監視モード
+npm run test:watch
+
+# カバレッジ
+npm run test:coverage
+
+# E2Eテスト
+npm run test:e2e
+
+# 特定ファイルのテスト
+npm test -- judgment-engine.test.ts
+
+# 詳細出力
+npm run test:verbose
+```
+
+### モック規約
+
+- `jest.mock()` で外部依存をモック
+- テストファイル内でモック定義
+- 実装の詳細ではなく、インターフェースをテスト
+
+```typescript
+// ✅ Good
+jest.mock('@/ai/judgment-engine');
+const mockJudgmentEngine = {
+  judge: jest.fn().mockResolvedValue({
+    decision: 'PERMIT',
+    confidence: 0.95
+  })
 };
 ```
 
-## 🎛️ インターフェース仕様
+---
 
-### MCPプロキシインターフェース
+## ⚙️ 環境変数と設定
 
-```typescript
-// エージェントからは通常のMCPサーバーとして見える
-interface MCPProxyInterface {
-  // リソースアクセス制御
-  "resources/read": (request: ResourceReadRequest) => Promise<ResourceResponse>;
-  "resources/list": (request: ResourceListRequest) => Promise<ResourceListResponse>;
-  
-  // ツール実行制御
-  "tools/call": (request: ToolCallRequest) => Promise<ToolCallResponse>;
-  "tools/list": (request: ToolListRequest) => Promise<ToolListResponse>;
-}
-```
-
-### ポリシー管理インターフェース
-
-```typescript
-interface PolicyManagementAPI {
-  // ポリシーCRUD
-  createPolicy(name: string, policy: string, metadata?: Partial<PolicyMetadata>): Promise<string>;
-  updatePolicy(policyId: string, policy: string, updatedBy?: string): Promise<void>;
-  deletePolicy(policyId: string): Promise<void>;
-  
-  // ポリシー取得
-  getPolicy(policyId: string): Promise<{metadata: PolicyMetadata, policy: string} | null>;
-  listPolicies(filter?: {status?: string, tags?: string[]}): Promise<PolicyMetadata[]>;
-  
-  // バージョン管理
-  getPolicyHistory(policyId: string): Promise<PolicyVersion[]>;
-  
-  // インポート/エクスポート
-  exportPolicy(policyId: string): Promise<PolicyExport>;
-  importPolicy(exportData: PolicyExport, importedBy?: string): Promise<string>;
-}
-```
-
-## 🚀 実装の特徴・利点
-
-### 💡 従来IDSとの比較
-
-| 要素 | 従来のIDS | 今回の設計 |
-|------|-----------|------------|
-| **ポリシー記述** | XACML等の専用言語 | 自然言語 |
-| **判定エンジン** | ルールエンジン | AI/LLM |
-| **統合方法** | アプリ改修必要 | MCPプロキシ (透明) |
-| **設定管理** | 技術者専用 | 誰でも編集可能 |
-| **柔軟性** | 事前定義ルールのみ | 動的推論 |
-| **導入コスト** | 高 (大規模改修) | 低 (プロキシ設置のみ) |
-
-### 🎯 技術的優位性
-
-#### 1. **透明性**: エージェントは制御を意識しない
-```typescript
-// エージェントのコードは一切変更不要
-const gmailAccess = await mcpClient.request("resources/read", {
-  uri: "gmail://inbox/message/123"
-}); // → 裏でポリシー制御が動作
-```
-
-#### 2. **自然言語の表現力**: 複雑な条件も直感的に記述
-```typescript
-const complexPolicy = `
-緊急時対応ポリシー：
-システム障害発生時は、通常の時間制限を解除し、
-運用チームのみデータセンター内からのアクセスを許可。
-ただし、個人情報を含む場合は役職者の事前承認必要。
-`;
-```
-
-#### 3. **動的推論**: 事前に想定していない状況にも対応
-```typescript
-// AIが文脈から判断
-const unusualRequest = {
-  agent: "new-agent-type",
-  action: "emergency-access", 
-  resource: "critical-system-data",
-  purpose: "disaster-recovery"
-}; // → ポリシーの意図を理解して適切に判定
-```
-
-### 📈 スケーラビリティ
-
-- **水平拡張**: PEPプロキシを複数起動可能
-- **キャッシュ活用**: 同一判定の高速化
-- **バッチ処理**: 複数リクエストの効率処理
-- **非同期処理**: 義務実行の非同期化
-
-### 🔒 セキュリティ考慮事項
-
-- **監査証跡**: 全判定の完全ログ記録
-- **権限分離**: ポリシー管理者とシステム管理者の分離
-- **暗号化**: ポリシー・ログの暗号化保存
-- **アクセス制御**: PAP自体へのアクセス制御
-
-## 🛠️ 実装状況とロードマップ
-
-### ✅ MVP機能 (完了) 
-- ✅ PDP基本実装 (自然言語→AI判定)
-- ✅ PEP基本実装 (MCPプロキシ)
-- ✅ Claude Desktop統合
-- ✅ 上流MCPサーバーのツール集約
-- ✅ ツールルーティングとプレフィックス処理
-- ✅ 基本的なポリシー制御の動作確認
-
-### ✅ 基本機能 (完了)
-- ✅ PIP実装 (コンテキスト収集)
-- ✅ PAP実装 (ポリシー管理)
-- ✅ 制約・義務の基本実装
-- ✅ stdio/HTTPトランスポート対応
-
-### ✅ 本格運用機能 (完了)
-- ✅ 高度な制約・義務処理
-  - ✅ ConstraintProcessorManager: 制約プロセッサ統合管理
-  - ✅ DataAnonymizerProcessor: 高度な匿名化（マスク、トークン化、ハッシュ化）
-  - ✅ RateLimiterProcessor: レート制限（時間窓管理、キャッシュ機能）
-  - ✅ GeoRestrictorProcessor: 地理的制限（IPベース位置判定）
-  - ✅ ObligationExecutorManager: 義務エグゼキューター統合管理
-  - ✅ AuditLoggerExecutor: 監査ログ（暗号化、複数フォーマット対応）
-  - ✅ NotifierExecutor: 通知システム（マルチチャンネル、エスカレーション）
-  - ✅ DataLifecycleExecutor: データライフサイクル管理
-  - ✅ MCPプロキシへの完全統合（EnforcementSystemが完全に統合済み）
-- ⏳ 監査・レポート機能（基本的な監査ログは実装済み、高度なレポート機能は未実装）
-- ⏳ 性能最適化・スケーラビリティ
-
-### 📋 エンタープライズ機能 (計画中)
-- ⏳ 高可用性・フェイルオーバー
-- ⏳ 詳細な権限管理
-- ⏳ 法的要件対応 (GDPR等)
-
-## 📊 現在の動作状況
-
-**AEGIS MCPプロキシ**が正常に動作中：
-- **12個のツール**がClaude Desktop経由で利用可能
-- **ファイルシステム操作** (`filesystem__*`)
-- **コマンド・コード実行** (`execution-server__*`)
-- **内蔵ツール** (artifacts, repl, web_search, web_fetch)
-- **リアルタイムポリシー制御**が全ツールに適用済み
-
-### 🔄 実装状況
-- **新システム（EnforcementSystem）**: 高度な制約・義務処理が完全統合済み
-- **追加されたコンポーネント**:
-  - `PolicyEnforcer`: ポリシー判定処理の責務分離
-  - `ConstraintStrategy`: 制約処理のストラテジーパターン
-  - `ErrorHandler`: 統一エラーハンドリング
-  - `PromptTemplateEngine`: AIプロンプトテンプレート管理
-
-この設計により、従来のIDSの複雑さを大幅に軽減しながら、自然言語の表現力とAIの推論能力を活用した、次世代のポリシー制御システムを実現できています。
-
-## 🔧 設定と環境変数
-
-### 環境変数一覧
+### 必須環境変数
 
 | 環境変数 | 説明 | デフォルト値 |
 |---------|------|------------|
 | `ANTHROPIC_API_KEY` | Anthropic Claude APIキー | - |
-| `OPENAI_API_KEY` | OpenAI APIキー | - |
-| `LLM_PROVIDER` | LLMプロバイダー（anthropic/openai/azure） | anthropic |
-| `LLM_MODEL` | 使用するLLMモデル | claude-opus-4-20250514 |
-| `LLM_MAX_TOKENS` | 最大トークン数 | 4096 |
-| `LLM_TEMPERATURE` | 生成温度（0-1） | 0.3 |
-| `AEGIS_AI_THRESHOLD` | AI判定の信頼度閾値 | 0.7 |
-| `MCP_PROXY_PORT` | MCPプロキシのポート番号 | 3000 |
-| `MCP_TRANSPORT` | トランスポートモード（stdio/http） | http |
-| `AEGIS_LOG_LEVEL` | ログレベル（debug/info/warn/error） | info |
-| `CORS_ORIGINS` | CORS許可オリジン（カンマ区切り） | http://localhost:3000 |
+| `LLM_PROVIDER` | LLMプロバイダー | `anthropic` |
+| `LLM_MODEL` | 使用モデル | `claude-opus-4-20250514` |
 
-### APIエンドポイント（HTTPモード）
+### オプション環境変数
 
-| エンドポイント | メソッド | 説明 |
-|---------------|---------|------|
-| `/mcp/messages` | POST | MCPメッセージ処理 |
-| `/health` | GET | ヘルスチェック |
-| `/policies` | GET | ポリシー一覧取得 |
-| `/policies` | POST | ポリシー作成 |
-| `/policies/:id` | PUT | ポリシー更新 |
-| `/policies/:id` | DELETE | ポリシー削除 |
-| `/api/audit/metrics` | GET | 監査メトリクス取得 |
+| 環境変数 | 説明 | デフォルト値 |
+|---------|------|------------|
+| `LLM_TEMPERATURE` | AI生成温度（0-1） | `0.3` |
+| `LLM_MAX_TOKENS` | 最大トークン数 | `4096` |
+| `AEGIS_AI_THRESHOLD` | AI判定信頼度閾値 | `0.7` |
+| `MCP_PROXY_PORT` | MCPプロキシポート | `3000` |
+| `MCP_TRANSPORT` | トランスポート（stdio/http） | `http` |
+| `AEGIS_LOG_LEVEL` | ログレベル | `info` |
+| `LOG_FORMAT` | ログフォーマット（json/text） | `json` |
+| `CACHE_ENABLED` | キャッシュ有効化 | `true` |
+| `CACHE_TTL` | キャッシュTTL（秒） | `3600` |
+| `NODE_ENV` | 環境（development/production） | `development` |
 
-### 自動ポリシー選択ロジック
+### ポリシーファイル
 
-システムはコンテキストに基づいて最適なポリシーを自動選択します。選択ロジックは`PolicyEnforcer`クラスの`selectBestMatchingPolicy`メソッドで実装されています：
+デフォルトポリシー: `policies/policies.json`
 
-1. **時間ベース選択**
-   - 営業時間外（18:00〜8:00）: `after-hours-policy`またはタグ`after-hours`を持つポリシー
-   - 営業時間内: 通常の優先度ベース選択
+```json
+{
+  "policies": [
+    {
+      "id": "default-policy",
+      "name": "デフォルトポリシー",
+      "policy": "基本的に全てのアクセスを許可...",
+      "priority": 1,
+      "status": "active"
+    }
+  ]
+}
+```
 
-2. **エージェントベース選択**
-   - Claude Desktop（`claude-desktop`または`mcp-client`）: `claude-desktop-policy`
-   - その他のエージェント: リソースベース選択へ
+### Claude Desktop 統合
 
-3. **リスクベース選択**
-   - 高リスクアクション判定基準：
-     - 削除系（delete, remove, destroy）
-     - 管理系（admin, root, sudo）
-     - システム系（system, config）
-     - 実行系（exec, execute, bash, shell, cmd）
-   - 高リスク判定時: `high-risk-operations-policy`
+`~/.config/Claude/claude_desktop_config.json`:
 
-4. **リソースタイプベース選択**
-   - ツール実行（`tools/call`）: `tool-control-policy`
-   - ファイルシステムアクセス: `file-system-policy`
-   - 顧客データアクセス（customer, client, user, pii）: `customer-data-policy`
-   - メールアクセス（gmail, email）: `email-access-policy`
+```json
+{
+  "mcpServers": {
+    "aegis": {
+      "command": "node",
+      "args": [
+        "/path/to/Aegis/scripts/mcp-launcher.js",
+        "stdio"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
 
-5. **環境ベース選択**
-   - 開発環境（`NODE_ENV=development`）: `dev-permissive-policy`
+---
 
-6. **フォールバック**
-   - 上記いずれにも該当しない場合: 優先度（priority）が最も高いポリシーを選択
-   - デフォルト: `default-policy`（priority: 1）
+## 🛠️ 実装状況
 
-#### 選択理由のロギング
+### ✅ 完了済み機能
 
-システムは選択したポリシーとその理由をログに記録します：
-- `after-hours access`: 営業時間外アクセス
-- `Claude Desktop agent`: Claude Desktopエージェント
-- `high-risk operation`: 高リスク操作
-- `email resource access`: メールリソースアクセス
-- `file system access`: ファイルシステムアクセス
-- `tool execution`: ツール実行
-- `default selection`: デフォルト選択
+#### コア機能
+- ✅ AI判定エンジン（Claude Opus 4統合）
+- ✅ 自然言語ポリシー処理
+- ✅ MCPプロキシ（stdio/HTTPトランスポート）
+- ✅ 動的ツール検出・ルーティング
+- ✅ コンテキスト収集（5種類のエンリッチャー）
+- ✅ ポリシー管理（CRUD操作）
+
+#### 制約・義務システム
+- ✅ ConstraintProcessorManager
+  - ✅ DataAnonymizerProcessor（マスク、トークン化、ハッシュ化）
+  - ✅ RateLimiterProcessor（時間窓、キャッシュ）
+  - ✅ GeoRestrictorProcessor（IPベース位置判定）
+- ✅ ObligationExecutorManager
+  - ✅ AuditLoggerExecutor（暗号化、複数フォーマット）
+  - ✅ NotifierExecutor（マルチチャンネル）
+  - ✅ DataLifecycleExecutor（データライフサイクル管理）
+- ✅ MCPプロキシへの完全統合
+
+#### 監査・監視
+- ✅ AdvancedAuditSystem（高度な監査システム）
+- ✅ RealTimeAnomalyDetector（リアルタイム異常検知）
+- ✅ 監査ダッシュボード（Web UI）
+- ✅ 統計・メトリクス生成
+
+#### Web UI
+- ✅ ポリシー管理UI
+- ✅ 監査ダッシュボード（拡張版）
+- ✅ メインページ
+
+#### その他
+- ✅ キャッシュシステム
+- ✅ ログ記録システム
+- ✅ エラーハンドリング
+- ✅ 包括的なテストスイート
+
+### ⏳ 開発中・計画中
+
+#### 性能・スケーラビリティ
+- ⏳ Redis統合（分散キャッシュ）
+- ⏳ PostgreSQL統合（ポリシー永続化）
+- ⏳ 水平スケーリング対応
+- ⏳ 負荷分散
+
+#### エンタープライズ機能
+- ⏳ 高可用性・フェイルオーバー
+- ⏳ 詳細な権限管理（RBAC）
+- ⏳ 法的要件対応（GDPR、CCPA等）
+- ⏳ マルチテナント対応
+
+#### AI機能拡張
+- ⏳ OpenAI GPT-4統合
+- ⏳ Azure OpenAI統合
+- ⏳ カスタムLLMプロバイダー対応
+- ⏳ ポリシー自動生成
+
+#### 開発者体験
+- ⏳ CLIツール
+- ⏳ VSCode拡張
+- ⏳ SDK（Python、JavaScript）
+- ⏳ GraphQL API
+
+### 📊 現在の統計
+
+- **ソースファイル数**: 69+ TypeScriptファイル
+- **テストファイル数**: 50+ テストファイル
+- **コンポーネント数**: 20+ 主要コンポーネント
+- **ポリシーエンリッチャー**: 5種類
+- **制約プロセッサー**: 3種類
+- **義務エグゼキューター**: 3種類
+
+---
+
+## 📚 追加リソース
+
+### ドキュメント
+
+- [ユーザーガイド](./docs/user-guide/) - エンドユーザー向け
+- [管理者ガイド](./docs/admin-guide/) - システム管理者向け
+- [開発者ガイド](./docs/developer-guide/) - 開発者向け
+- [API リファレンス](./docs/api-reference.md) - API詳細
+- [アーキテクチャ](./docs/architecture.md) - システム設計
+
+### 外部リンク
+
+- [Model Context Protocol仕様](https://modelcontextprotocol.io/)
+- [Anthropic Claude API](https://docs.anthropic.com/)
+- [TypeScript ハンドブック](https://www.typescriptlang.org/docs/)
+
+---
+
+## 🤝 コントリビューション
+
+プロジェクトへの貢献を歓迎します！詳細は [CONTRIBUTING.md](./CONTRIBUTING.md) をご覧ください。
+
+### クイックスタート
+
+1. Issueを確認または作成
+2. フォーク & ブランチ作成
+3. コード実装 & テスト追加
+4. `npm run lint && npm run format` 実行
+5. プルリクエスト作成
+
+---
+
+## 📄 ライセンス
+
+MIT License - 詳細は [LICENSE](./LICENSE) ファイルをご覧ください。
+
+---
+
+**Built by Shingo Matsuo**
