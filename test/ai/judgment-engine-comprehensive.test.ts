@@ -7,16 +7,10 @@ import { AIJudgmentEngine } from '../../src/ai/judgment-engine';
 import { DecisionContext, PolicyDecision } from '../../src/types';
 import { OpenAILLM } from '../../src/ai/openai-llm';
 import { AnthropicLLM } from '../../src/ai/anthropic-llm';
-import { LLMFactory } from '../../src/ai/llm-factory';
 
 // Mock all LLM implementations
 jest.mock('../../src/ai/openai-llm');
 jest.mock('../../src/ai/anthropic-llm');
-jest.mock('../../src/ai/llm-factory', () => ({
-  LLMFactory: {
-    create: jest.fn()
-  }
-}));
 jest.mock('../../src/utils/logger');
 
 describe('AIJudgmentEngine - Comprehensive Tests', () => {
@@ -25,14 +19,15 @@ describe('AIJudgmentEngine - Comprehensive Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockLLM = {
       complete: jest.fn(),
       batchComplete: jest.fn()
     } as any;
-    
-    (LLMFactory.create as jest.Mock).mockReturnValue(mockLLM);
-    
+
+    // Mock the OpenAILLM constructor
+    (OpenAILLM as jest.MockedClass<typeof OpenAILLM>).mockImplementation(() => mockLLM);
+
     engine = new AIJudgmentEngine({
       provider: 'openai',
       apiKey: 'test-key',
@@ -231,7 +226,7 @@ describe('AIJudgmentEngine - Comprehensive Tests', () => {
         apiKey: 'test-key',
         timeout: 100 // 100ms timeout
       });
-      (LLMFactory.create as jest.Mock).mockReturnValue(mockLLM);
+      (OpenAILLM as jest.MockedClass<typeof OpenAILLM>).mockImplementation(() => mockLLM);
 
       const startTime = Date.now();
       const result = await timeoutEngine.makeDecision(policy, context);
@@ -250,8 +245,8 @@ describe('AIJudgmentEngine - Comprehensive Tests', () => {
         batchComplete: jest.fn()
       } as any;
 
-      (LLMFactory.create as jest.Mock).mockReturnValue(anthropicLLM);
-      
+      (AnthropicLLM as jest.MockedClass<typeof AnthropicLLM>).mockImplementation(() => anthropicLLM);
+
       const anthropicEngine = new AIJudgmentEngine({
         provider: 'anthropic',
         apiKey: 'test-key',
@@ -523,7 +518,7 @@ describe('AIJudgmentEngine - Comprehensive Tests', () => {
         apiKey: 'test-key',
         promptTemplate: customTemplate
       });
-      (LLMFactory.create as jest.Mock).mockReturnValue(mockLLM);
+      (OpenAILLM as jest.MockedClass<typeof OpenAILLM>).mockImplementation(() => mockLLM);
 
       const policy = 'Custom template test policy';
       const context: DecisionContext = {

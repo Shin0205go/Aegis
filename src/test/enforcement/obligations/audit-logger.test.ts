@@ -255,12 +255,14 @@ describe('AuditLoggerExecutor', () => {
       if (files.length > 0) {
         const content = await fs.readFile(path.join(testLogPath, files[0]), 'utf8');
         const logEntry = JSON.parse(content.trim().split('\n')[0]);
-        
+
         // 暗号化されたデータの確認
         expect(logEntry.encrypted).toBe(true);
-        expect(logEntry.data).toHaveProperty('encrypted');
-        expect(logEntry.data).toHaveProperty('iv');
-        expect(logEntry.data).toHaveProperty('authTag');
+        // dataは暗号化された文字列として保存される
+        const encryptedData = typeof logEntry.data === 'string' ? JSON.parse(logEntry.data) : logEntry.data;
+        expect(encryptedData).toHaveProperty('encrypted');
+        expect(encryptedData).toHaveProperty('iv');
+        expect(encryptedData).toHaveProperty('authTag');
       }
     });
   });
