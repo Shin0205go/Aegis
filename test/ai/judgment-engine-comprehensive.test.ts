@@ -12,7 +12,11 @@ import { LLMFactory } from '../../src/ai/llm-factory';
 // Mock all LLM implementations
 jest.mock('../../src/ai/openai-llm');
 jest.mock('../../src/ai/anthropic-llm');
-jest.mock('../../src/ai/llm-factory');
+jest.mock('../../src/ai/llm-factory', () => ({
+  LLMFactory: {
+    create: jest.fn()
+  }
+}));
 jest.mock('../../src/utils/logger');
 
 describe('AIJudgmentEngine - Comprehensive Tests', () => {
