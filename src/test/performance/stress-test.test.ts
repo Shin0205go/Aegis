@@ -232,8 +232,8 @@ describe('Performance and Stress Tests', () => {
       console.log('Cache Performance:', {
         hitRate: `${(hitRate * 100).toFixed(2)}%`,
         totalRequests: cacheHits + cacheMisses,
-        cacheSize: cacheStats.size,
-        evictions: cacheStats.evictions
+        cacheSize: cacheStats.totalEntries,
+        evictions: cacheStats.evictionCount
       });
     });
 
