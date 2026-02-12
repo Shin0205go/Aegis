@@ -9,7 +9,7 @@ import { AIJudgmentEngine } from '../../ai/judgment-engine';
 import { IntelligentCacheSystem } from '../../performance/intelligent-cache-system';
 import { RateLimiterProcessor } from '../../core/constraints/processors/rate-limiter';
 import { Logger } from '../../utils/logger';
-import type { AEGISConfig, DecisionContext, PolicyDecision } from '../../types';
+import type { AEGISConfig, DecisionContext, PolicyDecision, AccessControlResult } from '../../types';
 import { performance } from 'perf_hooks';
 import * as os from 'os';
 
@@ -212,19 +212,23 @@ describe('Performance and Stress Tests', () => {
         } else {
           cacheMisses++;
           // Simulate policy decision and cache it
-          const decision: PolicyDecision = {
+          const decision: AccessControlResult = {
             decision: 'PERMIT',
             reason: 'Cached decision',
-            confidence: 0.95
+            confidence: 0.95,
+            policyUsed: 'test-policy',
+            processingTime: 10,
+            constraints: [],
+            obligations: []
           };
-          await cache.set(context, 'test-policy', decision, context.environment);
+          await cache.set(context, 'test-policy', context.environment, decision);
         }
       }
 
       const hitRate = cacheHits / (cacheHits + cacheMisses);
       expect(hitRate).toBeGreaterThan(0.95); // Should achieve >95% hit rate
 
-      const cacheStats = await cache.metrics();
+      const cacheStats = cache.getStats();
       console.log('Cache Performance:', {
         hitRate: `${(hitRate * 100).toFixed(2)}%`,
         totalRequests: cacheHits + cacheMisses,
