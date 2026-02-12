@@ -93,7 +93,8 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   
   // HTTP API サーバー（stdio用）
   private apiApp!: express.Application;
-  
+  private apiServer?: any; // HTTP server instance for cleanup
+
   // 長時間実行タスクの管理
   private runningTasks: Map<string | number, { 
     startTime: number; 
@@ -1478,7 +1479,7 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
     
     // APIサーバー起動
     const apiPort = parseInt(process.env.MCP_PROXY_PORT || '3000');
-    this.apiApp.listen(apiPort, () => {
+    this.apiServer = this.apiApp.listen(apiPort, () => {
       // In stdio mode, don't log anything to avoid corrupting JSON-RPC output
       if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
         this.logger.info(`🚀 AEGIS API Server running at http://localhost:${apiPort}`);
@@ -1739,21 +1740,32 @@ export class MCPStdioPolicyProxy extends MCPPolicyProxyBase {
   async stop(): Promise<void> {
     try {
       // システム停止時のクリーンアップ
-      
+
+      // API サーバーを停止
+      if (this.apiServer) {
+        await new Promise<void>((resolve, reject) => {
+          this.apiServer.close((err?: Error) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        this.apiServer = undefined;
+      }
+
       // HTTPサーバー（Web UI）を停止
       if (this.httpProxy) {
         await this.httpProxy.stop();
       }
-      
+
       // 上流サーバーを停止
       await this.stdioRouter.stopServers();
-      
+
       // MCPサーバーを停止
       await this.server.close();
-      
+
       // キャッシュをクリア（機密情報の流出防止）
       this.intelligentCacheSystem.clear();
-      
+
       this.logger.info('🛑 AEGIS MCP Proxy (stdio) stopped cleanly');
     } catch (error) {
       this.logger.error('Error during system shutdown', error);

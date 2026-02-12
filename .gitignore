@@ -73,4 +73,4 @@ policies/*.d.ts
 policies/*.d.ts.map
 
 # Runtime policy storage
-policies-store/
+policies-store/agent_logs/

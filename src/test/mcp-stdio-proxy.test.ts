@@ -134,6 +134,17 @@ describe('MCPStdioPolicyProxy - 機能テスト', () => {
     proxy = new MCPStdioPolicyProxy(testConfig, mockLogger, mockJudgmentEngine);
   });
 
+  afterEach(async () => {
+    // Clean up the proxy to close any open servers
+    if (proxy) {
+      try {
+        await proxy.stop();
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+    }
+  });
+
   describe('初期化とセットアップ', () => {
     it('MCPサーバーとハンドラーが正しく設定される', () => {
       expect(Server).toHaveBeenCalledWith(

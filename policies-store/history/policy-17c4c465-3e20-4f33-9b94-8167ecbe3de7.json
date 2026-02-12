@@ -1,0 +1,9 @@
+[
+  {
+    "version": "1.0.0",
+    "policy": "\n        ツール実行ポリシー:\n        - 読み取り系ツールは許可\n        - 書き込み系ツールは管理者のみ\n        - 実行系ツールは禁止\n        ",
+    "createdAt": "2026-02-12T14:14:02.884Z",
+    "createdBy": "system",
+    "changeLog": "Initial version"
+  }
+]
