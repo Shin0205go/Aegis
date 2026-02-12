@@ -36,6 +36,13 @@ export class ErrorHandler {
   private static logger = new Logger('error-handler');
 
   /**
+   * テスト用にloggerを設定する（通常は使用しない）
+   */
+  static setLogger(logger: Logger): void {
+    ErrorHandler.logger = logger;
+  }
+
+  /**
    * 非同期操作のエラーハンドリング
    */
   static async handleAsync<T>(

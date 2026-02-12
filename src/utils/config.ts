@@ -190,25 +190,31 @@ export class Config {
     }
 
     // LLM設定の詳細検証
-    if (this.config.llm.maxTokens <= 0) {
-      this.config.llm.maxTokens = DEFAULT_MAX_TOKENS;
-      if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
-        console.warn('[Config] Invalid maxTokens specified. Using default value.');
+    const llm = this.config.llm;
+    if (llm) {
+      if (llm.maxTokens !== undefined && llm.maxTokens <= 0) {
+        llm.maxTokens = DEFAULT_MAX_TOKENS;
+        if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
+          console.warn('[Config] Invalid maxTokens specified. Using default value.');
+        }
       }
-    }
 
-    if (this.config.llm.temperature < 0 || this.config.llm.temperature > 1) {
-      this.config.llm.temperature = DEFAULT_TEMPERATURE;
-      if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
-        console.warn('[Config] Temperature must be between 0 and 1. Using default value.');
+      if (llm.temperature !== undefined && (llm.temperature < 0 || llm.temperature > 1)) {
+        llm.temperature = DEFAULT_TEMPERATURE;
+        if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
+          console.warn('[Config] Temperature must be between 0 and 1. Using default value.');
+        }
       }
     }
 
     // キャッシュ設定検証
-    if (this.config.cache.ttl <= 0) {
-      this.config.cache.ttl = DEFAULT_CACHE_TTL;
-      if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
-        console.warn('[Config] Cache TTL must be greater than zero. Using default value.');
+    const cache = this.config.cache;
+    if (cache) {
+      if (cache.ttl <= 0) {
+        cache.ttl = DEFAULT_CACHE_TTL;
+        if (!isStdioMode && process.env.LOG_SILENT !== 'true') {
+          console.warn('[Config] Cache TTL must be greater than zero. Using default value.');
+        }
       }
     }
 
@@ -222,8 +228,8 @@ export class Config {
     }
   }
 
-  private isValidPort(port: number): boolean {
-    return Number.isInteger(port) && port > 0 && port <= 65535;
+  private isValidPort(port: number | undefined): boolean {
+    return port !== undefined && Number.isInteger(port) && port > 0 && port <= 65535;
   }
 
   // 設定取得メソッド

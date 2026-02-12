@@ -20,6 +20,9 @@ describe('ErrorHandler', () => {
     } as any;
 
     (Logger as jest.MockedClass<typeof Logger>).mockImplementation(() => mockLogger);
+
+    // ErrorHandlerの静的loggerをモックに置き換え
+    ErrorHandler.setLogger(mockLogger);
   });
 
   describe('AegisError', () => {
@@ -298,7 +301,7 @@ describe('ErrorHandler', () => {
 
     it('失敗後にリトライして成功する', async () => {
       let attempts = 0;
-      
+
       const promise = ErrorHandler.withRetry(
         async () => {
           attempts++;
@@ -312,8 +315,9 @@ describe('ErrorHandler', () => {
         'test-operation'
       );
 
-      // 最初の失敗
-      await Promise.resolve();
+      // 最初の失敗を待つ
+      await jest.runOnlyPendingTimersAsync();
+
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Attempt 1/3 failed in test-operation:',
         expect.objectContaining({
@@ -321,10 +325,9 @@ describe('ErrorHandler', () => {
         })
       );
 
-      // 1秒待機してリトライ
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
-      
+      // 2回目のリトライを待つ
+      await jest.runOnlyPendingTimersAsync();
+
       expect(mockLogger.warn).toHaveBeenCalledWith(
         'Attempt 2/3 failed in test-operation:',
         expect.objectContaining({
@@ -332,9 +335,9 @@ describe('ErrorHandler', () => {
         })
       );
 
-      // もう1秒待機して成功
-      jest.advanceTimersByTime(1000);
-      
+      // 3回目のリトライを待つ
+      await jest.runOnlyPendingTimersAsync();
+
       const result = await promise;
       expect(result).toBe('success');
       expect(attempts).toBe(3);
@@ -348,14 +351,16 @@ describe('ErrorHandler', () => {
         'test-operation'
       );
 
-      // 全ての試行を進める
-      jest.advanceTimersByTime(0);
-      await Promise.resolve();
-      jest.advanceTimersByTime(1000);
-      await Promise.resolve();
-      jest.advanceTimersByTime(1000);
+      // Promiseのrejectionと全てのタイマーを並行処理
+      const [rejection] = await Promise.allSettled([
+        promise,
+        jest.runAllTimersAsync()
+      ]);
 
-      await expect(promise).rejects.toThrow(AegisError);
+      expect(rejection.status).toBe('rejected');
+      if (rejection.status === 'rejected') {
+        expect(rejection.reason).toBeInstanceOf(AegisError);
+      }
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'All 3 attempts failed in test-operation'
@@ -377,9 +382,16 @@ describe('ErrorHandler', () => {
         { logger: customLogger }
       );
 
-      jest.advanceTimersByTime(100);
+      // Promiseのrejectionと全てのタイマーを並行処理
+      const [rejection] = await Promise.allSettled([
+        promise,
+        jest.runAllTimersAsync()
+      ]);
 
-      await expect(promise).rejects.toThrow();
+      expect(rejection.status).toBe('rejected');
+      if (rejection.status === 'rejected') {
+        expect(rejection.reason).toBeInstanceOf(AegisError);
+      }
 
       expect(customLogger.warn).toHaveBeenCalled();
       expect(customLogger.error).toHaveBeenCalled();
