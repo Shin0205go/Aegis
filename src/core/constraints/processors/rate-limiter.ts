@@ -58,9 +58,11 @@ export class RateLimiterProcessor implements ConstraintProcessor {
     const limit = this.parseLimit(constraint);
     const key = this.generateKey(context, constraint);
 
-    // DEBUG: Log limit configuration
-    if (process.env.NODE_ENV === 'test' && Math.random() < 0.01) {
-      console.log(`[RateLimiter DEBUG] constraint="${constraint}", maxRequests=${limit.maxRequests}, windowMs=${limit.windowMs}ms, key=${key}`);
+    // DEBUG: Log limit configuration - ALWAYS log in test mode for debugging
+    if (process.env.NODE_ENV === 'test') {
+      const debugMsg = `[RateLimiter DEBUG] constraint="${constraint}", maxRequests=${limit.maxRequests}, windowMs=${limit.windowMs}ms, key=${key}, currentTimestamps=${this.windowStore.get(key)?.timestamps.length || 0}`;
+      console.log(debugMsg);
+      console.error(debugMsg); // Also log to stderr to bypass Jest suppression
     }
 
     const window = this.getOrCreateWindow(key, limit);

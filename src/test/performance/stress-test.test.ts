@@ -289,14 +289,19 @@ describe('Performance and Stress Tests', () => {
   describe('Rate Limiting Performance', () => {
     it('should enforce rate limits without significant overhead', async () => {
       const rateLimiter = new RateLimiterProcessor();
+
+      // Use shorter window (10 seconds) to make test faster and more reliable
+      const windowMs = 10000; // 10 seconds
+      const maxRequestsPerClient = 100; // 100 requests per 10 seconds
+
       await rateLimiter.initialize({
-        defaultMaxRequests: STRESS_TEST_CONFIG.RATE_LIMIT,
-        defaultWindowMs: 60000, // 1 minute
-        cleanupIntervalMs: 300000 // 5 minutes
+        defaultMaxRequests: maxRequestsPerClient,
+        defaultWindowMs: windowMs,
+        cleanupIntervalMs: 300000
       });
 
-      const clients = 10;
-      const requestsPerClient = 200;
+      const clients = 3; // Fewer clients for clearer results
+      const requestsPerClient = 150; // Try to exceed limit (100)
       const results: { clientId: number; allowed: number; denied: number; avgTime: number; duration: number }[] = [];
 
       const clientRequests = async (clientId: number) => {
@@ -308,9 +313,9 @@ describe('Performance and Stress Tests', () => {
         for (let i = 0; i < requestsPerClient; i++) {
           const startTime = performance.now();
 
-          const constraint = `rate-limit:${STRESS_TEST_CONFIG.RATE_LIMIT}/min`;
+          const constraint = `rate-limit:${maxRequestsPerClient}/10s`;
           const context: DecisionContext = {
-            agent: `client-${clientId}`,
+            agent: `client-${clientId}`, // Each client gets independent limit
             action: 'api-call',
             resource: 'api-endpoint',
             purpose: 'rate-limit-test',
@@ -327,8 +332,7 @@ describe('Performance and Stress Tests', () => {
 
           times.push(performance.now() - startTime);
 
-          // Simulate realistic request spacing
-          await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
+          // No artificial delay - let rate limiter do its job
         }
 
         const clientEndTime = performance.now();
@@ -352,25 +356,33 @@ describe('Performance and Stress Tests', () => {
 
       results.push(...clientResults);
 
-      // Verify rate limiting accuracy using actual elapsed time
+      // Verify rate limiting accuracy
       const totalAllowed = results.reduce((sum, r) => sum + r.allowed, 0);
+      const totalDenied = results.reduce((sum, r) => sum + r.denied, 0);
       const totalRequests = clients * requestsPerClient;
-      const durationInSeconds = totalDuration / 1000;
-      const effectiveRate = (totalAllowed / durationInSeconds) * 60; // requests per minute
 
       // Log for debugging
-      console.log(`Rate Limiter Test Debug:
-        Total Allowed: ${totalAllowed}/${totalRequests}
-        Duration: ${durationInSeconds.toFixed(2)}s
-        Effective Rate: ${effectiveRate.toFixed(2)} req/min
-        Expected Limit (per client): ${STRESS_TEST_CONFIG.RATE_LIMIT} req/min
+      console.log(`Rate Limiter Test Results:
+        Total Requests: ${totalRequests}
+        Total Allowed: ${totalAllowed}
+        Total Denied: ${totalDenied}
+        Duration: ${(totalDuration / 1000).toFixed(2)}s
+        Per-Client Limit: ${maxRequestsPerClient} requests/${windowMs}ms
         Concurrent Clients: ${clients}`);
 
-      // With concurrent clients and sliding window, the aggregate rate can be higher
-      // Each client is independently rate-limited, so total throughput = clients × rate-limit
-      // Allow 20% tolerance for timing variability and sliding window behavior
-      const expectedMaxRate = STRESS_TEST_CONFIG.RATE_LIMIT * clients * 1.2;
-      expect(effectiveRate).toBeLessThanOrEqual(expectedMaxRate);
+      // Each client should be limited to ~maxRequestsPerClient
+      // With 3 clients trying 150 requests each:
+      // - Expected allowed: ~300 (100 per client)
+      // - Expected denied: ~150 (50 per client)
+      const avgAllowedPerClient = totalAllowed / clients;
+      const avgDeniedPerClient = totalDenied / clients;
+
+      console.log(`  Avg per client: ${avgAllowedPerClient.toFixed(1)} allowed, ${avgDeniedPerClient.toFixed(1)} denied`);
+
+      // Verify each client was rate-limited (not all requests allowed)
+      expect(totalDenied).toBeGreaterThan(0); // Some requests should be denied
+      expect(avgAllowedPerClient).toBeLessThanOrEqual(maxRequestsPerClient * 1.1); // Allow 10% tolerance
+      expect(avgAllowedPerClient).toBeGreaterThanOrEqual(maxRequestsPerClient * 0.9); // Allow 10% tolerance
 
       // Verify low overhead
       const avgOverhead = results.reduce((sum, r) => sum + r.avgTime, 0) / results.length;
