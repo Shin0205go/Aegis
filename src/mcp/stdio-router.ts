@@ -192,7 +192,7 @@ export class StdioRouter extends EventEmitter {
         });
 
         proc.on('error', (error) => {
-          this.logger.error(`Failed to start ${name}:`, error);
+          this.logger.error(`Failed to start server ${name}:`, error);
           this.logger.error(`Command was: ${server.config.command} ${(server.config.args || []).join(' ')}`);
           server.connected = false;
           reject(error);

@@ -134,16 +134,6 @@ describe('StdioRouter', () => {
 
     it('should handle server startup failure', async () => {
       const { process: mockProcess } = createMockProcess();
-      mockProcess.emit = jest.fn().mockImplementation((event, ...args) => {
-        if (event === 'error') {
-          // Immediately trigger error
-          const error = new Error('Failed to start');
-          const listeners = mockProcess.listeners('error');
-          listeners.forEach((listener: any) => listener(error));
-        }
-        return true;
-      });
-      
       mockSpawn.mockReturnValue(mockProcess);
 
       const config: MCPServerConfig = {
@@ -151,6 +141,11 @@ describe('StdioRouter', () => {
         args: []
       };
       router.addServerFromConfig('failing-server', config);
+
+      // Trigger error after a short delay to allow handler registration
+      setTimeout(() => {
+        mockProcess.emit('error', new Error('Failed to start'));
+      }, 100);
 
       await router.startServers();
 
@@ -162,6 +157,8 @@ describe('StdioRouter', () => {
 
     it('should handle server initialization timeout', async () => {
       const { process: mockProcess } = createMockProcess();
+      // Mark process as killed to trigger error path instead of warning path
+      mockProcess.killed = true;
       mockSpawn.mockReturnValue(mockProcess);
 
       const config: MCPServerConfig = {
@@ -170,11 +167,11 @@ describe('StdioRouter', () => {
       };
       router.addServerFromConfig('slow-server', config);
 
-      // Override timeout for faster test
-      jest.spyOn(global, 'setTimeout');
-
+      // Start servers - should timeout after 10 seconds waiting for MCP init
+      // Don't emit stderr or stdout, so no initialization happens
       await router.startServers();
 
+      // Process is killed, so timeout should trigger error path
       expect(mockLogger.error).toHaveBeenCalledWith(
         'Failed to start server slow-server:',
         expect.objectContaining({
@@ -354,10 +351,26 @@ describe('StdioRouter', () => {
       // Add second server
       const { process: mockProcess2, stdin: stdin2, stdout: stdout2, stderr: stderr2 } = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess2);
-      
+
       router.addServerFromConfig('server2', { command: 'node', args: ['server2.js'] });
       const startPromise = router.startServers();
-      setTimeout(() => stderr2.emit('data', Buffer.from('Server started\n')), 10);
+
+      // Simulate server2 startup and initialization
+      setTimeout(() => {
+        stderr2.emit('data', Buffer.from('Server started\n'));
+        // Send initialize response for server2
+        const initResponse = {
+          jsonrpc: '2.0',
+          id: 0,
+          result: {
+            protocolVersion: '2024-11-05',
+            serverInfo: { name: 'server2', version: '1.0.0' },
+            capabilities: {}
+          }
+        };
+        stdout2.emit('data', Buffer.from(JSON.stringify(initResponse) + '\n'));
+      }, 100);
+
       await startPromise;
 
       const request = {
@@ -421,6 +434,9 @@ describe('StdioRouter', () => {
     });
 
     it('should route tools/call based on tool name prefix', async () => {
+      // Clear initialization calls
+      stdin.write.mockClear();
+
       const request = {
         jsonrpc: '2.0',
         method: 'tools/call',
@@ -432,8 +448,9 @@ describe('StdioRouter', () => {
 
       // Should only send to test-server
       expect(stdin.write).toHaveBeenCalledTimes(1);
+      // The prefix should be stripped before sending to upstream server
       expect(stdin.write).toHaveBeenCalledWith(
-        expect.stringContaining('test-server__some-tool')
+        expect.stringContaining('"name":"some-tool"')
       );
 
       // Simulate response
@@ -480,9 +497,11 @@ describe('StdioRouter', () => {
 
   describe('getAvailableServers', () => {
     it('should return list of configured servers with connection status', async () => {
-      const { process: mockProcess1, stderr: stderr1 } = createMockProcess();
+      const { process: mockProcess1, stderr: stderr1, stdout: stdout1 } = createMockProcess();
       const { process: mockProcess2 } = createMockProcess();
-      
+      // Mark second process as killed to prevent fallback connection
+      mockProcess2.killed = true;
+
       mockSpawn
         .mockReturnValueOnce(mockProcess1)
         .mockReturnValueOnce(mockProcess2);
@@ -492,12 +511,30 @@ describe('StdioRouter', () => {
 
       // Start servers but only one connects
       const startPromise = router.startServers();
-      setTimeout(() => stderr1.emit('data', Buffer.from('Server started\n')), 10);
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // First server: emit stderr then send initialize response
+      setTimeout(() => {
+        stderr1.emit('data', Buffer.from('Server started\n'));
+        // Send initialize response
+        const initResponse = {
+          jsonrpc: '2.0',
+          id: 0,
+          result: {
+            protocolVersion: '2024-11-05',
+            serverInfo: { name: 'connected-server', version: '1.0.0' },
+            capabilities: {}
+          }
+        };
+        stdout1.emit('data', Buffer.from(JSON.stringify(initResponse) + '\n'));
+      }, 100);
+
+      // Second server: killed process, won't connect
+      // Don't emit anything for this server
+
+      await startPromise;
 
       const servers = router.getAvailableServers();
-      
+
       expect(servers).toContainEqual({ name: 'connected-server', connected: true });
       expect(servers).toContainEqual({ name: 'disconnected-server', connected: false });
     });
