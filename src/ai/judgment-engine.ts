@@ -109,11 +109,11 @@ export class AIJudgmentEngine {
         });
       }
       
-      // 3. AI判定実行
+      // 3. AI判定実行（リトライ機能付き）
       if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
         console.error('[AI Judgment] Executing AI decision...');
       }
-      const rawResponse = await this.llm.complete(analysisPrompt);
+      const rawResponse = await this.makeRequestWithRetry(() => this.llm.complete(analysisPrompt));
       
       // 4. 結果パース・検証
       const decision = this.parseAndValidateDecision(rawResponse);
@@ -198,6 +198,66 @@ ${JSON.stringify(context.environment, null, 2)}
     if (isBusinessHours) return "営業時間内";
     if (isWeekend) return "週末";
     return "営業時間外";
+  }
+
+  /**
+   * リトライ可能なエラーかどうかを判定
+   * @param error - 発生したエラー
+   * @returns リトライ可能な場合はtrue
+   */
+  private isRetryableError(error: any): boolean {
+    const retryableMessages = ['network error', 'timeout', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'rate_limit'];
+    const errorMsg = error.message?.toLowerCase() || '';
+    return retryableMessages.some(msg => errorMsg.includes(msg));
+  }
+
+  /**
+   * エクスポネンシャルバックオフ付きリトライ機能
+   * @param fn - リトライする関数
+   * @param maxRetries - 最大リトライ回数（デフォルト: 3）
+   * @param initialDelay - 初回遅延時間（ミリ秒、デフォルト: 1000）
+   * @param backoffFactor - バックオフ係数（デフォルト: 2）
+   * @returns 実行結果
+   */
+  private async makeRequestWithRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    initialDelay: number = 1000,
+    backoffFactor: number = 2
+  ): Promise<T> {
+    let lastError: Error = new Error('Unknown error');
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // バリデーションエラーなど、リトライしても意味がないエラーは即座にスロー
+        if (!this.isRetryableError(error)) {
+          throw error;
+        }
+
+        // 最後の試行では待機せずにエラーをスロー
+        if (attempt < maxRetries - 1) {
+          const delay = initialDelay * Math.pow(backoffFactor, attempt);
+
+          if (process.env.MCP_TRANSPORT !== 'stdio' && process.env.LOG_SILENT !== 'true') {
+            console.error(`[AI Judgment] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`, {
+              error: lastError.message,
+              attempt: attempt + 1,
+              maxRetries
+            });
+          }
+
+          // 指数バックオフで待機
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // すべてのリトライが失敗した場合
+    throw lastError;
   }
 
   // 結果パース・検証

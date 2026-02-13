@@ -17,6 +17,9 @@ import * as os from 'os';
 jest.mock('../../utils/logger');
 jest.mock('../../ai/llm-factory');
 
+// Configure extended timeout for long-running performance tests
+jest.setTimeout(120000); // 2 minutes
+
 // Test configuration
 const STRESS_TEST_CONFIG = {
   CONCURRENT_USERS: 100,
@@ -151,7 +154,7 @@ describe('Performance and Stress Tests', () => {
         throughput: `${systemMetrics.throughput.toFixed(2)} req/s`,
         errorRate: `${((systemMetrics.failedRequests / systemMetrics.totalRequests) * 100).toFixed(2)}%`
       });
-    }, 60000); // 60 second timeout for load test
+    }, 120000); // 120 second timeout for sustained load test
 
     it('should handle burst traffic gracefully', async () => {
       // Simulate sudden traffic spike

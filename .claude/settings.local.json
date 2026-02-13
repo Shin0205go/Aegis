@@ -51,7 +51,8 @@
       "mcp__aegis-router__agent-skills__list_skills",
       "mcp__aegis-router__filesystem__list_directory",
       "mcp__aegis-router__agent-skills__get_skill",
-      "mcp__aegis-router__filesystem__read_file"
+      "mcp__aegis-router__filesystem__read_file",
+      "Bash(jobs)"
     ],
     "deny": []
   }

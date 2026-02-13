@@ -1,0 +1,20 @@
+{
+  "name": "tool-execution-policy",
+  "description": "Policy for tool-execution-policy",
+  "policy": "\n        ツール実行ポリシー:\n        - 読み取り系ツールは許可\n        - 書き込み系ツールは管理者のみ\n        - 実行系ツールは禁止\n        ",
+  "examples": [],
+  "metadata": {
+    "id": "policy-6f32d0b7-c9ec-4c47-af2e-7fe643c43be4",
+    "name": "tool-execution-policy",
+    "description": "Policy for tool-execution-policy",
+    "version": "1.0.0",
+    "createdAt": "2026-02-13T11:02:26.709Z",
+    "createdBy": "system",
+    "lastModified": "2026-02-13T11:02:26.709Z",
+    "lastModifiedBy": "system",
+    "tags": [
+      "tools"
+    ],
+    "status": "active"
+  }
+}

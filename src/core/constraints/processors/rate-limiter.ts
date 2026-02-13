@@ -55,21 +55,23 @@ export class RateLimiterProcessor implements ConstraintProcessor {
   ): Promise<any> {
     const limit = this.parseLimit(constraint);
     const key = this.generateKey(context, constraint);
-    
+
     const window = this.getOrCreateWindow(key, limit);
     const now = Date.now();
 
-    // ウィンドウが期限切れの場合はリセット
-    if (now - window.startTime >= window.windowMs) {
-      this.resetWindow(window, now);
-    }
+    // Sliding window: Remove timestamps outside the window
+    window.timestamps = window.timestamps.filter(
+      timestamp => now - timestamp < window.windowMs
+    );
 
-    // レート制限チェック
-    if (window.count >= window.maxRequests) {
-      const resetTime = new Date(window.startTime + window.windowMs);
-      const remainingMs = window.startTime + window.windowMs - now;
+    // レート制限チェック（スライディングウィンドウ）
+    if (window.timestamps.length >= window.maxRequests) {
+      // Calculate when the oldest request will expire
+      const oldestTimestamp = window.timestamps[0];
+      const resetTime = new Date(oldestTimestamp + window.windowMs);
+      const remainingMs = oldestTimestamp + window.windowMs - now;
       const remainingSeconds = Math.ceil(remainingMs / 1000);
-      
+
       throw new RateLimitExceededError(
         `レート制限超過: ${window.maxRequests}回/${window.windowMs}ms`,
         {
@@ -81,15 +83,22 @@ export class RateLimiterProcessor implements ConstraintProcessor {
       );
     }
 
-    // カウントを増やす
-    window.count++;
+    // Add current request timestamp
+    window.timestamps.push(now);
     window.lastAccess = now;
+
+    // Periodic cleanup of old data
+    if (window.timestamps.length % 100 === 0) {
+      this.cleanupOldTimestamps();
+    }
 
     // メタデータを追加
     const metadata = {
       'X-RateLimit-Limit': window.maxRequests,
-      'X-RateLimit-Remaining': window.maxRequests - window.count,
-      'X-RateLimit-Reset': new Date(window.startTime + window.windowMs).toISOString()
+      'X-RateLimit-Remaining': window.maxRequests - window.timestamps.length,
+      'X-RateLimit-Reset': window.timestamps.length > 0
+        ? new Date(window.timestamps[0] + window.windowMs).toISOString()
+        : new Date(now + window.windowMs).toISOString()
     };
 
     if (typeof data === 'object' && data !== null) {
@@ -177,12 +186,11 @@ export class RateLimiterProcessor implements ConstraintProcessor {
 
   private getOrCreateWindow(key: string, limit: RateLimitConfig): RateLimitWindow {
     let window = this.windowStore.get(key);
-    
+
     if (!window) {
       window = {
         key,
-        count: 0,
-        startTime: Date.now(),
+        timestamps: [],
         lastAccess: Date.now(),
         maxRequests: limit.maxRequests,
         windowMs: limit.windowMs
@@ -194,9 +202,23 @@ export class RateLimiterProcessor implements ConstraintProcessor {
   }
 
   private resetWindow(window: RateLimitWindow, now: number): void {
-    window.count = 0;
-    window.startTime = now;
+    window.timestamps = [];
     window.lastAccess = now;
+  }
+
+  private cleanupOldTimestamps(): void {
+    const now = Date.now();
+    const maxAge = 3600000; // 1 hour
+
+    for (const [key, window] of this.windowStore.entries()) {
+      // Remove timestamps older than max age
+      window.timestamps = window.timestamps.filter(ts => now - ts < maxAge);
+
+      // Remove empty windows
+      if (window.timestamps.length === 0 && now - window.lastAccess > maxAge) {
+        this.windowStore.delete(key);
+      }
+    }
   }
 
   private startCleanupInterval(): void {
@@ -244,8 +266,7 @@ interface RateLimitConfig {
 
 interface RateLimitWindow {
   key: string;
-  count: number;
-  startTime: number;
+  timestamps: number[]; // Sliding window: track individual request timestamps
   lastAccess: number;
   maxRequests: number;
   windowMs: number;

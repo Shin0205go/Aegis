@@ -33,28 +33,91 @@ while true; do
 
 ## あなたの役割
 
-AEGIS Policy Engineプロジェクトのコード品質を向上させてください。
+AEGIS Policy Engineプロジェクトを**仕様駆動開発（Spec-Driven Development）**で改善してください。
 
-## タスク
+## 仕様駆動ワークフロー
 
-1. **テスト実行**: `npm run test` でテストスイートを実行
-2. **エラー分析**: 失敗したテストやビルドエラーを分析
-3. **コード修正**:
+### フェーズ1: 仕様確認・更新（初回または仕様変更時）
+
+1. **仕様確認**: `.specify/features/`ディレクトリ内のspec.mdを確認
+   - 既存のspec.mdがあれば内容を確認
+   - なければSkillツールで`specify`を実行して作成
+
+2. **実装計画**: Skillツールで`plan`を実行
+   - spec.mdに基づいて実装計画（plan.md）を生成
+
+3. **タスク分解**: Skillツールで`tasks`を実行
+   - 実装タスク（tasks.md）に分解
+   - 優先順位付けされたタスクリスト生成
+
+4. **整合性分析**: Skillツールで`analyze`を実行
+   - spec.md/plan.md/tasks.mdの整合性チェック
+
+### フェーズ2: 実装と検証（毎回実行）
+
+5. **実装実行**:
+   - tasks.mdの未完了タスクを確認
+   - Skillツールで`implement`を実行、または手動実装
+   - テスト結果に基づいてコード修正
+
+6. **テスト実行**: `npm run test` でテストスイート実行
+
+7. **エラー分析**: 失敗したテストやビルドエラーを分析
    - エラー原因を特定してソースコードを読む
    - `Edit`ツールで修正
    - `npm run build` でビルド確認
    - `npm run test` で修正を検証
-4. **Git管理**:
+
+8. **Git管理**:
    - 修正内容を明確なコミットメッセージでコミット
    - 変更をプッシュ
-5. **終了**: 修正完了したら `/exit` で終了
 
-## 重要
+9. **終了**: 修正完了したら `/exit` で終了
 
-- エラーが発生しても**諦めずに修正**してください
+## Skillツール使用方法
+
+仕様駆動開発のスキルを活用してください：
+
+```
+<invoke name="Skill">
+<parameter name="skill">specify</parameter>
+</invoke>
+
+<invoke name="Skill">
+<parameter name="skill">plan</parameter>
+</invoke>
+
+<invoke name="Skill">
+<parameter name="skill">tasks</parameter>
+</invoke>
+
+<invoke name="Skill">
+<parameter name="skill">analyze</parameter>
+</invoke>
+
+<invoke name="Skill">
+<parameter name="skill">implement</parameter>
+</invoke>
+```
+
+## 終了条件（ゴール）
+
+このループは以下のいずれかを達成したら終了します：
+
+1. **テスト通過率95%以上** - 現在のテスト結果から通過率を確認
+2. **全タスク完了** - tasks.mdの未完了タスク（`- [ ]`）がゼロ
+
+現在の状況を確認して、ゴールに向けて最適な作業を選択してください。
+
+## 重要ガイドライン
+
+- **仕様ファースト**: spec.mdがなければまず作成する
+- **計画的実装**: tasks.mdに基づいて優先順位をつけて実装
+- **整合性維持**: spec/plan/tasksの整合性を常に確認
+- **ゴール意識**: テスト95%通過 または 全タスク完了を目指す
+- エラーが発生しても**諦めずに修正**
 - 修正後は必ず `npm run build` と `npm run test` を実行
 - 修正内容は明確なコミットメッセージでGit保存
-- テストが全て通るまで繰り返し修正
 
 ## プロジェクト情報
 
@@ -62,6 +125,7 @@ AEGIS Policy Engineプロジェクトのコード品質を向上させてくだ�
 - ビルドコマンド: `npm run build`
 - テストコマンド: `npm run test`
 - プロジェクト: AI Governance & Policy Enforcement System
+- 仕様駆動開発: spec-driven-development
 
 PROMPT
 
@@ -144,6 +208,42 @@ PROMPT
   echo "   - Tools used: $TOOL_COUNT"
   echo "   - Errors: $ERROR_COUNT"
   echo "   - Log: $LOGFILE"
+
+  # テスト通過率の計算
+  TEST_OUTPUT=$(tail -100 "$LOGFILE" | grep "Tests:" | tail -1)
+  if [ ! -z "$TEST_OUTPUT" ]; then
+    PASSED=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
+    TOTAL=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ total' | grep -oE '[0-9]+' || echo "1")
+    PASS_RATE=$((PASSED * 100 / TOTAL))
+    echo "   - Test pass rate: ${PASS_RATE}% (${PASSED}/${TOTAL})"
+  else
+    PASS_RATE=0
+    echo "   - Test pass rate: N/A"
+  fi
+
+  # タスク完了状態の確認
+  TASKS_FILE=$(find .specify/features -name "tasks.md" 2>/dev/null | head -1)
+  if [ -f "$TASKS_FILE" ]; then
+    INCOMPLETE_TASKS=$(grep -c "^- \[ \]" "$TASKS_FILE" 2>/dev/null || echo "0")
+    COMPLETED_TASKS=$(grep -c "^- \[x\]" "$TASKS_FILE" 2>/dev/null || echo "0")
+    echo "   - Tasks: ${COMPLETED_TASKS} completed, ${INCOMPLETE_TASKS} remaining"
+  else
+    INCOMPLETE_TASKS=-1
+    echo "   - Tasks: No tasks.md found"
+  fi
+
+  # 終了条件チェック
+  if [ $PASS_RATE -ge 95 ]; then
+    echo ""
+    echo "🎯 SUCCESS: Test pass rate reached 95% (${PASS_RATE}%)"
+    echo "🏁 Self-improvement goal achieved!"
+    break
+  elif [ $INCOMPLETE_TASKS -eq 0 ] && [ $INCOMPLETE_TASKS -ne -1 ]; then
+    echo ""
+    echo "✅ SUCCESS: All tasks completed!"
+    echo "🏁 Self-improvement goal achieved!"
+    break
+  fi
 
   # Git変更チェック（新しいコミットがあるか）
   NEW_COMMIT=$(git rev-parse --short=6 HEAD)
