@@ -239,3 +239,6 @@ export type SecurityConfig = z.infer<typeof securityConfigSchema>;
 export type MonitoringConfig = z.infer<typeof monitoringConfigSchema>;
 export type AppConfig = z.infer<typeof appConfigSchema>;
 export type EnvConfig = z.infer<typeof envConfigSchema>;
+
+// エイリアスのエクスポート（下位互換性のため）
+export { appConfigSchema as AEGISConfigSchema };

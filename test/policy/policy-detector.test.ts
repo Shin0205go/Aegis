@@ -33,11 +33,12 @@ describe('PolicyFormatDetector', () => {
       `;
 
       const result = PolicyFormatDetector.detect(nlPolicy);
-      
+
       expect(result.format).toBe('NATURAL_LANGUAGE');
-      expect(result.indicators).toContain('Policy keywords in English');
-      expect(result.indicators).toContain('Permission keywords in English');
-      expect(result.indicators).toContain('Conditional expressions in English');
+      // 新しい細分化されたインジケーター名を確認
+      expect(result.indicators).toContain('Policy keyword');
+      expect(result.indicators).toContain('Access keyword');
+      expect(result.indicators).toContain('Allow/Deny keywords');
     });
 
     test('条件文を含む複雑な自然言語ポリシーを検出', () => {

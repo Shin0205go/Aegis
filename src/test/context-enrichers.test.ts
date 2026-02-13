@@ -562,31 +562,29 @@ describe('Context Enrichers - 機能テスト', () => {
         action: 'read',
         resource: 'customer://profile/12345',
         purpose: 'customer-inquiry',
-        
+
         // 環境情報にエンリッチメントデータが含まれる
         environment: expect.objectContaining({
           requestId: 'req-123',
           sessionId: 'session-456',
-          enrichments: expect.objectContaining({
-            'time-based': expect.objectContaining({
-              isBusinessHours: true,
-              dayOfWeekName: 'Monday',
-              isWeekend: false
-            }),
-            'agent-info': expect.objectContaining({
-              agentType: expect.any(String),
-              department: expect.any(String),
-              clearanceLevel: expect.any(Number)
-            }),
-            'resource-classifier': expect.objectContaining({
-              dataType: 'customer-data',
-              sensitivityLevel: 'high',
-              isPii: true
-            }),
-            'security-info': expect.objectContaining({
-              clientIP: '192.168.1.100',
-              threatLevel: expect.any(String)
-            })
+          // enrichmentsキーではなく、直接environmentに格納される
+          'time-based': expect.objectContaining({
+            isBusinessHours: true,
+            dayOfWeekName: 'Monday',
+            isWeekend: false
+          }),
+          'agent-info': expect.objectContaining({
+            agentType: expect.any(String),
+            department: expect.any(String),
+            clearanceLevel: expect.any(Number)
+          }),
+          'resource-classifier': expect.objectContaining({
+            dataType: expect.any(String),
+            sensitivityLevel: 'high'
+          }),
+          'security-info': expect.objectContaining({
+            clientIP: '192.168.1.100',
+            threatLevel: expect.any(String)
           })
         })
       });

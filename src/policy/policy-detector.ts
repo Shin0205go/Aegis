@@ -49,18 +49,28 @@ export class PolicyFormatDetector {
     }
 
     // 自然言語ポリシーの典型的なパターン
+    // 各パターンを細分化してスコアリングの精度を向上
     const nlPatterns = [
-      { pattern: /ポリシー|方針|規則|ルール/i, name: 'Policy keywords in Japanese' },
-      { pattern: /policy|rule|access|permission/i, name: 'Policy keywords in English' },
-      { pattern: /許可|禁止|制限|必須/i, name: 'Permission keywords in Japanese' },
-      { pattern: /allow|deny|permit|restrict|must/i, name: 'Permission keywords in English' },
-      { pattern: /の場合|とき|ならば|すべき/i, name: 'Conditional expressions in Japanese' },
-      { pattern: /if|when|then|should|must/i, name: 'Conditional expressions in English' },
-      { pattern: /：|。|、/g, name: 'Japanese punctuation' },
-      { pattern: /\n\s*[-・]/g, name: 'Bullet points' }
+      { pattern: /ポリシー|方針/i, name: 'Policy keywords in Japanese' },
+      { pattern: /規則|ルール/i, name: 'Rule keywords in Japanese' },
+      { pattern: /\bpolicy\b/i, name: 'Policy keyword' },
+      { pattern: /\brule\b/i, name: 'Rule keyword' },
+      { pattern: /\baccess\b/i, name: 'Access keyword' },
+      { pattern: /\bpermission\b/i, name: 'Permission keyword' },
+      { pattern: /許可|禁止/i, name: 'Permission keywords in Japanese' },
+      { pattern: /制限|必須/i, name: 'Restriction keywords in Japanese' },
+      { pattern: /\ballow\b|\bdeny\b/i, name: 'Allow/Deny keywords' },
+      { pattern: /\bpermit\b|\brestrict\b/i, name: 'Permit/Restrict keywords' },
+      { pattern: /の場合|とき/i, name: 'Conditional in Japanese' },
+      { pattern: /ならば|すべき/i, name: 'Should/Must in Japanese' },
+      { pattern: /\bif\b|\bwhen\b/i, name: 'If/When keywords' },
+      { pattern: /\bthen\b|\bshould\b|\bmust\b/i, name: 'Then/Should/Must keywords' },
+      { pattern: /：|。|、/, name: 'Japanese punctuation' },
+      { pattern: /\n\s*[-・]/, name: 'Bullet points' }
     ];
 
-    for (const { pattern, name } of nlPatterns) {
+    for (const { pattern, name} of nlPatterns) {
+      // 各パターンで新しいRegExpオブジェクトを使用してテスト（/g フラグによる状態の影響を回避）
       if (pattern.test(policy)) {
         indicators.push(name);
         nlScore += 1;
@@ -68,10 +78,25 @@ export class PolicyFormatDetector {
     }
 
     // 形式判定
-    if (nlScore > 0) {
+    // スコアリング: 6点以上で85%、8点以上で100%
+    // 2つ以上のインジケーターが必要（誤検出防止）
+    const MIN_SCORE_THRESHOLD = 2;
+    let confidence: number;
+
+    if (nlScore >= 8) {
+      confidence = 1.0;
+    } else if (nlScore >= 6) {
+      confidence = 0.85;
+    } else if (nlScore >= 2) {
+      confidence = Math.max(nlScore * 0.3, 0.5); // 2点で60%、3点で90%
+    } else {
+      confidence = Math.max(nlScore * 0.2, 0);
+    }
+
+    if (nlScore >= MIN_SCORE_THRESHOLD) {
       return {
         format: 'NATURAL_LANGUAGE',
-        confidence: Math.min(nlScore / 8, 1.0),
+        confidence,
         indicators
       };
     }
@@ -79,7 +104,7 @@ export class PolicyFormatDetector {
     return {
       format: 'UNKNOWN',
       confidence: 0,
-      indicators: ['No clear format indicators found']
+      indicators: nlScore > 0 ? ['Insufficient policy indicators'] : ['No clear format indicators found']
     };
   }
 
