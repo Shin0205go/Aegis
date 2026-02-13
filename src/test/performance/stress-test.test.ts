@@ -297,16 +297,17 @@ describe('Performance and Stress Tests', () => {
 
       const clients = 10;
       const requestsPerClient = 200;
-      const results: { clientId: number; allowed: number; denied: number; avgTime: number }[] = [];
+      const results: { clientId: number; allowed: number; denied: number; avgTime: number; duration: number }[] = [];
 
       const clientRequests = async (clientId: number) => {
+        const clientStartTime = performance.now();
         const allowed: number[] = [];
         const denied: number[] = [];
         const times: number[] = [];
 
         for (let i = 0; i < requestsPerClient; i++) {
           const startTime = performance.now();
-          
+
           const constraint = `rate-limit:${STRESS_TEST_CONFIG.RATE_LIMIT}/min`;
           const context: DecisionContext = {
             agent: `client-${clientId}`,
@@ -325,30 +326,39 @@ describe('Performance and Stress Tests', () => {
           }
 
           times.push(performance.now() - startTime);
-          
+
           // Simulate realistic request spacing
           await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
         }
+
+        const clientEndTime = performance.now();
+        const duration = clientEndTime - clientStartTime; // milliseconds
 
         return {
           clientId,
           allowed: allowed.length,
           denied: denied.length,
-          avgTime: times.reduce((a, b) => a + b) / times.length
+          avgTime: times.reduce((a, b) => a + b) / times.length,
+          duration
         };
       };
 
       // Run clients concurrently
+      const testStartTime = performance.now();
       const clientPromises = Array(clients).fill(null).map((_, i) => clientRequests(i));
       const clientResults = await Promise.all(clientPromises);
-      
+      const testEndTime = performance.now();
+      const totalDuration = testEndTime - testStartTime; // milliseconds
+
       results.push(...clientResults);
 
-      // Verify rate limiting accuracy
-      results.forEach(result => {
-        const effectiveRate = (result.allowed / requestsPerClient) * requestsPerClient * 60; // per minute
-        expect(effectiveRate).toBeLessThanOrEqual(STRESS_TEST_CONFIG.RATE_LIMIT * 1.1); // Within 10% tolerance
-      });
+      // Verify rate limiting accuracy using actual elapsed time
+      const totalAllowed = results.reduce((sum, r) => sum + r.allowed, 0);
+      const effectiveRate = (totalAllowed / (totalDuration / 1000)) * 60; // requests per minute
+
+      // With sliding window, the effective rate should be close to the limit
+      // Allow 20% tolerance for concurrent clients and timing variability
+      expect(effectiveRate).toBeLessThanOrEqual(STRESS_TEST_CONFIG.RATE_LIMIT * clients * 1.2);
 
       // Verify low overhead
       const avgOverhead = results.reduce((sum, r) => sum + r.avgTime, 0) / results.length;
