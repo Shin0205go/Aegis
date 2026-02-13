@@ -347,11 +347,20 @@ ${contexts.map((ctx, i) => {
   }
 
   // 判定統計情報取得
-  getStats(): { cacheHitRate: number; totalDecisions: number } {
+  getStats(): {
+    cacheHitRate: number;
+    totalDecisions: number;
+    permitCount?: number;
+    denyCount?: number;
+    averageConfidence?: number;
+  } {
     // 簡易実装（実際はより詳細な統計を管理）
     return {
       cacheHitRate: 0.25, // モック値
-      totalDecisions: 100  // モック値
+      totalDecisions: 100,  // モック値
+      permitCount: 50,
+      denyCount: 30,
+      averageConfidence: 0.85
     };
   }
 

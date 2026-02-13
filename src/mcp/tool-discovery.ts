@@ -267,7 +267,7 @@ export class ToolDiscoveryService {
     tools.forEach(tool => {
       const sourceType = tool.source.type;
       bySource[sourceType] = (bySource[sourceType] || 0) + 1;
-      
+
       const risk = this.assessToolRisk(tool.name);
       riskDistribution[risk]++;
     });
@@ -278,5 +278,65 @@ export class ToolDiscoveryService {
       policyControlled: this.getPolicyControlledTools().length,
       riskDistribution
     };
+  }
+
+  /**
+   * ツール名からプレフィックスを除去
+   */
+  stripToolPrefix(toolName: string): string {
+    // __ または - 形式のプレフィックスを除去
+    const match = toolName.match(/^[^_-]+(?:__|-)(.+)$/);
+    return match ? match[1] : toolName;
+  }
+
+  /**
+   * 名前でツールを取得（getTool のエイリアス）
+   */
+  getToolByName(toolName: string): DiscoveredTool | undefined {
+    return this.getTool(toolName);
+  }
+
+  /**
+   * ポリシー制御設定を更新
+   */
+  updatePolicyControl(config: Partial<PolicyControlConfig>): void {
+    this.config.policyControl = {
+      ...this.config.policyControl,
+      ...config
+    };
+
+    // 既存ツールのポリシー制御状態を更新
+    this.registeredTools.forEach((tool, name) => {
+      const shouldControl = this.shouldApplyPolicy(
+        name,
+        tool.metadata?.risk as string | undefined
+      );
+      tool.source.policyControlled = shouldControl;
+    });
+  }
+
+  /**
+   * ツールを発見・登録（互換性メソッド）
+   */
+  async discoverTools(): Promise<void> {
+    // ネイティブツールは既に登録済み
+    // 動的発見は現在の実装では設定ベースのみ
+    this.logger.debug('Tool discovery completed', {
+      totalTools: this.registeredTools.size
+    });
+  }
+
+  /**
+   * ポリシー制御対象外のツールを取得
+   */
+  getNonPolicyControlledTools(): DiscoveredTool[] {
+    return this.getAllTools().filter(tool => !tool.source.policyControlled);
+  }
+
+  /**
+   * ツール名にプレフィックスが含まれているかチェック
+   */
+  hasPrefix(toolName: string): boolean {
+    return /^[^_-]+(?:__|-)/.test(toolName);
   }
 }
