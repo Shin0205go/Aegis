@@ -235,17 +235,17 @@ PROMPT
     echo "   - Tasks: No tasks.md found"
   fi
 
-  # 終了条件チェック
+  # 終了条件チェック（無限ループモード - 達成してもループ継続）
   if [ $PASS_RATE -ge 95 ]; then
     echo ""
-    echo "🎯 SUCCESS: Test pass rate reached 95% (${PASS_RATE}%)"
-    echo "🏁 Self-improvement goal achieved!"
-    break
+    echo "🎯 MILESTONE: Test pass rate reached 95% (${PASS_RATE}%)"
+    echo "🔄 Continuing improvement loop..."
+    # break  # 無限ループのためコメントアウト
   elif [ $INCOMPLETE_TASKS -eq 0 ] && [ $INCOMPLETE_TASKS -ne -1 ]; then
     echo ""
-    echo "✅ SUCCESS: All tasks completed!"
-    echo "🏁 Self-improvement goal achieved!"
-    break
+    echo "✅ MILESTONE: All tasks completed!"
+    echo "🔄 Continuing improvement loop..."
+    # break  # 無限ループのためコメントアウト
   fi
 
   # Git変更チェック（新しいコミットがあるか）
