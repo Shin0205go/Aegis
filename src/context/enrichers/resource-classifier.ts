@@ -24,7 +24,7 @@ export class ResourceClassifierEnricher implements ContextEnricher {
     },
     // 顧客データ（URIスキーム対応）
     {
-      pattern: /^customer:\/\/|\/customer\/|customer-database|user-profile|client-record|\/profile\/|\/client\/|\/user\//i,
+      pattern: /^customer:\/\/|^database:\/\/users|^api:\/\/.*\/users\/.*\/personal|\/customer\/|customer-database|user-profile|client-record|\/profile\/|\/client\/|\/user\/|\/emails|\/ssn\.|\/personal-info/i,
       classification: {
         dataType: 'customer-data',
         sensitivityLevel: 'high',

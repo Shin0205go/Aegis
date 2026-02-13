@@ -216,7 +216,7 @@ describe('AIJudgmentEngine - Comprehensive Tests', () => {
 
       mockLLM.complete.mockImplementation(async () => {
         // Simulate a very slow response
-        await new Promise(resolve => setTimeout(resolve, 60000));
+        await new Promise(resolve => setTimeout(resolve, 10000));
         return JSON.stringify({ decision: 'PERMIT', reason: 'Too late', confidence: 0.9 });
       });
 

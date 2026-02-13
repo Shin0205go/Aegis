@@ -11,12 +11,12 @@ describe('Configuration Security Tests', () => {
         delete process.env[key];
       }
     });
-    (Configuration as any).instance = null;
+    (Config as any).instance = null;
   });
 
   afterEach(() => {
     process.env = originalEnv;
-    (Configuration as any).instance = null;
+    (Config as any).instance = null;
   });
 
   describe('Secret Key Security', () => {
@@ -37,7 +37,7 @@ describe('Configuration Security Tests', () => {
 
       weakKeys.forEach(weakKey => {
         process.env.AEGIS_SECRET_KEY = weakKey;
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         
@@ -65,7 +65,7 @@ describe('Configuration Security Tests', () => {
 
       testCases.forEach(({ key, valid }) => {
         process.env.AEGIS_SECRET_KEY = key;
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         
@@ -113,7 +113,7 @@ describe('Configuration Security Tests', () => {
         
         invalidKeys.forEach(invalidKey => {
           process.env[`${provider.toUpperCase()}_API_KEY`] = invalidKey;
-          (Configuration as any).instance = null;
+          (Config as any).instance = null;
           
           const config = new Config();
           // Document that API key format should be validated
@@ -156,7 +156,7 @@ describe('Configuration Security Tests', () => {
 
       weakSecrets.forEach(weak => {
         process.env.AEGIS_JWT_SECRET = weak;
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         // Document that weak JWT secrets should be rejected
@@ -208,7 +208,7 @@ describe('Configuration Security Tests', () => {
 
       dangerousOrigins.forEach(origin => {
         process.env.CORS_ORIGINS = origin;
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         // Document that dangerous origins should be rejected
@@ -271,7 +271,7 @@ describe('Configuration Security Tests', () => {
 
       dangerousUrls.forEach(url => {
         process.env.MCP_UPSTREAM_SERVERS = JSON.stringify({ test: url });
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         // Document that dangerous URLs should be validated
@@ -385,7 +385,7 @@ describe('Configuration Security Tests', () => {
 
       retentionDays.forEach(({ days, valid }) => {
         process.env.AEGIS_DATA_RETENTION_DAYS = days.toString();
-        (Configuration as any).instance = null;
+        (Config as any).instance = null;
         
         const config = new Config();
         // Document retention validation requirements

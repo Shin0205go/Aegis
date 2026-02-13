@@ -35,7 +35,12 @@ describe('ToolDiscoveryService', () => {
         defaultEnabled: true,
         exceptions: ['TodoRead', 'TodoWrite', 'LS']
       },
-      toolSources: []
+      toolSources: [{
+        type: 'native' as const,
+        name: 'claude-code',
+        policyControlled: true,
+        prefix: '' // No prefix for tests
+      }]
     };
     
     service = new ToolDiscoveryService(defaultConfig, mockLogger);

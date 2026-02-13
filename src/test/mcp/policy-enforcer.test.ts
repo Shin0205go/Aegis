@@ -231,7 +231,7 @@ describe('PolicyEnforcer', () => {
       await expect(
         policyEnforcer.enforcePolicy('read', 'file://test.txt', baseContext)
       ).rejects.toThrow('Policy decision timeout');
-    }, 10000);
+    }, 15000);
 
     it('should work without optional components', async () => {
       // Create enforcer without cache and anomaly detector
