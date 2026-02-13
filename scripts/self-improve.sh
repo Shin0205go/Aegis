@@ -212,8 +212,11 @@ PROMPT
   # テスト通過率の計算
   TEST_OUTPUT=$(tail -100 "$LOGFILE" | grep "Tests:" | tail -1)
   if [ ! -z "$TEST_OUTPUT" ]; then
-    PASSED=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
-    TOTAL=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ total' | grep -oE '[0-9]+' || echo "1")
+    PASSED=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' | head -1 || echo "0")
+    TOTAL=$(echo "$TEST_OUTPUT" | grep -oE '[0-9]+ total' | grep -oE '[0-9]+' | head -1 || echo "1")
+    # エラー処理: 値が空の場合はデフォルト値を設定
+    PASSED=${PASSED:-0}
+    TOTAL=${TOTAL:-1}
     PASS_RATE=$((PASSED * 100 / TOTAL))
     echo "   - Test pass rate: ${PASS_RATE}% (${PASSED}/${TOTAL})"
   else
