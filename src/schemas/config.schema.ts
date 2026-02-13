@@ -9,12 +9,20 @@ import { z } from 'zod';
  */
 export const llmConfigSchema = z.object({
   provider: z.enum(['openai', 'anthropic']),
-  model: z.string().min(1),
+  model: z.string().min(1).optional(),
   apiKey: z.string().min(1),
   baseURL: z.string().url().optional(),
   temperature: z.number().min(0).max(2).default(0.3),
   maxTokens: z.number().min(1).default(4096),
   timeout: z.number().min(0).default(30000)
+}).transform((data) => {
+  // Provide default model based on provider if not specified
+  const model = data.model || (data.provider === 'openai' ? 'gpt-4' : 'claude-opus-4-20250514');
+
+  return {
+    ...data,
+    model
+  };
 });
 
 /**
@@ -73,14 +81,40 @@ export const appConfigSchema = z.object({
   nodeEnv: z.enum(['development', 'test', 'production']).default('development'),
   port: z.number().min(1).max(65535).default(3000),
   host: z.string().default('0.0.0.0'),
-  
-  // 各種設定
+
+  // 各種設定 - デフォルト値を提供することでオプショナルに
   llm: llmConfigSchema,
-  cache: cacheConfigSchema,
-  log: logConfigSchema,
-  security: securityConfigSchema,
-  monitoring: monitoringConfigSchema,
-  
+  cache: cacheConfigSchema.default({
+    enabled: true,
+    ttl: 3600,
+    maxSize: 1000,
+    strategy: 'lru'
+  }),
+  log: logConfigSchema.default({
+    level: 'info',
+    format: 'json',
+    maxFiles: 7,
+    maxSize: '10m'
+  }),
+  security: securityConfigSchema.default({
+    enableRateLimiting: true,
+    rateLimitWindowMs: 60000,
+    rateLimitMaxRequests: 100,
+    enableAuth: false,
+    corsOrigins: ['*'],
+    enableAuditLog: true,
+    auditLogPath: './logs/audit',
+    auditLogRetentionDays: 90
+  }),
+  monitoring: monitoringConfigSchema.default({
+    enabled: true,
+    metricsPort: 9090,
+    enableHealthCheck: true,
+    healthCheckInterval: 30000,
+    enableAnomalyDetection: true,
+    anomalyThreshold: 0.8
+  }),
+
   // ポリシー設定
   policy: z.object({
     storageDir: z.string().default('./policies'),
@@ -89,8 +123,15 @@ export const appConfigSchema = z.object({
     maxHistoryVersions: z.number().min(1).default(50),
     enableAutoBackup: z.boolean().default(true),
     backupInterval: z.number().min(60000).default(3600000)
+  }).default({
+    storageDir: './policies',
+    historyDir: './policies/history',
+    defaultStatus: 'active',
+    maxHistoryVersions: 50,
+    enableAutoBackup: true,
+    backupInterval: 3600000
   }),
-  
+
   // MCP設定
   mcp: z.object({
     transport: z.enum(['stdio', 'http', 'websocket']).default('stdio'),
@@ -98,6 +139,12 @@ export const appConfigSchema = z.object({
     enableProxy: z.boolean().default(true),
     upstreamTimeout: z.number().min(0).default(30000),
     maxConcurrentConnections: z.number().min(1).default(100)
+  }).default({
+    transport: 'stdio',
+    httpPort: 8080,
+    enableProxy: true,
+    upstreamTimeout: 30000,
+    maxConcurrentConnections: 100
   })
 });
 

@@ -22,9 +22,9 @@ export class ResourceClassifierEnricher implements ContextEnricher {
         requiresEncryption: false
       }
     },
-    // 顧客データ（より具体的なパターンに変更）
+    // 顧客データ（URIスキーム対応）
     {
-      pattern: /\/(customer|client|user|profile)\/(data|info|record|detail)|customer-database|user-profile|client-record/i,
+      pattern: /^customer:\/\/|\/customer\/|customer-database|user-profile|client-record|\/profile\/|\/client\/|\/user\//i,
       classification: {
         dataType: 'customer-data',
         sensitivityLevel: 'high',
@@ -33,9 +33,9 @@ export class ResourceClassifierEnricher implements ContextEnricher {
         requiresEncryption: true
       }
     },
-    // 財務データ
+    // 財務データ（URIスキーム対応）
     {
-      pattern: /financial|payment|billing|transaction|revenue/i,
+      pattern: /^financial:\/\/|financial|payment|billing|transaction|revenue/i,
       classification: {
         dataType: 'financial-data',
         sensitivityLevel: 'critical',
@@ -66,9 +66,9 @@ export class ResourceClassifierEnricher implements ContextEnricher {
         requiresEncryption: false
       }
     },
-    // 公開データ
+    // 公開データ（URIスキーム対応）
     {
-      pattern: /public|blog|article|documentation|help/i,
+      pattern: /^public:\/\/|public|blog|article|documentation|help/i,
       classification: {
         dataType: 'public-data',
         sensitivityLevel: 'low',
