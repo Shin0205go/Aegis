@@ -42,6 +42,8 @@ export class RateLimiterProcessor implements ConstraintProcessor {
     return (
       lowerConstraint.includes('レート制限') ||
       lowerConstraint.includes('rate limit') ||
+      lowerConstraint.includes('rate-limit') ||
+      lowerConstraint.includes('rate_limit') ||
       lowerConstraint.includes('回/') ||
       lowerConstraint.includes('requests per') ||
       lowerConstraint.includes('アクセス制限')
@@ -55,6 +57,11 @@ export class RateLimiterProcessor implements ConstraintProcessor {
   ): Promise<any> {
     const limit = this.parseLimit(constraint);
     const key = this.generateKey(context, constraint);
+
+    // DEBUG: Log limit configuration
+    if (process.env.NODE_ENV === 'test' && Math.random() < 0.01) {
+      console.log(`[RateLimiter DEBUG] constraint="${constraint}", maxRequests=${limit.maxRequests}, windowMs=${limit.windowMs}ms, key=${key}`);
+    }
 
     const window = this.getOrCreateWindow(key, limit);
     const now = Date.now();
@@ -112,11 +119,11 @@ export class RateLimiterProcessor implements ConstraintProcessor {
   }
 
   private parseLimit(constraint: string): RateLimitConfig {
-    // 例: "100回/分", "50 requests per minute", "1000/hour"
+    // 例: "100回/分", "50 requests per minute", "1000/hour", "1000/min"
     const patterns = [
       /(\d+)\s*回\s*\/\s*(秒|分|時間|日)/,
       /(\d+)\s*requests?\s*per\s*(second|minute|hour|day)/i,
-      /(\d+)\s*\/\s*(second|minute|hour|day|s|m|h|d)/i
+      /(\d+)\s*\/\s*(second|minute|min|hour|day|sec|s|m|h|d)/i
     ];
 
     for (const pattern of patterns) {
@@ -125,7 +132,9 @@ export class RateLimiterProcessor implements ConstraintProcessor {
         const count = parseInt(match[1]);
         const unit = match[2].toLowerCase();
         const windowMs = this.unitToMs(unit);
-        
+
+        console.log(`[parseLimit] Parsed: constraint="${constraint}" → maxRequests=${count}, unit="${unit}", windowMs=${windowMs}`);
+
         return {
           maxRequests: count,
           windowMs: windowMs
@@ -134,6 +143,7 @@ export class RateLimiterProcessor implements ConstraintProcessor {
     }
 
     // デフォルト値を返す
+    console.log(`[parseLimit] Using defaults for constraint="${constraint}" → maxRequests=${this.config.defaultMaxRequests}, windowMs=${this.config.defaultWindowMs}`);
     return {
       maxRequests: this.config.defaultMaxRequests,
       windowMs: this.config.defaultWindowMs
@@ -144,10 +154,12 @@ export class RateLimiterProcessor implements ConstraintProcessor {
     switch (unit) {
       case '秒':
       case 'second':
+      case 'sec':
       case 's':
         return 1000;
       case '分':
       case 'minute':
+      case 'min':
       case 'm':
         return 60 * 1000;
       case '時間':

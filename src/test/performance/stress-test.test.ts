@@ -290,9 +290,9 @@ describe('Performance and Stress Tests', () => {
     it('should enforce rate limits without significant overhead', async () => {
       const rateLimiter = new RateLimiterProcessor();
       await rateLimiter.initialize({
-        defaultLimit: STRESS_TEST_CONFIG.RATE_LIMIT,
-        windowSize: 60000, // 1 minute
-        strategy: 'sliding-window'
+        defaultMaxRequests: STRESS_TEST_CONFIG.RATE_LIMIT,
+        defaultWindowMs: 60000, // 1 minute
+        cleanupIntervalMs: 300000 // 5 minutes
       });
 
       const clients = 10;
@@ -354,11 +354,23 @@ describe('Performance and Stress Tests', () => {
 
       // Verify rate limiting accuracy using actual elapsed time
       const totalAllowed = results.reduce((sum, r) => sum + r.allowed, 0);
-      const effectiveRate = (totalAllowed / (totalDuration / 1000)) * 60; // requests per minute
+      const totalRequests = clients * requestsPerClient;
+      const durationInSeconds = totalDuration / 1000;
+      const effectiveRate = (totalAllowed / durationInSeconds) * 60; // requests per minute
 
-      // With sliding window, the effective rate should be close to the limit
-      // Allow 20% tolerance for concurrent clients and timing variability
-      expect(effectiveRate).toBeLessThanOrEqual(STRESS_TEST_CONFIG.RATE_LIMIT * clients * 1.2);
+      // Log for debugging
+      console.log(`Rate Limiter Test Debug:
+        Total Allowed: ${totalAllowed}/${totalRequests}
+        Duration: ${durationInSeconds.toFixed(2)}s
+        Effective Rate: ${effectiveRate.toFixed(2)} req/min
+        Expected Limit (per client): ${STRESS_TEST_CONFIG.RATE_LIMIT} req/min
+        Concurrent Clients: ${clients}`);
+
+      // With concurrent clients and sliding window, the aggregate rate can be higher
+      // Each client is independently rate-limited, so total throughput = clients × rate-limit
+      // Allow 20% tolerance for timing variability and sliding window behavior
+      const expectedMaxRate = STRESS_TEST_CONFIG.RATE_LIMIT * clients * 1.2;
+      expect(effectiveRate).toBeLessThanOrEqual(expectedMaxRate);
 
       // Verify low overhead
       const avgOverhead = results.reduce((sum, r) => sum + r.avgTime, 0) / results.length;
